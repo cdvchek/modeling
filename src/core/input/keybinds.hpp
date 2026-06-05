@@ -1,0 +1,111 @@
+#pragma once
+
+#include <types>
+#include <vector>
+#include "platform/keys/keys.hpp"
+
+enum class InputKind : u8 {
+    Key,
+    MouseButton
+};
+
+struct Input {
+    InputKind kind;
+    u16 code;
+};
+
+struct Keybind {
+    std::vector<Input> inputs;
+};
+
+inline Input key(Key key) {
+    return Input{
+        InputKind::Key,
+        static_cast<u16>(key)
+    };
+}
+
+inline Input mouse(MouseButton button) {
+    return Input{
+        InputKind::MouseButton,
+        static_cast<u16>(button)
+    };
+}
+
+namespace DefaultKeybinds {   
+    inline Keybind Quit {
+        {
+            key(Key::LeftShift),
+            key(Key::F4)
+        }
+    };
+    
+    inline Keybind ViewportOrbit {
+        {
+            mouse(MouseButton::Right)
+        }
+    };
+    
+    inline Keybind ViewportPan {
+        {
+            mouse(MouseButton::Middle)
+        }
+    };
+    
+    inline Keybind Select {
+        {
+            mouse(MouseButton::Left)
+        }
+    };
+    
+    inline Keybind Insert {
+        {
+            key(Key::F)
+        }
+    };
+    
+    inline Keybind DeleteSelection {
+        {
+            key(Key::Backspace)
+        }
+    };
+    
+    inline Keybind Duplicate {
+        {
+            key(Key::D)
+        }
+    };
+    
+    inline Keybind Connect {
+        {
+            key(Key::C)
+        }
+    };
+    
+    inline Keybind Disconnect {
+        {
+            key(Key::X)
+        }
+    };
+    
+    inline Keybind Save {
+        {
+            key(Key::LeftCtrl),
+            key(Key::S)
+        }
+    };
+    
+    inline Keybind Undo {
+        {
+            key(Key::LeftCtrl),
+            key(Key::Z)
+        }
+    };
+    
+    inline Keybind Redo {
+        {
+            key(Key::LeftCtrl),
+            key(Key::Y)
+        }
+    };
+}

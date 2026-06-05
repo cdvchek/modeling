@@ -1,0 +1,45 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Configure",
+            "type": "shell",
+            "command": "cmake",
+            "args": ["-S", ".", "-B", "build"],
+            "problemMatcher": ["$gcc"]
+        },
+        {
+            "label": "Build",
+            "type": "shell",
+            "command": "cmake",
+            "args": ["--build", "build"],
+            "problemMatcher": ["$gcc"],
+            "dependsOn": ["Configure"]
+        },
+        {
+            "label": "Run",
+            "type": "shell",
+            "command": ".\\modeling.exe",
+            "options": {
+                "cwd": "${workspaceFolder}\\bin"
+            },
+            "dependsOn": ["Build"],
+            "problemMatcher": []
+        },
+        {
+            "label": "Configure-debug",
+            "type": "shell",
+            "command": "cmake",
+            "args": ["-S", ".", "-B", "build-debug", "-DCMAKE_BUILD_TYPE=Debug"],
+            "problemMatcher": ["$gcc"]
+        },
+        {
+            "label": "Build-debug",
+            "type": "shell",
+            "command": "cmake",
+            "args": ["--build", "build-debug"],
+            "problemMatcher": ["$gcc"],
+            "dependsOn": ["Configure-debug"],
+        },
+    ]
+}
