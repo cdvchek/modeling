@@ -80,13 +80,15 @@ void Application::run(AppContext& ctx) {
 
     while(ctx.is_running) {
         ctx.systems.input.beginFrame();
+        
         Platform::pollEvents();
-        Application::renderFrame(ctx);
-
+        
         if (ctx.systems.actions.isActionDown(Action::Quit, ctx.systems.input)) {
             ctx.systems.events.trigger(Event::Quit{});
             break;
         }
+
+        Application::renderFrame(ctx);
     }
 }
 

@@ -37,7 +37,7 @@
             "label": "Build-debug",
             "type": "shell",
             "command": "cmake",
-            "args": ["--build", "build-debug"],
+            "args": ["--build", "build-debug", "--config", "Debug"],
             "problemMatcher": ["$gcc"],
             "dependsOn": ["Configure-debug"],
         },

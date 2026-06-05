@@ -4,9 +4,6 @@ void InputState::beginFrame() {
     m_keys_was_down = m_keys_is_down;
     m_buttons_was_down = m_buttons_is_down;
 
-    m_keys_is_down.fill(0);
-    m_buttons_is_down.fill(0);
-
     m_mouse_delta_x = 0;
     m_mouse_delta_y = 0;
 
