@@ -1,6 +1,9 @@
 #pragma once
 
+#include <memory>
 #include "renderer/renderer.hpp"
+#include "renderer/opengl/opengl_shader.hpp"
+#include "renderer/opengl/opengl_mesh.hpp"
 
 class OpenGLRenderer : public IRenderer {
 public:
@@ -31,6 +34,9 @@ private:
     u32 m_width = 0;
     u32 m_height = 0;
     bool m_vsyncEnabled = true;
+
+    std::unique_ptr<OpenGLShader> m_testShader;
+    std::unique_ptr<OpenGLMesh> m_testMesh;
     
     bool m_initialized = false;
 };

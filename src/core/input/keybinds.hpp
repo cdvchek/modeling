@@ -35,7 +35,7 @@ inline Input mouse(MouseButton button) {
 namespace DefaultKeybinds {   
     inline Keybind Quit {
         {
-            key(Key::LeftShift),
+            key(Key::LeftAlt),
             key(Key::F4)
         }
     };

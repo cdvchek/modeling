@@ -4,6 +4,38 @@
 #include <windows.h>
 #include <glad/glad.h>
 
+const char* vertex_source = R"(
+#version 330 core
+
+layout(location = 0) in vec3 a_Position;
+
+void main() {
+    gl_Position = vec4(a_Position, 1.0);
+}
+)";
+
+const char* fragment_source = R"(
+#version 330 core
+
+out vec4 FragColor;
+
+void main() {
+    FragColor = vec4(1.0, 0.4, 0.2, 1.0);
+}
+)";
+
+Vertex vertices[] = {
+    {-0.5f, -0.5f, 0.0f},
+    { 0.5f, -0.5f, 0.0f},
+    { 0.5f,  0.5f, 0.0f},
+    {-0.5f,  0.5f, 0.0f},
+};
+
+u32 indices[] = {
+    0, 1, 2,
+    2, 3, 0
+};
+
 bool OpenGLRenderer::initialize(void* window, void* surface, const RendererConfig& config) {   
     if (m_initialized) return true;
     if (window == nullptr) return false;
@@ -71,6 +103,12 @@ bool OpenGLRenderer::initialize(void* window, void* surface, const RendererConfi
     glEnable(GL_DEPTH_TEST);
 
     setVSync(config.enableVSync);
+
+    m_testShader = std::make_unique<OpenGLShader>();
+    m_testMesh = std::make_unique<OpenGLMesh>();
+
+    m_testShader->create(vertex_source, fragment_source);
+    m_testMesh->create(vertices, 4, indices, 6);
 
     m_initialized = true;
     return true;

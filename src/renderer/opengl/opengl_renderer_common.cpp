@@ -36,7 +36,8 @@ void OpenGLRenderer::beginMainPass(const ClearState& clearState){
 void OpenGLRenderer::draw(const DrawCommand& command){
     if (!m_initialized) return;
 
-    (void)command;
+    m_testShader->bind();
+    m_testMesh->draw();
 }
 
 void OpenGLRenderer::endMainPass(){

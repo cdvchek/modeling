@@ -90,11 +90,14 @@ void Application::run(AppContext& ctx) {
 
         Application::renderFrame(ctx);
     }
-}
+} 
 
 void Application::renderFrame(AppContext& ctx) {
     ctx.renderer->beginFrame();
     ctx.renderer->beginMainPass(ctx.renderer->m_clearState);
+    
+    DrawCommand cmd;
+    ctx.renderer->draw(cmd);
 
     // for (const DrawCommand& cmd : ctx.rendererDrawCommands) {
     //     ctx.renderer->draw(cmd);

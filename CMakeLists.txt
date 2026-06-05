@@ -15,6 +15,8 @@ set(COMMON_SRC
     src/platform/renderer/opengl_renderer_win32.cpp
     src/renderer/opengl/opengl_renderer_common.cpp
     src/renderer/renderer.cpp
+    src/renderer/opengl/opengl_shader.cpp
+    src/renderer/opengl/opengl_mesh.cpp
     src/core/input/input_state.cpp
     src/core/input/action_map.cpp
 )
