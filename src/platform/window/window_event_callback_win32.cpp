@@ -4,9 +4,29 @@
 #include "platform/keys/keys.hpp"
 #include "core/events/events.hpp"
 
+unsigned int handleLeftRightKeys(unsigned int vk, LPARAM l_param) {
+    if (vk == 16) { // VK_SHIFT
+        UINT scan_code = (l_param >> 16) & 0xFF;
+        vk = MapVirtualKey(scan_code, MAPVK_VSC_TO_VK_EX);
+    }
+
+    bool extended = (l_param & (1 << 24)) != 0;
+
+    if (vk == 11) { // VK_CONTROL
+        vk = extended ? 0xA3 /*Right control*/ : 0xA2; // Left control
+    }
+
+    if (vk == 12) { // Alt
+        vk = extended ? 0xA5 /*Right alt*/ : 0xA4; // Left alt
+    }
+
+    return vk;
+}
+
 LRESULT WindowCallback::handleKeyDown(Window::Impl* impl, WPARAM w_param, LPARAM l_param) {
     if (impl && impl->events) {
-        u16 key = translatePlatformKey((UINT)w_param);
+        unsigned int vk = handleLeftRightKeys((UINT)w_param, l_param);
+        u16 key = translatePlatformKey(vk);
         bool repeat = (l_param & (1 << 30)) != 0;
         impl->events->trigger(Event::KeyDown{ key, repeat });
     }
@@ -16,7 +36,8 @@ LRESULT WindowCallback::handleKeyDown(Window::Impl* impl, WPARAM w_param, LPARAM
 
 LRESULT WindowCallback::handleKeyUp(Window::Impl* impl, WPARAM w_param, LPARAM l_param) {
     if (impl && impl->events) {
-        u16 key = translatePlatformKey((UINT)w_param);
+        unsigned int vk = handleLeftRightKeys((UINT)w_param, l_param);
+        u16 key = translatePlatformKey(vk);
         impl->events->trigger(Event::KeyUp{ key });
     }
 
