@@ -9,8 +9,10 @@ const char* vertex_source = R"(
 
 layout(location = 0) in vec3 a_Position;
 
+uniform mat4 u_MVP;
+
 void main() {
-    gl_Position = vec4(a_Position, 1.0);
+    gl_Position = u_MVP * vec4(a_Position, 1.0);
 }
 )";
 
@@ -36,7 +38,7 @@ u32 indices[] = {
     2, 3, 0
 };
 
-bool OpenGLRenderer::initialize(void* window, void* surface, const RendererConfig& config) {   
+bool OpenGLRenderer::initialize(void* window, void* surface, const RendererConfig& config) {
     if (m_initialized) return true;
     if (window == nullptr) return false;
     if (surface == nullptr) return false;

@@ -86,3 +86,8 @@ bool OpenGLShader::bind() {
 
     return true;
 }
+
+void OpenGLShader::setMat4(const char* name, const f32* matrix) {
+    GLint location = glGetUniformLocation(m_program, name);
+    glUniformMatrix4fv(location, 1, GL_FALSE, matrix);
+}
