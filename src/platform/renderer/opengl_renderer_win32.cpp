@@ -26,18 +26,6 @@ void main() {
 }
 )";
 
-Vertex vertices[] = {
-    {-0.5f, -0.5f, 0.0f},
-    { 0.5f, -0.5f, 0.0f},
-    { 0.5f,  0.5f, 0.0f},
-    {-0.5f,  0.5f, 0.0f},
-};
-
-u32 indices[] = {
-    0, 1, 2,
-    2, 3, 0
-};
-
 bool OpenGLRenderer::initialize(void* window, void* surface, const RendererConfig& config) {
     if (m_initialized) return true;
     if (window == nullptr) return false;
@@ -107,10 +95,7 @@ bool OpenGLRenderer::initialize(void* window, void* surface, const RendererConfi
     setVSync(config.enableVSync);
 
     m_testShader = std::make_unique<OpenGLShader>();
-    m_testMesh = std::make_unique<OpenGLMesh>();
-
     m_testShader->create(vertex_source, fragment_source);
-    m_testMesh->create(vertices, 4, indices, 6);
 
     m_initialized = true;
     return true;

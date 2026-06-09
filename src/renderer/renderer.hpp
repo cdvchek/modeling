@@ -4,6 +4,9 @@
 #include <cstdint>
 #include <memory>
 
+#include "core/math/mat4.hpp"
+#include "renderer/gpu_mesh.hpp"
+
 struct WindowHandle;
 
 enum class RendererBackend {
@@ -34,14 +37,8 @@ struct ClearState {
 };
 
 struct DrawCommand {
-    u32 meshID = 0;
-    u32 materialID = 0;
-    float modelMatrix[16] = {
-        1,0,0,0,
-        0,1,0,0,
-        0,0,1,0,
-        0,0,0,1
-    };
+    IMesh* mesh = nullptr;
+    Mat4 mvp;
 };
 
 class IRenderer {

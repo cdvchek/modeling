@@ -37,7 +37,8 @@ void OpenGLRenderer::draw(const DrawCommand& command){
     if (!m_initialized) return;
 
     m_testShader->bind();
-    m_testMesh->draw();
+    m_testShader->setMat4("u_MVP", command.mvp.m);
+    command.mesh->draw();
 }
 
 void OpenGLRenderer::endMainPass(){

@@ -69,6 +69,25 @@ bool Application::initialize(AppContext& ctx) {
     ctx.systems.actions.subscribe(Action::Undo, DefaultKeybinds::Undo);
     ctx.systems.actions.subscribe(Action::Redo, DefaultKeybinds::Redo);
 
+    ctx.camera.position = Vec3(0.0f, 0.0f, 3.0f);
+    ctx.camera.target = Vec3();
+    ctx.camera.up = Vec3(0.0f, 1.0f, 0.0f);
+
+    ctx.testObject.meshData.vertices = {
+        { Vec3(-0.5f, -0.5f, 0.0f) },
+        { Vec3( 0.5f, -0.5f, 0.0f) },
+        { Vec3( 0.5f,  0.5f, 0.0f) },
+        { Vec3(-0.5f,  0.5f, 0.0f) }
+    };
+
+    ctx.testObject.meshData.indices = {
+        0, 1, 2,
+        2, 3, 0
+    };
+
+    ctx.testObject.transform.rotation = Vec3(0.7f, 0.7f, 0.0f);
+
+    ctx.testObject.gpuMesh.create(ctx.testObject.meshData);
 
     ctx.is_running = false;
 
@@ -95,8 +114,23 @@ void Application::run(AppContext& ctx) {
 void Application::renderFrame(AppContext& ctx) {
     ctx.renderer->beginFrame();
     ctx.renderer->beginMainPass(ctx.renderer->m_clearState);
+
+    u32 width = 0;
+    u32 height = 0;
+    ctx.windows[0]->getDimensions(width, height);
     
+    f32 aspectRatio = static_cast<f32>(width) / static_cast<f32>(height);
+
+    Mat4 model = ctx.testObject.transform.getMatrix();
+    Mat4 view = ctx.camera.getViewMatrix();
+    Mat4 projection = ctx.camera.getProjectionMatrix(aspectRatio);
+
+    Mat4 mvp = projection * view * model;
+
     DrawCommand cmd;
+    cmd.mesh = &ctx.testObject.gpuMesh;
+    cmd.mvp = mvp;
+
     ctx.renderer->draw(cmd);
 
     // for (const DrawCommand& cmd : ctx.rendererDrawCommands) {

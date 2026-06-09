@@ -2,16 +2,16 @@
 
 #include <types>
 
-struct Vertex {
-    f32 x, y, z;
-};
+#include "core/geometry/mesh.hpp"
+#include "renderer/gpu_mesh.hpp"
 
-class OpenGLMesh {
+class OpenGLMesh : public IMesh {
 public:
+    bool create(const MeshData& mesh);
     bool create(const Vertex* vertices, u32 vertex_count, const u32* indices, u32 index_count);
-    void draw() const;
+    void draw() const override;
     void destroy();
-    
+
 private:
     void bind() const;
 

@@ -6,6 +6,8 @@
 #include "application/app_systems.hpp"
 #include "platform/window/window.hpp"
 #include "renderer/renderer.hpp"
+#include "core/scene/camera.hpp"
+#include "core/scene/render_object.hpp"
 
 struct AppContext {
     // Settings settings;
@@ -14,6 +16,10 @@ struct AppContext {
     Systems systems;
     std::unique_ptr<IRenderer> renderer;
     std::vector<std::unique_ptr<Window>> windows;
+
+    Camera camera;
+    
+    RenderObject testObject;
 
     bool is_running = false;
 };

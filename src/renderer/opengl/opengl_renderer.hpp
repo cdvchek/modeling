@@ -36,7 +36,6 @@ private:
     bool m_vsyncEnabled = true;
 
     std::unique_ptr<OpenGLShader> m_testShader;
-    std::unique_ptr<OpenGLMesh> m_testMesh;
     
     bool m_initialized = false;
 };

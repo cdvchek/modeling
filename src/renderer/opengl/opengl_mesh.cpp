@@ -2,6 +2,15 @@
 
 #include <glad/glad.h>
 
+bool OpenGLMesh::create(const MeshData& mesh) {
+    return create(
+        mesh.vertices.data(),
+        static_cast<u32>(mesh.vertices.size()),
+        mesh.indices.data(),
+        static_cast<u32>(mesh.indices.size())
+    );
+}
+
 bool OpenGLMesh::create(const Vertex* vertices, u32 vertex_count, const u32* indices, u32 index_count) {
     if (!vertices || vertex_count == 0) return false;
     if (!indices || index_count == 0) return false;
@@ -37,7 +46,7 @@ bool OpenGLMesh::create(const Vertex* vertices, u32 vertex_count, const u32* ind
         GL_FLOAT,
         GL_FALSE,
         sizeof(Vertex),
-        reinterpret_cast<void*>(0)
+        reinterpret_cast<void*>(offsetof(Vertex, position))
     );
 
     glBindVertexArray(0);
