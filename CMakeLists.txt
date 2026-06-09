@@ -23,6 +23,8 @@ set(COMMON_SRC
     src/core/math/vec3.cpp
     src/core/math/vec4.cpp
     src/core/math/mat4.cpp
+    src/core/scene/camera.cpp
+    src/core/scene/transform.cpp
 )
 
 set(C_SRC
