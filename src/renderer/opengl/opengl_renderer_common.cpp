@@ -33,12 +33,31 @@ void OpenGLRenderer::beginMainPass(const ClearState& clearState){
     if (clearMask != 0) glClear(clearMask);
 }
 
-void OpenGLRenderer::draw(const DrawCommand& command){
+void OpenGLRenderer::draw(const DrawCommand& command) {
     if (!m_initialized) return;
+    if (!command.mesh) return;
 
     m_testShader->bind();
     m_testShader->setMat4("u_MVP", command.mvp.m);
+
+    // Solid faces
+    m_testShader->setVec3("u_Color", Vec3(0.7f, 0.7f, 0.7f));
+    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
     command.mesh->draw();
+
+    // Black edges / wireframe
+    m_testShader->setVec3("u_Color", Vec3(0.0f, 0.0f, 0.0f));
+    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+    glLineWidth(2.0f);
+    command.mesh->draw();
+
+    // Black vertices / points
+    glPolygonMode(GL_FRONT_AND_BACK, GL_POINT);
+    glPointSize(8.0f);
+    command.mesh->draw();
+
+    // Restore default
+    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 }
 
 void OpenGLRenderer::endMainPass(){

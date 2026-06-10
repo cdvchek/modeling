@@ -2,6 +2,7 @@
 
 #include <types>
 #include "renderer/shader.hpp"
+#include "core/math/vec3.hpp"
 
 class OpenGLShader : public Shader {
 public:
@@ -10,6 +11,7 @@ public:
     bool bind() override;
 
     void setMat4(const char* name, const f32* matrix);
+    void setVec3(const char* name, const Vec3& value);
 
 private:
     u32 m_program = 0;
