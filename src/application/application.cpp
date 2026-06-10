@@ -2,6 +2,7 @@
 #include "platform/window/window.hpp"
 #include "platform/platform.hpp"
 
+#include <algorithm>
 #include <iostream>
 
 bool Application::initialize(AppContext& ctx) {
@@ -48,6 +49,20 @@ bool Application::initialize(AppContext& ctx) {
         }
     );
 
+    ctx.systems.events.subscribe<Event::MouseMove>(
+        [&ctx](const Event::MouseMove& event) -> bool {
+            ctx.systems.input.onMouseMove(event.x, event.y);
+            return false;
+        }
+    );
+
+    ctx.systems.events.subscribe<Event::MouseWheel>(
+        [&ctx](const Event::MouseWheel& event) -> bool {
+            ctx.systems.input.onScroll(event.delta);
+            return false;
+        }
+    );
+
     ctx.systems.events.subscribe<Event::Quit>(
         [&ctx](const Event::Quit& event) -> bool {
             ctx.is_running = false;
@@ -58,7 +73,7 @@ bool Application::initialize(AppContext& ctx) {
     ctx.systems.actions.subscribe(Action::Quit, DefaultKeybinds::Quit);
     ctx.systems.actions.subscribe(Action::ViewportOrbit, DefaultKeybinds::ViewportOrbit);
     ctx.systems.actions.subscribe(Action::ViewportPan, DefaultKeybinds::ViewportPan);
-    // ctx.systems.actions.subscribe(Action::ViewportZoom, DefaultKeybinds::ViewportZoom);
+    ctx.systems.actions.subscribe(Action::ViewportZoom, DefaultKeybinds::ViewportZoom);
     ctx.systems.actions.subscribe(Action::Select, DefaultKeybinds::Select);
     ctx.systems.actions.subscribe(Action::Insert, DefaultKeybinds::Insert);
     ctx.systems.actions.subscribe(Action::DeleteSelection, DefaultKeybinds::DeleteSelection);
@@ -74,18 +89,45 @@ bool Application::initialize(AppContext& ctx) {
     ctx.camera.up = Vec3(0.0f, 1.0f, 0.0f);
 
     ctx.testObject.meshData.vertices = {
-        { Vec3(-0.5f, -0.5f, 0.0f) },
-        { Vec3( 0.5f, -0.5f, 0.0f) },
-        { Vec3( 0.5f,  0.5f, 0.0f) },
-        { Vec3(-0.5f,  0.5f, 0.0f) }
+        { Vec3(-0.5f, -0.5f, -0.5f) }, // 0
+        { Vec3( 0.5f, -0.5f, -0.5f) }, // 1
+        { Vec3( 0.5f,  0.5f, -0.5f) }, // 2
+        { Vec3(-0.5f,  0.5f, -0.5f) }, // 3
+
+        { Vec3(-0.5f, -0.5f,  0.5f) }, // 4
+        { Vec3( 0.5f, -0.5f,  0.5f) }, // 5
+        { Vec3( 0.5f,  0.5f,  0.5f) }, // 6
+        { Vec3(-0.5f,  0.5f,  0.5f) }  // 7
     };
 
     ctx.testObject.meshData.indices = {
-        0, 1, 2,
-        2, 3, 0
+
+        // Front
+        4, 5, 6,
+        6, 7, 4,
+
+        // Back
+        1, 0, 3,
+        3, 2, 1,
+
+        // Left
+        0, 4, 7,
+        7, 3, 0,
+
+        // Right
+        5, 1, 2,
+        2, 6, 5,
+
+        // Top
+        3, 7, 6,
+        6, 2, 3,
+
+        // Bottom
+        0, 1, 5,
+        5, 4, 0
     };
 
-    ctx.testObject.transform.rotation = Vec3(0.7f, 0.7f, 0.0f);
+    //ctx.testObject.transform.rotation = Vec3(0.7f, 0.7f, 0.0f);
 
     ctx.testObject.gpuMesh.create(ctx.testObject.meshData);
 
@@ -105,6 +147,27 @@ void Application::run(AppContext& ctx) {
         if (ctx.systems.actions.isActionDown(Action::Quit, ctx.systems.input)) {
             ctx.systems.events.trigger(Event::Quit{});
             break;
+        }
+
+        if (ctx.systems.actions.isActionDown(Action::ViewportOrbit, ctx.systems.input)) {
+            ctx.camera.yaw -= ctx.systems.input.getMouseDeltaX() * 0.005f;
+            ctx.camera.pitch += ctx.systems.input.getMouseDeltaY() * 0.005f;
+
+            ctx.camera.pitch = std::clamp(ctx.camera.pitch, -1.5f, 1.5f);
+
+            ctx.camera.updatePositionFromOrbit();
+        }
+
+        if (ctx.systems.actions.isActionDown(Action::ViewportPan, ctx.systems.input)) {
+            Vec3 right = ctx.camera.getRight();
+            Vec3 cameraUp = Vec3::cross(right, ctx.camera.getForward()).normalized();
+
+            f32 panSpeed = 0.001f * ctx.camera.distance;
+
+            Vec3 pan = (-right * ctx.systems.input.getMouseDeltaX() + cameraUp * ctx.systems.input.getMouseDeltaY()) * panSpeed;
+            
+            ctx.camera.position += pan;
+            ctx.camera.target += pan;
         }
 
         Application::renderFrame(ctx);

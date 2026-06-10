@@ -6,7 +6,8 @@
 
 enum class InputKind : u8 {
     Key,
-    MouseButton
+    MouseButton,
+    Axis
 };
 
 struct Input {
@@ -32,6 +33,12 @@ inline Input mouse(MouseButton button) {
     };
 }
 
+inline Input axis() {
+    return Input{
+
+    };
+}
+
 namespace DefaultKeybinds {   
     inline Keybind Quit {
         {
@@ -49,6 +56,12 @@ namespace DefaultKeybinds {
     inline Keybind ViewportPan {
         {
             mouse(MouseButton::Middle)
+        }
+    };
+
+    inline Keybind ViewportZoom {
+        {
+
         }
     };
     

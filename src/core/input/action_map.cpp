@@ -63,6 +63,10 @@ bool ActionMap::wasActionPressedThisFrame( Action action, const InputState& inpu
                     anyPressedThisFrame = true;
                 }
                 break;
+
+            case InputKind::Axis:
+                if (input.getScroll() == 0) return false;
+                anyPressedThisFrame = true;
         }
     }
 
