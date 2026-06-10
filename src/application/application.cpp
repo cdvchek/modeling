@@ -170,6 +170,13 @@ void Application::run(AppContext& ctx) {
             ctx.camera.target += pan;
         }
 
+        i32 zoom = 0;
+        if (ctx.systems.actions.isActionDown(Action::ViewportZoom, ctx.systems.input, &zoom)) {
+            ctx.camera.distance -= zoom * 0.005f;
+            if (ctx.camera.distance <= 0.5) ctx.camera.distance = 0.5;
+            ctx.camera.updatePositionFromOrbit();
+        }
+
         Application::renderFrame(ctx);
     }
 } 

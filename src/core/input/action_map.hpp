@@ -12,7 +12,7 @@ class ActionMap {
 public:
     void subscribe(Action action, Keybind keybind);
 
-    bool isActionDown(Action action, const InputState& input) const;
+    bool isActionDown(Action action, const InputState& input, i32* axis_value = nullptr) const;
     bool wasActionPressedThisFrame(Action action, const InputState& input) const;
 
 private:

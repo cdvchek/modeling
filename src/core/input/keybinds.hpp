@@ -35,7 +35,8 @@ inline Input mouse(MouseButton button) {
 
 inline Input axis() {
     return Input{
-
+        InputKind::Axis,
+        static_cast<u16>(0)
     };
 }
 
@@ -61,7 +62,7 @@ namespace DefaultKeybinds {
 
     inline Keybind ViewportZoom {
         {
-
+            axis()
         }
     };
     
