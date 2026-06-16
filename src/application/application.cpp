@@ -6,6 +6,17 @@
 #include <iostream>
 
 bool Application::initialize(AppContext& ctx) {
+    if (!createMainWindow(ctx)) return false;
+    if (!createRenderer(ctx)) return false;
+
+    registerInputEvents(ctx);
+    registerDefaultActions(ctx);
+
+    initializeCamera(ctx);
+    loadTestScene(ctx);
+
+    return true;
+    
     ctx.windows.emplace_back(std::make_unique<Window>(1920, 1080));
 
     if (!ctx.windows[0]->initialize(&ctx.systems.events)) {
