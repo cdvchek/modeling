@@ -8,6 +8,10 @@ set(CMAKE_C_STANDARD 17)
 set(COMMON_SRC
     src/main.cpp
     src/application/application.cpp
+    src/application/application_actions.cpp
+    src/application/application_events.cpp
+    src/application/application_render.cpp
+    src/application/application_scene.cpp
     src/platform/window/window_win32.cpp
     src/platform/window/window_event_callback_win32.cpp
     src/platform/platform_win32.cpp
@@ -25,6 +29,8 @@ set(COMMON_SRC
     src/core/math/mat4.cpp
     src/core/scene/camera.cpp
     src/core/scene/transform.cpp
+    src/core/assets/meshes/mesh_cube.cpp
+    src/core/assets/mesh_collection.cpp
 )
 
 set(C_SRC

@@ -2,7 +2,7 @@
 
 #include "core/scene/transform.hpp"
 #include "renderer/opengl/opengl_mesh.hpp"
-#include "core/geometry/mesh.hpp"
+#include "core/assets/meshes/mesh.hpp"
 
 struct RenderObject {
     Transform transform;

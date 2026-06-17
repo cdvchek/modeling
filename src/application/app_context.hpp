@@ -8,6 +8,7 @@
 #include "renderer/renderer.hpp"
 #include "core/scene/camera.hpp"
 #include "core/scene/render_object.hpp"
+#include "core/assets/assets.hpp"
 
 struct AppContext {
     // Settings settings;
@@ -16,6 +17,8 @@ struct AppContext {
     Systems systems;
     std::unique_ptr<IRenderer> renderer;
     std::vector<std::unique_ptr<Window>> windows;
+
+    Assets assets;
 
     Camera camera;
     
