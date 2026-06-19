@@ -1,4 +1,4 @@
-#include "core/scene/camera.hpp"
+#include "scene/camera.hpp"
 
 Camera::Camera()
     : position(0.0f, 0.0f, 3.0f),

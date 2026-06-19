@@ -1,8 +1,8 @@
 #pragma once
 
-#include "core/scene/transform.hpp"
+#include "scene/transform.hpp"
 #include "renderer/opengl/opengl_mesh.hpp"
-#include "core/assets/meshes/mesh.hpp"
+#include "scene/mesh_data.hpp"
 
 struct RenderObject {
     Transform transform;

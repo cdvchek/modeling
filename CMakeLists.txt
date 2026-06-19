@@ -7,30 +7,29 @@ set(CMAKE_C_STANDARD 17)
 
 set(COMMON_SRC
     src/main.cpp
-    src/application/application.cpp
     src/application/application_actions.cpp
     src/application/application_events.cpp
     src/application/application_render.cpp
     src/application/application_scene.cpp
-    src/platform/window/window_win32.cpp
-    src/platform/window/window_event_callback_win32.cpp
-    src/platform/platform_win32.cpp
-    src/platform/keys/keys_win32.cpp
-    src/platform/renderer/opengl_renderer_win32.cpp
-    src/renderer/opengl/opengl_renderer_common.cpp
-    src/renderer/renderer.cpp
-    src/renderer/opengl/opengl_shader.cpp
-    src/renderer/opengl/opengl_mesh.cpp
+    src/application/application.cpp
     src/core/input/input_state.cpp
     src/core/input/action_map.cpp
     src/core/math/vec2.cpp
     src/core/math/vec3.cpp
     src/core/math/vec4.cpp
     src/core/math/mat4.cpp
-    src/core/scene/camera.cpp
-    src/core/scene/transform.cpp
-    src/core/assets/meshes/mesh_cube.cpp
-    src/core/assets/mesh_collection.cpp
+    src/platform/keys/keys_win32.cpp
+    src/platform/renderer/opengl_renderer_win32.cpp
+    src/platform/window/window_event_callback_win32.cpp
+    src/platform/window/window_win32.cpp
+    src/platform/platform_win32.cpp
+    src/renderer/opengl/opengl_mesh.cpp
+    src/renderer/opengl/opengl_renderer_common.cpp
+    src/renderer/opengl/opengl_shader.cpp
+    src/renderer/renderer.cpp
+    src/scene/camera.cpp
+    src/scene/mesh_cube.cpp
+    src/scene/transform.cpp
 )
 
 set(C_SRC

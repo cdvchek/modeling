@@ -2,7 +2,7 @@
 
 #include <types>
 
-#include "core/assets/meshes/mesh.hpp"
+#include "scene/mesh_data.hpp"
 #include "renderer/gpu_mesh.hpp"
 
 class OpenGLMesh : public IMesh {
