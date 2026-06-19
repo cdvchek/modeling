@@ -49,4 +49,6 @@ private:
     i32 m_mouse_delta_y = 0;
 
     i32 m_scroll = 0;
+
+    bool m_hasMousePosition = false;
 };

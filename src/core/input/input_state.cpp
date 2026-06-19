@@ -75,6 +75,13 @@ void InputState::onScroll(i32 scroll) {
 }
 
 void InputState::onMouseMove(i32 x, i32 y) {
+    if (!m_hasMousePosition) {
+        m_mouse_x = x;
+        m_mouse_y = y;
+        m_hasMousePosition = true;
+        return;
+    }
+
     m_mouse_delta_x = (x - m_mouse_x);
     m_mouse_delta_y = (y - m_mouse_y);
     m_mouse_x = x;

@@ -8,6 +8,6 @@ void Application::initializeCamera(AppContext& ctx) {
 }
 
 void Application::loadTestScene(AppContext& ctx) {
-    ctx.scene.objects.get(0).meshData = MeshFactory::createCube();
+    ctx.scene.objects.create("cube", MeshFactory::createCube());
     ctx.scene.objects.get(0).gpuMesh.create(ctx.scene.objects.get(0).meshData);
 }
