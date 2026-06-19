@@ -29,6 +29,7 @@ set(COMMON_SRC
     src/renderer/renderer.cpp
     src/scene/camera.cpp
     src/scene/mesh_cube.cpp
+    src/scene/object_collection.cpp
     src/scene/transform.cpp
 )
 

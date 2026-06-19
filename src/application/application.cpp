@@ -74,14 +74,14 @@ void Application::renderFrame(AppContext& ctx) {
     
     f32 aspectRatio = static_cast<f32>(width) / static_cast<f32>(height);
 
-    Mat4 model = ctx.scene.objects[0].transform.getMatrix();
+    Mat4 model = ctx.scene.objects.get(0).transform.getMatrix();
     Mat4 view = ctx.scene.camera.getViewMatrix();
     Mat4 projection = ctx.scene.camera.getProjectionMatrix(aspectRatio);
 
     Mat4 mvp = projection * view * model;
 
     DrawCommand cmd;
-    cmd.mesh = &ctx.scene.objects[0].gpuMesh;
+    cmd.mesh = &ctx.scene.objects.get(0).gpuMesh;
     cmd.mvp = mvp;
 
     ctx.renderer->draw(cmd);
