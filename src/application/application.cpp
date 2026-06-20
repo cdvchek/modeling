@@ -1,6 +1,9 @@
 #include "application/application.hpp"
 #include "platform/window/window.hpp"
 #include "platform/platform.hpp"
+#include "scene/selection/ray.hpp"
+#include "scene/selection/scene_queries.hpp"
+#include "core/math/vec4.hpp"
 
 #include <algorithm>
 #include <iostream>
@@ -33,11 +36,15 @@ void Application::run(AppContext& ctx) {
         }
 
         if (ctx.systems.actions.isActionDown(Action::ViewportOrbit, ctx.systems.input)) {
-            ctx.scene.camera.yaw -= ctx.systems.input.getMouseDeltaX() * 0.005f;
-            ctx.scene.camera.pitch += ctx.systems.input.getMouseDeltaY() * 0.005f;
+            i32 dx = ctx.systems.input.getMouseDeltaX();
+            i32 dy = ctx.systems.input.getMouseDeltaY();
+
+            if (std::abs(dx) < 500 && std::abs(dy) < 500) {
+                ctx.scene.camera.yaw -= dx * 0.005f;
+                ctx.scene.camera.pitch += dy * 0.005f;
+            }
 
             ctx.scene.camera.pitch = std::clamp(ctx.scene.camera.pitch, -1.5f, 1.5f);
-
             ctx.scene.camera.updatePositionFromOrbit();
         }
 
@@ -60,6 +67,48 @@ void Application::run(AppContext& ctx) {
             ctx.scene.camera.updatePositionFromOrbit();
         }
 
+        if (ctx.systems.actions.wasActionPressedThisFrame(Action::Select, ctx.systems.input)) {
+            u32 width = 0;
+            u32 height = 0;
+
+            ctx.windows[0]->getDimensions(width, height);
+
+            Ray ray = makeRayFromScreenPosition(
+                ctx.systems.input.getMouseX(),
+                ctx.systems.input.getMouseY(),
+                width,
+                height,
+                ctx.scene.camera
+            );
+
+            VertexHit hit = pickVertex(
+                ctx.scene,
+                ray,
+                0.03f
+            );
+
+            bool addDown = ctx.systems.actions.isActionDown(Action::AddSelection, ctx.systems.input);
+            bool removeDown = ctx.systems.actions.isActionDown(Action::RemoveSelection, ctx.systems.input);
+
+            if (!addDown && !removeDown) {
+                ctx.scene.selection.clear();
+            }
+
+            if (hit.hit) {
+                if (removeDown) {
+                    ctx.scene.selection.removeVertex(
+                        hit.objectIndex,
+                        hit.vertexIndex
+                    );
+                } else {
+                    ctx.scene.selection.addVertex(
+                        hit.objectIndex,
+                        hit.vertexIndex
+                    );
+                }
+            }
+        }
+
         Application::renderFrame(ctx);
     }
 } 
@@ -71,24 +120,46 @@ void Application::renderFrame(AppContext& ctx) {
     u32 width = 0;
     u32 height = 0;
     ctx.windows[0]->getDimensions(width, height);
-    
+
     f32 aspectRatio = static_cast<f32>(width) / static_cast<f32>(height);
 
-    Mat4 model = ctx.scene.objects.get(0).transform.getMatrix();
     Mat4 view = ctx.scene.camera.getViewMatrix();
     Mat4 projection = ctx.scene.camera.getProjectionMatrix(aspectRatio);
 
-    Mat4 mvp = projection * view * model;
+    for (u32 i = 0; i < ctx.scene.objects.count(); i++) {
+        Object& object = ctx.scene.objects.get(i);
 
-    DrawCommand cmd;
-    cmd.mesh = &ctx.scene.objects.get(0).gpuMesh;
-    cmd.mvp = mvp;
+        Mat4 model = object.transform.getMatrix();
+        Mat4 mvp = projection * view * model;
 
-    ctx.renderer->draw(cmd);
+        DrawCommand cmd;
+        cmd.mesh = &object.gpuMesh;
+        cmd.mvp = mvp;
 
-    // for (const DrawCommand& cmd : ctx.rendererDrawCommands) {
-    //     ctx.renderer->draw(cmd);
-    // }
+        ctx.renderer->draw(cmd);
+    }
+
+    Mat4 viewProjection = projection * view;
+
+    for (const VertexSelection& selection : ctx.scene.selection.getVertices()) {
+        const Object& object = ctx.scene.objects.get(selection.objectIndex);
+        const Vertex& vertex = object.meshData.vertices[selection.vertexIndex];
+
+        Vec4 worldPos4 = object.transform.getMatrix() * Vec4(
+            vertex.position.x,
+            vertex.position.y,
+            vertex.position.z,
+            1.0f
+        );
+
+        PointDrawCommand pointCmd;
+        pointCmd.position = Vec3(worldPos4.x, worldPos4.y, worldPos4.z);
+        pointCmd.viewProjection = viewProjection;
+        pointCmd.size = 14.0f;
+        pointCmd.color = Vec3(1.0f, 0.8f, 0.0f);
+
+        ctx.renderer->drawPoint(pointCmd);
+    }
 
     ctx.renderer->endMainPass();
     ctx.renderer->endFrame();

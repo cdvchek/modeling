@@ -27,8 +27,11 @@ set(COMMON_SRC
     src/renderer/opengl/opengl_renderer_common.cpp
     src/renderer/opengl/opengl_shader.cpp
     src/renderer/renderer.cpp
+    src/scene/mesh/mesh_cube.cpp
+    src/scene/selection/ray.cpp
+    src/scene/selection/scene_queries.cpp
+    src/scene/selection/selection.cpp
     src/scene/camera.cpp
-    src/scene/mesh_cube.cpp
     src/scene/object_collection.cpp
     src/scene/transform.cpp
 )

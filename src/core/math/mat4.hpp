@@ -37,4 +37,6 @@ struct Mat4 {
         const Vec3& target,
         const Vec3& up
     );
+
+    static Mat4 inverse(const Mat4& matrix);
 };

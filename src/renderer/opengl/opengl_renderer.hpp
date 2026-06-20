@@ -1,5 +1,6 @@
 #pragma once
 
+#include <types>
 #include <memory>
 #include "renderer/renderer.hpp"
 #include "renderer/opengl/opengl_shader.hpp"
@@ -19,6 +20,7 @@ public:
     void beginFrame() override;
     void beginMainPass(const ClearState& clearState) override;
     void draw(const DrawCommand& command) override;
+    void drawPoint(const PointDrawCommand& command) override;
     void endMainPass() override;
     void endFrame() override;
     void resize(u32 width, u32 height) override;
@@ -36,6 +38,9 @@ private:
     bool m_vsyncEnabled = true;
 
     std::unique_ptr<OpenGLShader> m_testShader;
+
+    u32 m_pointVAO = 0;
+    u32 m_pointVBO = 0;
     
     bool m_initialized = false;
 };

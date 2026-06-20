@@ -60,6 +60,26 @@ void OpenGLRenderer::draw(const DrawCommand& command) {
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 }
 
+void OpenGLRenderer::drawPoint(const PointDrawCommand& command) {
+    if (!m_initialized) return;
+
+    m_testShader->bind();
+
+    Mat4 model = Mat4::translation(command.position);
+    Mat4 mvp = command.viewProjection * model;
+
+    m_testShader->setMat4("u_MVP", mvp.m);
+    m_testShader->setVec3("u_Color", command.color);
+
+    glBindVertexArray(m_pointVAO);
+
+    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+    glPointSize(command.size);
+    glDrawArrays(GL_POINTS, 0, 1);
+
+    glBindVertexArray(0);
+}
+
 void OpenGLRenderer::endMainPass(){
     if (!m_initialized) return;
 }

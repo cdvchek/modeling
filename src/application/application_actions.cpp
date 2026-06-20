@@ -8,6 +8,8 @@ void Application::registerDefaultActions(AppContext& ctx) {
     actions.subscribe(Action::ViewportPan, DefaultKeybinds::ViewportPan);
     actions.subscribe(Action::ViewportZoom, DefaultKeybinds::ViewportZoom);
     actions.subscribe(Action::Select, DefaultKeybinds::Select);
+    actions.subscribe(Action::AddSelection, DefaultKeybinds::AddSelection);
+    actions.subscribe(Action::RemoveSelection, DefaultKeybinds::RemoveSelection);
     actions.subscribe(Action::Insert, DefaultKeybinds::Insert);
     actions.subscribe(Action::DeleteSelection, DefaultKeybinds::DeleteSelection);
     actions.subscribe(Action::Duplicate, DefaultKeybinds::Duplicate);

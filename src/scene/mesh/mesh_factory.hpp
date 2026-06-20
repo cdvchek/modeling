@@ -1,6 +1,6 @@
 #pragma once
 
-#include "scene/mesh_data.hpp"
+#include "scene/mesh/mesh_data.hpp"
 
 namespace MeshFactory {
     MeshData createCube();

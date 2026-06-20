@@ -1,4 +1,4 @@
-#include "scene/mesh_factory.hpp"
+#include "scene/mesh/mesh_factory.hpp"
 
 MeshData MeshFactory::createCube() {
     MeshData mesh;

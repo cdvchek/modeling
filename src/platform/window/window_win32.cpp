@@ -73,8 +73,11 @@ bool Window::initialize(EventDispatcher* event_dispatcher) {
 bool Window::getDimensions(u32& widthOut, u32& heightOut) {
     WINDOW_REQUIRE_INITIALIZED_BOOL();
 
-    widthOut = m_impl->width;
-    heightOut = m_impl->height;
+    RECT rect;
+    GetClientRect(m_impl->hwnd, &rect);
+
+    widthOut = static_cast<u32>(rect.right - rect.left);
+    heightOut = static_cast<u32>(rect.bottom - rect.top);
 
     return true;
 }

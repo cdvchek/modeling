@@ -5,6 +5,7 @@
 #include <memory>
 
 #include "core/math/mat4.hpp"
+#include "core/math/vec3.hpp"
 #include "renderer/gpu_mesh.hpp"
 
 struct WindowHandle;
@@ -41,6 +42,13 @@ struct DrawCommand {
     Mat4 mvp;
 };
 
+struct PointDrawCommand {
+    Vec3 position;
+    Mat4 viewProjection;
+    Vec3 color = Vec3(1.0f, 0.8f, 0.0f);
+    f32 size = 12.0f;
+};
+
 class IRenderer {
 public:
     virtual ~IRenderer() = default;
@@ -54,6 +62,7 @@ public:
     virtual void beginFrame() = 0;
     virtual void beginMainPass(const ClearState& clearState) = 0;
     virtual void draw(const DrawCommand& command) = 0;
+    virtual void drawPoint(const PointDrawCommand& comand) = 0;
     virtual void endMainPass() = 0;
     virtual void endFrame() = 0;
     virtual void present() = 0;

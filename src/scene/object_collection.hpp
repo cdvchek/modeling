@@ -3,7 +3,7 @@
 #include <string>
 #include <vector>
 #include "scene/transform.hpp"
-#include "scene/mesh_data.hpp"
+#include "scene/mesh/mesh_data.hpp"
 #include "renderer/opengl/opengl_mesh.hpp"
 
 struct Object {

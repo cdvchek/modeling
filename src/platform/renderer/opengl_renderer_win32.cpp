@@ -94,6 +94,33 @@ bool OpenGLRenderer::initialize(void* window, void* surface, const RendererConfi
     glViewport(0, 0, static_cast<GLsizei>(config.width), static_cast<GLsizei>(config.height));
     glEnable(GL_DEPTH_TEST);
 
+    glGenVertexArrays(1, &m_pointVAO);
+    glGenBuffers(1, &m_pointVBO);
+
+    glBindVertexArray(m_pointVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, m_pointVBO);
+
+    f32 vertex[3] = { 0.0f, 0.0f, 0.0f };
+
+    glBufferData(
+        GL_ARRAY_BUFFER,
+        sizeof(vertex),
+        vertex,
+        GL_STATIC_DRAW
+    );
+
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(
+        0,
+        3,
+        GL_FLOAT,
+        GL_FALSE,
+        sizeof(f32) * 3,
+        nullptr
+    );
+
+    glBindVertexArray(0);
+
     setVSync(config.enableVSync);
 
     m_testShader = std::make_unique<OpenGLShader>();

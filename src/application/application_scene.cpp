@@ -1,5 +1,5 @@
 #include "application/application.hpp"
-#include "scene/mesh_factory.hpp"
+#include "scene/mesh/mesh_factory.hpp"
 
 void Application::initializeCamera(AppContext& ctx) {
     ctx.scene.camera.position = Vec3(0.0f, 0.0f, 3.0f);

@@ -12,7 +12,7 @@ unsigned int handleLeftRightKeys(unsigned int vk, LPARAM l_param) {
 
     bool extended = (l_param & (1 << 24)) != 0;
 
-    if (vk == 11) { // VK_CONTROL
+    if (vk == 17) { // VK_CONTROL
         vk = extended ? 0xA3 /*Right control*/ : 0xA2; // Left control
     }
 

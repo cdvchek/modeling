@@ -71,6 +71,20 @@ namespace DefaultKeybinds {
             mouse(MouseButton::Left)
         }
     };
+
+    inline Keybind AddSelection {
+        {
+            mouse(MouseButton::Left),
+            key(Key::LeftShift)
+        }
+    };
+
+    inline Keybind RemoveSelection {
+        {
+            mouse(MouseButton::Left),
+            key(Key::LeftCtrl)
+        }
+    };
     
     inline Keybind Insert {
         {
