@@ -39,10 +39,11 @@ void Application::run(AppContext& ctx) {
             i32 dx = ctx.systems.input.getMouseDeltaX();
             i32 dy = ctx.systems.input.getMouseDeltaY();
 
-            if (std::abs(dx) < 500 && std::abs(dy) < 500) {
-                ctx.scene.camera.yaw -= dx * 0.005f;
-                ctx.scene.camera.pitch += dy * 0.005f;
-            }
+            dx = std::clamp(dx, -500, 500);
+            dy = std::clamp(dy, -500, 500);
+
+            ctx.scene.camera.yaw -= dx * 0.005f;
+            ctx.scene.camera.pitch += dy * 0.005f;
 
             ctx.scene.camera.pitch = std::clamp(ctx.scene.camera.pitch, -1.5f, 1.5f);
             ctx.scene.camera.updatePositionFromOrbit();
