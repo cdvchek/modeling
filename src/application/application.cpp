@@ -110,6 +110,29 @@ void Application::run(AppContext& ctx) {
             }
         }
 
+        if (ctx.scene.selection.hasVertices() && ctx.systems.actions.wasActionPressedThisFrame(Action::GrabSelection, ctx.systems.input)) {
+            for (VertexSelection vs : ctx.scene.selection.getVertices()) {
+                Object& obj = ctx.scene.objects.all()[vs.objectIndex];
+                Vertex& vert = obj.meshData.vertices[vs.vertexIndex];
+
+                i32 dx = ctx.systems.input.getMouseDeltaX();
+                i32 dy = ctx.systems.input.getMouseDeltaY();
+
+                dx = std::clamp(dx, -500, 500);
+                dy = std::clamp(dy, -500, 500);
+
+                Vec3 right = ctx.scene.camera.getRight();
+                Vec3 cameraUp = Vec3::cross(right, ctx.scene.camera.getForward()).normalized();
+
+                f32 vertMoveSpeed = 0.001f * ctx.scene.camera.distance;
+
+                Vec3 vertMove = (right * dx - cameraUp * dy) * vertMoveSpeed;
+
+                vert.position += vertMove;
+                obj.meshDirty = true;
+            }
+        }
+
         Application::renderFrame(ctx);
     }
 } 
@@ -129,6 +152,11 @@ void Application::renderFrame(AppContext& ctx) {
 
     for (u32 i = 0; i < ctx.scene.objects.count(); i++) {
         Object& object = ctx.scene.objects.get(i);
+
+        if (object.meshDirty) {
+            object.gpuMesh.update(object.meshData);
+            object.meshDirty = false;
+        }
 
         Mat4 model = object.transform.getMatrix();
         Mat4 mvp = projection * view * model;

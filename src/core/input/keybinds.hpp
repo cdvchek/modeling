@@ -85,6 +85,12 @@ namespace DefaultKeybinds {
             key(Key::LeftCtrl)
         }
     };
+
+    inline Keybind GrabSelection {
+        {
+            key(Key::G)
+        }
+    };
     
     inline Keybind Insert {
         {
