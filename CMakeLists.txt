@@ -14,6 +14,7 @@ set(COMMON_SRC
     src/application/application.cpp
     src/core/input/input_state.cpp
     src/core/input/action_map.cpp
+    src/core/input/context_manager.cpp
     src/core/math/vec2.cpp
     src/core/math/vec3.cpp
     src/core/math/vec4.cpp

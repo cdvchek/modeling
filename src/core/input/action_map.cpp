@@ -1,17 +1,22 @@
 #include "core/input/action_map.hpp"
 
-void ActionMap::subscribe(Action action, Keybind keybind) {
-    m_keybinds.emplace(action, keybind);
+void ActionMap::subscribe(Action action, Keybind keybind, u32 input_ctx) {
+    m_keybinds.emplace(action, ActionData{keybind, input_ctx});
 }
 
-bool ActionMap::isActionDown(Action action, const InputState& input, i32* axis_value) const {
+bool ActionMap::isActionDown(Action action, const InputState& input, u32 input_ctx, i32* axis_value) const {
     auto it = m_keybinds.find(action);
 
     if (it == m_keybinds.end()) {
         return false;
     }
 
-    const Keybind& keybind = it->second;
+    const ActionData& data = it->second;
+    const Keybind& keybind = data.bind;
+    const u32 key_context = data.ctx;
+
+    bool contextMatch = input_ctx & key_context;
+    if (!contextMatch) return false;
 
     for (const Input& bindingInput : keybind.inputs) {
         switch (bindingInput.kind) {
@@ -35,14 +40,19 @@ bool ActionMap::isActionDown(Action action, const InputState& input, i32* axis_v
     return true;
 }
 
-bool ActionMap::wasActionPressedThisFrame(Action action, const InputState& input) const {
+bool ActionMap::wasActionPressedThisFrame(Action action, const InputState& input, u32 input_ctx) const {
     auto it = m_keybinds.find(action);
 
     if (it == m_keybinds.end()) {
         return false;
     }
 
-    const Keybind& keybind = it->second;
+    const ActionData& data = it->second;
+    const Keybind& keybind = data.bind;
+    const u32 key_context = data.ctx;
+
+    bool contextMatch = input_ctx & key_context;
+    if (!contextMatch) return false;
 
     bool anyPressedThisFrame = false;
 

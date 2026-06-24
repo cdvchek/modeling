@@ -18,6 +18,7 @@ bool Application::initialize(AppContext& ctx) {
     initializeCamera(ctx);
     loadTestScene(ctx);
 
+    ctx.systems.input_ctx.addContext(InputContext_Selection);
     ctx.is_running = false;
     return true;
 }
@@ -30,12 +31,12 @@ void Application::run(AppContext& ctx) {
         
         Platform::pollEvents();
         
-        if (ctx.systems.actions.isActionDown(Action::Quit, ctx.systems.input)) {
+        if (ctx.systems.actions.isActionDown(Action::Quit, ctx.systems.input, ctx.systems.input_ctx.getContext())) {
             ctx.systems.events.trigger(Event::Quit{});
             break;
         }
 
-        if (ctx.systems.actions.isActionDown(Action::ViewportOrbit, ctx.systems.input)) {
+        if (ctx.systems.actions.isActionDown(Action::ViewportOrbit, ctx.systems.input, ctx.systems.input_ctx.getContext())) {
             i32 dx = ctx.systems.input.getMouseDeltaX();
             i32 dy = ctx.systems.input.getMouseDeltaY();
 
@@ -49,7 +50,7 @@ void Application::run(AppContext& ctx) {
             ctx.scene.camera.updatePositionFromOrbit();
         }
 
-        if (ctx.systems.actions.isActionDown(Action::ViewportPan, ctx.systems.input)) {
+        if (ctx.systems.actions.isActionDown(Action::ViewportPan, ctx.systems.input, ctx.systems.input_ctx.getContext())) {
             Vec3 right = ctx.scene.camera.getRight();
             Vec3 cameraUp = Vec3::cross(right, ctx.scene.camera.getForward()).normalized();
 
@@ -62,13 +63,13 @@ void Application::run(AppContext& ctx) {
         }
 
         i32 zoom = 0;
-        if (ctx.systems.actions.isActionDown(Action::ViewportZoom, ctx.systems.input, &zoom)) {
+        if (ctx.systems.actions.isActionDown(Action::ViewportZoom, ctx.systems.input, ctx.systems.input_ctx.getContext(), &zoom)) {
             ctx.scene.camera.distance -= zoom * 0.005f;
             if (ctx.scene.camera.distance <= 0.5) ctx.scene.camera.distance = 0.5;
             ctx.scene.camera.updatePositionFromOrbit();
         }
 
-        if (ctx.systems.actions.wasActionPressedThisFrame(Action::Select, ctx.systems.input)) {
+        if (ctx.systems.actions.wasActionPressedThisFrame(Action::Select, ctx.systems.input, ctx.systems.input_ctx.getContext())) {
             u32 width = 0;
             u32 height = 0;
 
@@ -88,8 +89,8 @@ void Application::run(AppContext& ctx) {
                 0.03f
             );
 
-            bool addDown = ctx.systems.actions.isActionDown(Action::AddSelection, ctx.systems.input);
-            bool removeDown = ctx.systems.actions.isActionDown(Action::RemoveSelection, ctx.systems.input);
+            bool addDown = ctx.systems.actions.isActionDown(Action::AddSelection, ctx.systems.input, ctx.systems.input_ctx.getContext());
+            bool removeDown = ctx.systems.actions.isActionDown(Action::RemoveSelection, ctx.systems.input, ctx.systems.input_ctx.getContext());
 
             if (!addDown && !removeDown) {
                 ctx.scene.selection.clear();
@@ -110,7 +111,11 @@ void Application::run(AppContext& ctx) {
             }
         }
 
-        if (ctx.scene.selection.hasVertices() && ctx.systems.actions.wasActionPressedThisFrame(Action::GrabSelection, ctx.systems.input)) {
+        if (ctx.scene.selection.hasVertices() && ctx.systems.actions.wasActionPressedThisFrame(Action::GrabSelection, ctx.systems.input, ctx.systems.input_ctx.getContext())) {
+            ctx.systems.input_ctx.setContext(InputContext_Grab);
+        }
+
+        if (ctx.systems.input_ctx.isActive(InputContext_Grab)) {
             for (VertexSelection vs : ctx.scene.selection.getVertices()) {
                 Object& obj = ctx.scene.objects.all()[vs.objectIndex];
                 Vertex& vert = obj.meshData.vertices[vs.vertexIndex];
@@ -130,6 +135,10 @@ void Application::run(AppContext& ctx) {
 
                 vert.position += vertMove;
                 obj.meshDirty = true;
+            }
+
+            if (ctx.systems.actions.wasActionPressedThisFrame(Action::ConfirmGrab, ctx.systems.input, ctx.systems.input_ctx.getContext())) {
+                ctx.systems.input_ctx.setContext(InputContext_Selection);
             }
         }
 

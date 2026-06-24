@@ -91,6 +91,18 @@ namespace DefaultKeybinds {
             key(Key::G)
         }
     };
+
+    inline Keybind ConfirmGrab {
+        {
+            mouse(MouseButton::Left),
+        }
+    };
+
+    inline Keybind CancelGrab {
+        {
+            mouse(MouseButton::Right),
+        }
+    };
     
     inline Keybind Insert {
         {
