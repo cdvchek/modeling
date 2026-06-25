@@ -13,6 +13,8 @@ namespace Application {
     void registerInputEvents(AppContext& ctx);
     void registerDefaultActions(AppContext& ctx);
 
+    void checkActions(AppContext& ctx);
+
     void initializeCamera(AppContext& ctx);
     void loadTestScene(AppContext& ctx);
 }

@@ -1,8 +1,7 @@
 #include "application/application.hpp"
 #include "platform/window/window.hpp"
 #include "platform/platform.hpp"
-#include "scene/selection/ray.hpp"
-#include "scene/selection/scene_queries.hpp"
+#include "application/action_checks/action_checks.hpp"
 #include "core/math/vec4.hpp"
 
 #include <algorithm>
@@ -36,111 +35,7 @@ void Application::run(AppContext& ctx) {
             break;
         }
 
-        if (ctx.systems.actions.isActionDown(Action::ViewportOrbit, ctx.systems.input, ctx.systems.input_ctx.getContext())) {
-            i32 dx = ctx.systems.input.getMouseDeltaX();
-            i32 dy = ctx.systems.input.getMouseDeltaY();
-
-            dx = std::clamp(dx, -500, 500);
-            dy = std::clamp(dy, -500, 500);
-
-            ctx.scene.camera.yaw -= dx * 0.005f;
-            ctx.scene.camera.pitch += dy * 0.005f;
-
-            ctx.scene.camera.pitch = std::clamp(ctx.scene.camera.pitch, -1.5f, 1.5f);
-            ctx.scene.camera.updatePositionFromOrbit();
-        }
-
-        if (ctx.systems.actions.isActionDown(Action::ViewportPan, ctx.systems.input, ctx.systems.input_ctx.getContext())) {
-            Vec3 right = ctx.scene.camera.getRight();
-            Vec3 cameraUp = Vec3::cross(right, ctx.scene.camera.getForward()).normalized();
-
-            f32 panSpeed = 0.001f * ctx.scene.camera.distance;
-
-            Vec3 pan = (-right * ctx.systems.input.getMouseDeltaX() + cameraUp * ctx.systems.input.getMouseDeltaY()) * panSpeed;
-            
-            ctx.scene.camera.position += pan;
-            ctx.scene.camera.target += pan;
-        }
-
-        i32 zoom = 0;
-        if (ctx.systems.actions.isActionDown(Action::ViewportZoom, ctx.systems.input, ctx.systems.input_ctx.getContext(), &zoom)) {
-            ctx.scene.camera.distance -= zoom * 0.005f;
-            if (ctx.scene.camera.distance <= 0.5) ctx.scene.camera.distance = 0.5;
-            ctx.scene.camera.updatePositionFromOrbit();
-        }
-
-        if (ctx.systems.actions.wasActionPressedThisFrame(Action::Select, ctx.systems.input, ctx.systems.input_ctx.getContext())) {
-            u32 width = 0;
-            u32 height = 0;
-
-            ctx.windows[0]->getDimensions(width, height);
-
-            Ray ray = makeRayFromScreenPosition(
-                ctx.systems.input.getMouseX(),
-                ctx.systems.input.getMouseY(),
-                width,
-                height,
-                ctx.scene.camera
-            );
-
-            VertexHit hit = pickVertex(
-                ctx.scene,
-                ray,
-                0.03f
-            );
-
-            bool addDown = ctx.systems.actions.isActionDown(Action::AddSelection, ctx.systems.input, ctx.systems.input_ctx.getContext());
-            bool removeDown = ctx.systems.actions.isActionDown(Action::RemoveSelection, ctx.systems.input, ctx.systems.input_ctx.getContext());
-
-            if (!addDown && !removeDown) {
-                ctx.scene.selection.clear();
-            }
-
-            if (hit.hit) {
-                if (removeDown) {
-                    ctx.scene.selection.removeVertex(
-                        hit.objectIndex,
-                        hit.vertexIndex
-                    );
-                } else {
-                    ctx.scene.selection.addVertex(
-                        hit.objectIndex,
-                        hit.vertexIndex
-                    );
-                }
-            }
-        }
-
-        if (ctx.scene.selection.hasVertices() && ctx.systems.actions.wasActionPressedThisFrame(Action::GrabSelection, ctx.systems.input, ctx.systems.input_ctx.getContext())) {
-            ctx.systems.input_ctx.setContext(InputContext_Grab);
-        }
-
-        if (ctx.systems.input_ctx.isActive(InputContext_Grab)) {
-            for (VertexSelection vs : ctx.scene.selection.getVertices()) {
-                Object& obj = ctx.scene.objects.all()[vs.objectIndex];
-                Vertex& vert = obj.meshData.vertices[vs.vertexIndex];
-
-                i32 dx = ctx.systems.input.getMouseDeltaX();
-                i32 dy = ctx.systems.input.getMouseDeltaY();
-
-                dx = std::clamp(dx, -500, 500);
-                dy = std::clamp(dy, -500, 500);
-
-                Vec3 right = ctx.scene.camera.getRight();
-                Vec3 cameraUp = Vec3::cross(right, ctx.scene.camera.getForward()).normalized();
-
-                f32 vertMoveSpeed = 0.001f * ctx.scene.camera.distance;
-
-                Vec3 vertMove = (right * dx - cameraUp * dy) * vertMoveSpeed;
-
-                vert.position += vertMove;
-                obj.meshDirty = true;
-            }
-
-            if (ctx.systems.actions.wasActionPressedThisFrame(Action::ConfirmGrab, ctx.systems.input, ctx.systems.input_ctx.getContext())) {
-                ctx.systems.input_ctx.setContext(InputContext_Selection);
-            }
-        }
+        checkActions(ctx);
 
         Application::renderFrame(ctx);
     }

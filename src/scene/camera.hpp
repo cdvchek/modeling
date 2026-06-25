@@ -14,8 +14,8 @@ public:
     Vec3 up;
 
     f32 distance;
-    f32 yaw;
-    f32 pitch;
+    f32 yaw = 0;
+    f32 pitch = 0;
 
     f32 fovRadians;
     f32 nearPlane;

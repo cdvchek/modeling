@@ -1,5 +1,7 @@
 #include "core/input/input_state.hpp"
 
+#include <iostream>
+
 void InputState::beginFrame() {
     m_keys_was_down = m_keys_is_down;
     m_buttons_was_down = m_buttons_is_down;
@@ -68,12 +70,6 @@ void InputState::onKey(u16 key, bool pressed) {
 
 void InputState::onMouseButton(u16 button, bool pressed) {
     m_buttons_is_down[button] = pressed;
-
-    if (pressed) {
-        m_hasMousePosition = false;
-        m_mouse_delta_x = 0;
-        m_mouse_delta_y = 0;
-    }
 }
 
 void InputState::onScroll(i32 scroll) {
@@ -81,15 +77,6 @@ void InputState::onScroll(i32 scroll) {
 }
 
 void InputState::onMouseMove(i32 x, i32 y) {
-    if (!m_hasMousePosition) {
-        m_mouse_x = x;
-        m_mouse_y = y;
-        m_hasMousePosition = true;
-        m_mouse_delta_x = 0;
-        m_mouse_delta_y = 0;
-        return;
-    }
-
     m_mouse_delta_x = x - m_mouse_x;
     m_mouse_delta_y = y - m_mouse_y;
 
