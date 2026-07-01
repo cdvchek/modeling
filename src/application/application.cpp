@@ -27,16 +27,8 @@ void Application::run(AppContext& ctx) {
 
     while(ctx.is_running) {
         ctx.systems.input.beginFrame();
-        
         Platform::pollEvents();
-        
-        if (ctx.systems.actions.isActionDown(Action::Quit, ctx.systems.input, ctx.systems.input_ctx.getContext())) {
-            ctx.systems.events.trigger(Event::Quit{});
-            break;
-        }
-
         checkActions(ctx);
-
         Application::renderFrame(ctx);
     }
 } 

@@ -1,8 +1,14 @@
 #include "application/application.hpp"
 #include "application/action_checks/action_checks.hpp"
 
-void Application::checkActions(AppContext& ctx) {
+bool Application::checkActions(AppContext& ctx) {
     ContextManager& ictx = ctx.systems.input_ctx; //input context
+
+    if (ctx.systems.actions.isActionDown(Action::Quit, ctx.systems.input, ictx.getContext())) {
+        ctx.systems.events.trigger(Event::Quit{});
+        return false;
+    }
+    
     if (ictx.isActive(InputContext_Selection)) {
         checkSelectionContext(ctx);
     }
@@ -10,4 +16,6 @@ void Application::checkActions(AppContext& ctx) {
     if (ictx.isActive(InputContext_Grab)) {
         checkGrabContext(ctx);
     }
+
+    return true;
 }
