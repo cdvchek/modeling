@@ -6,7 +6,9 @@ void Selection::clear() {
     m_selectedVertices.clear();
 }
 
-void Selection::addVertex(u32 object, u32 vertex) {
+void Selection::addVertex(u32 object, u32 vertex, Vec3 position) {
+    if (m_selectedVertices.empty()) m_original_position = position;
+
     auto it = std::find_if(
         m_selectedVertices.begin(),
         m_selectedVertices.end(),
@@ -56,4 +58,12 @@ bool Selection::hasVertex(u32 object, u32 vertex) const {
                    selection.vertexIndex == vertex;
         }
     );
+}
+
+Vec3 Selection::getSelectionDelta(Vec3 currentPos) const {
+    return currentPos - m_original_position;
+}
+
+void Selection::setSelectionStartPosition(Vec3 position) {
+    m_original_position = position;
 }

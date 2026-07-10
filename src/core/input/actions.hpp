@@ -13,10 +13,11 @@ enum class Action : u8 {
     GrabSelection,   // Move the selection tangent to the camera's direction
     ConfirmGrab,     // Quit grabbing and leave vertices where they are
     CancelGrab,      // Quit grabbing and reset vertices to where they were before grab
-    Insert,          // Insert a vertex
+    AddVertex,       // Add a vertex at the origin
+    AddEdge,         // Connect two vertices by adding an edge
+    AddFace,         // Connect 3 or more vertices/edges to fill into a face
     DeleteSelection, // Delete one or more selected vertices
     Duplicate,       // Duplicate one or more selected vertices
-    Connect,         // Connect two vertices
     Disconnect,      // Disconnect two vertices
     Save,            // Save the project
     Undo,            // Undo the last action

@@ -104,8 +104,23 @@ namespace DefaultKeybinds {
         }
     };
     
-    inline Keybind Insert {
+    inline Keybind AddVertex {
         {
+            key(Key::A),
+            key(Key::V)
+        }
+    };
+
+    inline Keybind AddEdge {
+        {
+            key(Key::A),
+            key(Key::E)
+        }
+    };
+
+    inline Keybind AddFace {
+        {
+            key(Key::A),
             key(Key::F)
         }
     };
@@ -119,12 +134,6 @@ namespace DefaultKeybinds {
     inline Keybind Duplicate {
         {
             key(Key::D)
-        }
-    };
-    
-    inline Keybind Connect {
-        {
-            key(Key::C)
         }
     };
     

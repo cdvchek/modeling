@@ -48,8 +48,8 @@ VertexHit pickVertex(
 
         Mat4 model = object.transform.getMatrix();
 
-        for (u32 vertexIndex = 0; vertexIndex < object.meshData.vertices.size(); vertexIndex++) {
-            const Vertex& vertex = object.meshData.vertices[vertexIndex];
+        for (u32 vertexIndex = 0; vertexIndex < object.meshData.getVertices().size(); vertexIndex++) {
+            const Vertex& vertex = object.meshData.getVertices()[vertexIndex];
 
             Vec4 worldPos4 = model * Vec4(
                 vertex.position.x,

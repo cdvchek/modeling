@@ -4,4 +4,5 @@
 
 namespace MeshFactory {
     MeshData createCube();
+    MeshData createTest();
 }

@@ -16,31 +16,34 @@ struct Edge {
 
 struct Face {
     std::vector<u32> vertices;
-    std::vector<u32> edges;
 };
 
 class MeshData {
 public:
-    std::vector<Vertex> getVertices();
-    const std::vector<Vertex> getVertices() const;
+    const std::vector<Vertex>& getVertices() const;
+    void setVertices(std::vector<Vertex> verts);
+    u32 addVertex(const Vertex& vertex);
+    void moveVertex(u32 index, const Vec3& newPosition);
+    void translateVertex(u32 index, const Vec3& delta);
 
-    std::vector<u32> getIndices();
-    const std::vector<u32> getIndices() const;
+    const std::vector<Edge>& getEdges() const;
+    void setEdges(std::vector<Edge> edges);
+    u32 addEdge(const Edge& edge);
+    void deleteEdge(u32 edgeIndex);
 
-    std::vector<Edge> getEdges();
-    const std::vector<Edge> getEdges() const;
+    const std::vector<Face>& getFaces() const;
+    void setFaces(std::vector<Face> faces);
+    u32 addFace(const Face& face);
+    void deleteFace(u32 faceIndex);
 
-    std::vector<Face> getFaces();
-    const std::vector<Face> getFaces() const;
-
-    // TODO: setters for verts/indices/edges/faces
-    // TODO: have this be more of an interface and the indices get generated from the faces
+    // const std::vector<u32>& getIndices();
 
 private:
-    std::vector<Vertex> vertices;
-    std::vector<u32> indices;
-    std::vector<Edge> edges;
-    std::vector<Face> faces;
+    // void generateIndices();
 
-    bool dirty = true;
+    std::vector<Vertex> m_vertices;
+    std::vector<Edge> m_edges;
+    std::vector<Face> m_faces;
+    
+    bool m_dirty = true;
 };

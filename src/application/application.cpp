@@ -68,7 +68,7 @@ void Application::renderFrame(AppContext& ctx) {
 
     for (const VertexSelection& selection : ctx.scene.selection.getVertices()) {
         const Object& object = ctx.scene.objects.get(selection.objectIndex);
-        const Vertex& vertex = object.meshData.vertices[selection.vertexIndex];
+        const Vertex& vertex = object.meshData.getVertices()[selection.vertexIndex];
 
         Vec4 worldPos4 = object.transform.getMatrix() * Vec4(
             vertex.position.x,
