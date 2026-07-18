@@ -1,9 +1,9 @@
 #include "scene/object_collection.hpp"
 
-Object& ObjectCollection::create(const std::string& name, MeshData meshData) {
+Object& ObjectCollection::create(const std::string& name, PresetMesh meshType) {
     Object object;
     object.name = name;
-    object.meshData = std::move(meshData);
+    object.meshData.setMesh(meshType);
     object.meshDirty = true;
 
     m_objects.push_back(std::move(object));

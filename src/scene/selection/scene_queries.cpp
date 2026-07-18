@@ -43,41 +43,41 @@ VertexHit pickVertex(
     VertexHit bestHit;
     bestHit.distance = FLT_MAX;
 
-    for (u32 objectIndex = 0; objectIndex < scene.objects.count(); objectIndex++) {
-        const Object& object = scene.objects.get(objectIndex);
+    // for (u32 objectIndex = 0; objectIndex < scene.objects.count(); objectIndex++) {
+    //     const Object& object = scene.objects.get(objectIndex);
 
-        Mat4 model = object.transform.getMatrix();
+    //     Mat4 model = object.transform.getMatrix();
 
-        for (u32 vertexIndex = 0; vertexIndex < object.meshData.getVertices().size(); vertexIndex++) {
-            const Vertex& vertex = object.meshData.getVertices()[vertexIndex];
+    //     for (u32 vertexIndex = 0; vertexIndex < object.meshData.getVertices().size(); vertexIndex++) {
+    //         const Vertex& vertex = object.meshData.getVertices()[vertexIndex];
 
-            Vec4 worldPos4 = model * Vec4(
-                vertex.position.x,
-                vertex.position.y,
-                vertex.position.z,
-                1.0f
-            );
+    //         Vec4 worldPos4 = model * Vec4(
+    //             vertex.position.x,
+    //             vertex.position.y,
+    //             vertex.position.z,
+    //             1.0f
+    //         );
 
-            Vec3 worldPos(
-                worldPos4.x,
-                worldPos4.y,
-                worldPos4.z
-            );
+    //         Vec3 worldPos(
+    //             worldPos4.x,
+    //             worldPos4.y,
+    //             worldPos4.z
+    //         );
 
-            f32 distance = 0.0f;
+    //         f32 distance = 0.0f;
 
-            if (!rayHitsPoint(ray, worldPos, radius, distance)) {
-                continue;
-            }
+    //         if (!rayHitsPoint(ray, worldPos, radius, distance)) {
+    //             continue;
+    //         }
 
-            if (distance < bestHit.distance) {
-                bestHit.hit = true;
-                bestHit.objectIndex = objectIndex;
-                bestHit.vertexIndex = vertexIndex;
-                bestHit.distance = distance;
-            }
-        }
-    }
+    //         if (distance < bestHit.distance) {
+    //             bestHit.hit = true;
+    //             bestHit.objectIndex = objectIndex;
+    //             bestHit.vertexIndex = vertexIndex;
+    //             bestHit.distance = distance;
+    //         }
+    //     }
+    // }
 
     return bestHit;
 }

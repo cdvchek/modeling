@@ -9,8 +9,11 @@ class OpenGLMesh : public IMesh {
 public:
     bool create(const MeshData& mesh);
     bool update(const MeshData& mesh);
-    void draw() const override;
     void destroy();
+
+    void drawVertices() const override;
+    void drawEdges() const override;
+    void drawFaces() const override;
 
 private:
     void bind() const;
@@ -20,9 +23,9 @@ private:
     u32 m_edgeEbo = 0;
     u32 m_faceEbo = 0;
 
-    u32 m_vertexCount = 0;
-    u32 m_edgeCount = 0;
-    u32 m_faceIndexCount = 0;
+    u32 m_vCount = 0;
+    u32 m_eIndCount = 0;
+    u32 m_fIndCount = 0;
 
     bool m_hasIndices = false;
     bool m_initialized = false;

@@ -1,8 +1,7 @@
 #pragma once
 
-#include "scene/mesh/mesh_data.hpp"
+#include "scene/mesh/mesh_types.hpp"
 
 namespace MeshFactory {
-    MeshData createCube();
-    MeshData createTest();
+    PackagedMesh cube();
 }

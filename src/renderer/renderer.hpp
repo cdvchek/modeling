@@ -26,9 +26,9 @@ struct RendererConfig {
 };
 
 struct ClearState {
-    float r = 0.1f;
-    float g = 0.1f;
-    float b = 0.1f;
+    float r = 0.15f;
+    float g = 0.15f;
+    float b = 0.15f;
     float a = 1.0f;
     float depth = 1.0f;
     float stencil = 1.0f;

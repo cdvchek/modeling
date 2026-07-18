@@ -31,9 +31,9 @@ set(COMMON_SRC
     src/renderer/opengl/opengl_renderer_common.cpp
     src/renderer/opengl/opengl_shader.cpp
     src/renderer/renderer.cpp
-    src/scene/mesh/mesh_cube.cpp
-    src/scene/mesh/mesh_test.cpp
-    src/scene/mesh/mesh_data.cpp
+    src/scene/mesh/presets/cube.cpp
+    src/scene/mesh/mesh_data_cpu.cpp
+    src/scene/mesh/mesh_data_gpu.cpp
     src/scene/selection/ray.cpp
     src/scene/selection/scene_queries.cpp
     src/scene/selection/selection.cpp

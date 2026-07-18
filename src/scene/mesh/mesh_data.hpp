@@ -1,46 +1,32 @@
 #pragma once
 
-#include <vector>
-#include <types>
-
-#include "core/math/vec3.hpp"
-
-struct Vertex {
-    Vec3 position;
-};
-
-struct Edge {
-    u32 v0;
-    u32 v1;
-};
-
-struct Face {
-    std::vector<u32> vertices;
-};
+#include "scene/mesh/mesh_types.hpp"
+#include "core/math/vec2.hpp"
 
 class MeshData {
 public:
-    const std::vector<Vertex>& getVertices() const;
-    void setVertices(std::vector<Vertex> verts);
-    u32 addVertex(const Vertex& vertex);
-    void moveVertex(u32 index, const Vec3& newPosition);
-    void translateVertex(u32 index, const Vec3& delta);
+    void setMesh(PresetMesh meshType);
 
-    const std::vector<Edge>& getEdges() const;
-    void setEdges(std::vector<Edge> edges);
-    u32 addEdge(const Edge& edge);
-    void deleteEdge(u32 edgeIndex);
+    // CPU data manipulation
 
-    const std::vector<Face>& getFaces() const;
-    void setFaces(std::vector<Face> faces);
-    u32 addFace(const Face& face);
-    void deleteFace(u32 faceIndex);
+    void positionVertex(u32 v_index, Vec3 position);
+    void positionEdge(u32 e_index, Vec3 position);
+    void positionFace(u32 f_index, Vec3 position);
 
-    // const std::vector<u32>& getIndices();
+    void translateVertex(u32 v_index, Vec3 delta);
+    void translateEdge(u32 e_index, Vec3 delta);
+    void translateFace(u32 f_index, Vec3 delta);
+
+    void extrudeEdge(u32 e_index, Vec3 delta);
+    void extrudeFace(u32 f_index, Vec3 delta);
+
+    // GPU data access
+
+    const std::vector<f32> getVertexData() const;
+    const std::vector<u32> getEdgeData() const;
+    const std::vector<u32> getFaceData() const;
 
 private:
-    // void generateIndices();
-
     std::vector<Vertex> m_vertices;
     std::vector<Edge> m_edges;
     std::vector<Face> m_faces;

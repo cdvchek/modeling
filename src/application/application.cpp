@@ -45,6 +45,7 @@ void Application::renderFrame(AppContext& ctx) {
 
     Mat4 view = ctx.scene.camera.getViewMatrix();
     Mat4 projection = ctx.scene.camera.getProjectionMatrix(aspectRatio);
+    Mat4 viewProjection = projection * view;
 
     for (u32 i = 0; i < ctx.scene.objects.count(); i++) {
         Object& object = ctx.scene.objects.get(i);
@@ -55,35 +56,13 @@ void Application::renderFrame(AppContext& ctx) {
         }
 
         Mat4 model = object.transform.getMatrix();
-        Mat4 mvp = projection * view * model;
+        Mat4 mvp = viewProjection * model;
 
         DrawCommand cmd;
         cmd.mesh = &object.gpuMesh;
         cmd.mvp = mvp;
 
         ctx.renderer->draw(cmd);
-    }
-
-    Mat4 viewProjection = projection * view;
-
-    for (const VertexSelection& selection : ctx.scene.selection.getVertices()) {
-        const Object& object = ctx.scene.objects.get(selection.objectIndex);
-        const Vertex& vertex = object.meshData.getVertices()[selection.vertexIndex];
-
-        Vec4 worldPos4 = object.transform.getMatrix() * Vec4(
-            vertex.position.x,
-            vertex.position.y,
-            vertex.position.z,
-            1.0f
-        );
-
-        PointDrawCommand pointCmd;
-        pointCmd.position = Vec3(worldPos4.x, worldPos4.y, worldPos4.z);
-        pointCmd.viewProjection = viewProjection;
-        pointCmd.size = 14.0f;
-        pointCmd.color = Vec3(1.0f, 0.8f, 0.0f);
-
-        ctx.renderer->drawPoint(pointCmd);
     }
 
     ctx.renderer->endMainPass();
