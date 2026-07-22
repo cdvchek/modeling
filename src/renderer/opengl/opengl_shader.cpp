@@ -96,3 +96,8 @@ void OpenGLShader::setVec3(const char* name, const Vec3& value) {
     GLint location = glGetUniformLocation(m_program, name);
     glUniform3f(location, value.x, value.y, value.z);
 }
+
+void OpenGLShader::setUInt(const char* name, const u32 value) {
+    GLint location = glGetUniformLocation(m_program, name);
+    glUniform1ui(location, value);
+}

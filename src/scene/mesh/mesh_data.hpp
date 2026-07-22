@@ -6,6 +6,7 @@
 class MeshData {
 public:
     void setMesh(PresetMesh meshType);
+    const std::vector<Vertex> getVertices() const;
 
     // CPU data manipulation
 
@@ -17,8 +18,9 @@ public:
     void translateEdge(u32 e_index, Vec3 delta);
     void translateFace(u32 f_index, Vec3 delta);
 
-    void extrudeEdge(u32 e_index, Vec3 delta);
     void extrudeFace(u32 f_index, Vec3 delta);
+
+    void scaleVertices(std::vector<u32> v_indices, f32 delta);
 
     // GPU data access
 

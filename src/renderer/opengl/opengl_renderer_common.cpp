@@ -42,18 +42,50 @@ void OpenGLRenderer::draw(const DrawCommand& command) {
     m_testShader->setMat4("u_MVP", command.mvp.m);
 
     // Faces
-    m_testShader->setVec3("u_Color", Vec3(0.7f, 0.7f, 0.7f));
-    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+    m_testShader->setVec3(
+        "u_Color",
+        Vec3(0.7f, 0.7f, 0.7f)
+    );
+
+    glEnable(GL_POLYGON_OFFSET_FILL);
+    glPolygonOffset(1.0f, 1.0f);
+
     command.mesh->drawFaces();
 
+    glDisable(GL_POLYGON_OFFSET_FILL);
+
     // Edges
-    m_testShader->setVec3("u_Color", Vec3(0.0f, 0.0f, 0.0f));
+    m_testShader->setVec3(
+        "u_Color",
+        Vec3(0.0f, 0.0f, 0.0f)
+    );
+
     glLineWidth(2.0f);
     command.mesh->drawEdges();
 
-    // Vertices
+    // Selected vertex in yellow
+    if (command.selectedVertices.size() > 0) {
+        m_testShader->setVec3(
+            "u_Color",
+            Vec3(1.0f, 1.0f, 0.0f)
+        );
+
+        glPointSize(12.0f);
+
+        for (u32 vertexIndex : command.selectedVertices) {
+            command.mesh->drawVertex(vertexIndex);
+        }
+    }
+
+    // All vertices in black
+    m_testShader->setVec3(
+        "u_Color",
+        Vec3(0.0f, 0.0f, 0.0f)
+    );
+
     glPointSize(8.0f);
     command.mesh->drawVertices();
+
 
     glBindVertexArray(0);
 }

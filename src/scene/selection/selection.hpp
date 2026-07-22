@@ -19,6 +19,7 @@ public:
     bool hasVertex(u32 object, u32 vertex) const;
     
     const std::vector<VertexSelection>& getVertices() const;
+    const std::vector<u32> getVertexIndices() const;
 
     Vec3 getSelectionDelta(Vec3 currentPos) const;
     void setSelectionStartPosition(Vec3 position);

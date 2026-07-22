@@ -12,6 +12,7 @@ public:
 
     void setMat4(const char* name, const f32* matrix);
     void setVec3(const char* name, const Vec3& value);
+    void setUInt(const char* name, const u32 value);
 
 private:
     u32 m_program = 0;

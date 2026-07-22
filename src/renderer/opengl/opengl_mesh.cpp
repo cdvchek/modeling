@@ -142,6 +142,20 @@ void OpenGLMesh::drawEdges() const {
     );
 }
 
+void OpenGLMesh::drawVertex(u32 vertexIndex) const {
+    if (m_vao == 0 || vertexIndex >= m_vCount) {
+        return;
+    }
+
+    glBindVertexArray(m_vao);
+
+    glDrawArrays(
+        GL_POINTS,
+        static_cast<GLint>(vertexIndex),
+        1
+    );
+}
+
 void OpenGLMesh::drawVertices() const {
     if (m_vao == 0 || m_vCount == 0) {
         return;

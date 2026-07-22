@@ -49,6 +49,14 @@ const std::vector<VertexSelection>& Selection::getVertices() const {
     return m_selectedVertices;
 }
 
+const std::vector<u32> Selection::getVertexIndices() const {
+    std::vector<u32> data(m_selectedVertices.size());
+    for (std::size_t i = 0; i < m_selectedVertices.size(); ++i) {
+        data[i] = m_selectedVertices[i].vertexIndex;
+    }
+    return data;
+}
+
 bool Selection::hasVertex(u32 object, u32 vertex) const {
     return std::any_of(
         m_selectedVertices.begin(),

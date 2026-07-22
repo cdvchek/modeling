@@ -104,27 +104,6 @@ namespace DefaultKeybinds {
         }
     };
     
-    inline Keybind AddVertex {
-        {
-            key(Key::A),
-            key(Key::V)
-        }
-    };
-
-    inline Keybind AddEdge {
-        {
-            key(Key::A),
-            key(Key::E)
-        }
-    };
-
-    inline Keybind AddFace {
-        {
-            key(Key::A),
-            key(Key::F)
-        }
-    };
-    
     inline Keybind DeleteSelection {
         {
             key(Key::Backspace)

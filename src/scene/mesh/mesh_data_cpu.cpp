@@ -16,3 +16,15 @@ void MeshData::setMesh(PresetMesh meshType) {
 
     m_dirty = true;
 }
+
+const std::vector<Vertex> MeshData::getVertices() const {
+    return m_vertices;
+}
+
+void MeshData::positionVertex(u32 vIndex, Vec3 position) {
+    m_vertices[vIndex].position = position;
+}
+
+void MeshData::translateVertex(u32 vIndex, Vec3 delta) {
+    m_vertices[vIndex].position += delta;
+}

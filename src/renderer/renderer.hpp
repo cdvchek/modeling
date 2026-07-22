@@ -3,6 +3,7 @@
 #include <types>
 #include <cstdint>
 #include <memory>
+#include <vector>
 
 #include "core/math/mat4.hpp"
 #include "core/math/vec3.hpp"
@@ -39,6 +40,7 @@ struct ClearState {
 
 struct DrawCommand {
     IMesh* mesh = nullptr;
+    const std::vector<u32> selectedVertices;
     Mat4 mvp;
 };
 

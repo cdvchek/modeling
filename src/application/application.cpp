@@ -58,9 +58,11 @@ void Application::renderFrame(AppContext& ctx) {
         Mat4 model = object.transform.getMatrix();
         Mat4 mvp = viewProjection * model;
 
-        DrawCommand cmd;
-        cmd.mesh = &object.gpuMesh;
-        cmd.mvp = mvp;
+        DrawCommand cmd(
+            &object.gpuMesh,
+            ctx.scene.selection.getVertexIndices(),
+            mvp
+        );
 
         ctx.renderer->draw(cmd);
     }

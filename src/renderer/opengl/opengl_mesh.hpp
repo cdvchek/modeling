@@ -11,6 +11,7 @@ public:
     bool update(const MeshData& mesh);
     void destroy();
 
+    void drawVertex(u32 vertexIndex) const override;
     void drawVertices() const override;
     void drawEdges() const override;
     void drawFaces() const override;

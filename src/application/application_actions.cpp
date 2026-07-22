@@ -13,9 +13,6 @@ void Application::registerDefaultActions(AppContext& ctx) {
     actions.subscribe(Action::GrabSelection,   DefaultKeybinds::GrabSelection,   InputContext_Selection);
     actions.subscribe(Action::ConfirmGrab,     DefaultKeybinds::ConfirmGrab,     InputContext_Grab);
     actions.subscribe(Action::CancelGrab,      DefaultKeybinds::CancelGrab,      InputContext_Grab);
-    actions.subscribe(Action::AddVertex,       DefaultKeybinds::AddVertex,       InputContext_Selection);
-    actions.subscribe(Action::AddEdge,         DefaultKeybinds::AddEdge,         InputContext_Selection);
-    actions.subscribe(Action::AddFace,         DefaultKeybinds::AddFace,         InputContext_Selection);
     // actions.subscribe(Action::DeleteSelection, DefaultKeybinds::DeleteSelection);
     // actions.subscribe(Action::Duplicate, DefaultKeybinds::Duplicate);
     // actions.subscribe(Action::Connect, DefaultKeybinds::Connect);
