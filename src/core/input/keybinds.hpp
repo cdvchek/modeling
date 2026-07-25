@@ -94,13 +94,31 @@ namespace DefaultKeybinds {
 
     inline Keybind ConfirmGrab {
         {
-            mouse(MouseButton::Left),
+            mouse(MouseButton::Left)
         }
     };
 
     inline Keybind CancelGrab {
         {
-            mouse(MouseButton::Right),
+            mouse(MouseButton::Right)
+        }
+    };
+
+    inline Keybind ScaleSelection {
+        {
+            key(Key::S)
+        }
+    };
+
+    inline Keybind ConfirmScale {
+        {
+            mouse(MouseButton::Left)
+        }
+    };
+
+    inline Keybind CancelScale {
+        {
+            mouse(MouseButton::Right)
         }
     };
     

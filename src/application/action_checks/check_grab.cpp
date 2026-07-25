@@ -3,14 +3,14 @@
 #include <algorithm>
 
 void checkGrabContext(AppContext& ctx) {
+    i32 dx = ctx.systems.input.getMouseDeltaX();
+    i32 dy = ctx.systems.input.getMouseDeltaY();
+
+    dx = std::clamp(dx, -500, 500);
+    dy = std::clamp(dy, -500, 500);
+
     for (VertexSelection vs : ctx.scene.selection.getVertices()) {
         Object& obj = ctx.scene.objects.all()[vs.objectIndex];
-
-        i32 dx = ctx.systems.input.getMouseDeltaX();
-        i32 dy = ctx.systems.input.getMouseDeltaY();
-
-        dx = std::clamp(dx, -500, 500);
-        dy = std::clamp(dy, -500, 500);
 
         Vec3 right = ctx.scene.camera.getRight();
         Vec3 cameraUp = Vec3::cross(right, ctx.scene.camera.getForward()).normalized();
@@ -31,18 +31,16 @@ void checkGrabContext(AppContext& ctx) {
     Vec3 firstPos = ctx.scene.objects.get(firstObjIndex).meshData.getVertices()[firstVertIndex].position;
 
     if (ctx.systems.actions.wasActionPressedThisFrame(Action::ConfirmGrab, ctx.systems.input, ctx.systems.input_ctx.getContext())) {
-        ctx.scene.selection.setSelectionStartPosition(firstPos);
         ctx.systems.input_ctx.setContext(InputContext_Selection);
     }
 
     if (ctx.systems.actions.wasActionPressedThisFrame(Action::CancelGrab, ctx.systems.input, ctx.systems.input_ctx.getContext())) {
-        Vec3 delta = ctx.scene.selection.getSelectionDelta(firstPos);
+        const auto& starts = ctx.scene.selection.getSelectionStartPositions();
 
-        for (auto selection : selections) {
-            auto& meshData = ctx.scene.objects.get(selection.objectIndex).meshData;
-            Vec3 currentPos = meshData.getVertices()[selection.vertexIndex].position;
-            Vec3 newPos = currentPos - delta;
-            ctx.scene.objects.get(selection.objectIndex).meshData.positionVertex(selection.vertexIndex, newPos);
+        for (u32 i = 0; i < (u32)selections.size(); ++i) {
+            const auto& selection = selections[i];
+            const auto& start = starts[i];
+            ctx.scene.objects.get(selection.objectIndex).meshData.positionVertex(selection.vertexIndex, start);
         }
         
         ctx.systems.input_ctx.setContext(InputContext_Selection);

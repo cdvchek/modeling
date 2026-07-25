@@ -12,7 +12,7 @@ struct VertexSelection {
 class Selection {
 public:
     void clear();
-    void addVertex(u32 object, u32 vertex, Vec3 position);
+    void addVertex(u32 object, u32 vertex);
     void removeVertex(u32 object, u32 vertex);
 
     bool hasVertices() const;
@@ -21,11 +21,10 @@ public:
     const std::vector<VertexSelection>& getVertices() const;
     const std::vector<u32> getVertexIndices() const;
 
-    Vec3 getSelectionDelta(Vec3 currentPos) const;
-    void setSelectionStartPosition(Vec3 position);
+    const std::vector<Vec3>& getSelectionStartPositions() const;
+    void setSelectionStartPositions(const std::vector<Vec3>& positions);
 
 private:
     std::vector<VertexSelection> m_selectedVertices;
-
-    Vec3 m_original_position = Vec3();
+    std::vector<Vec3> m_original_positions;
 };

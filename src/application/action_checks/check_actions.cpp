@@ -17,5 +17,9 @@ bool Application::checkActions(AppContext& ctx) {
         checkGrabContext(ctx);
     }
 
+    if (ictx.isActive(InputContext_Scale)) {
+        checkScaleContext(ctx);
+    }
+
     return true;
 }

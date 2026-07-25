@@ -13,6 +13,9 @@ enum class Action : u8 {
     GrabSelection,   // Move the selection tangent to the camera's direction
     ConfirmGrab,     // Quit grabbing and leave vertices where they are
     CancelGrab,      // Quit grabbing and reset vertices to where they were before grab
+    ScaleSelection,  // Scale the vertices selected in or out
+    ConfirmScale,    // Quit scaling and leave the vertices where they are
+    CancelScale,     // Quit scaling and reset vertices to where they were before scale
     DeleteSelection, // Delete one or more selected vertices
     Duplicate,       // Duplicate one or more selected vertices
     Disconnect,      // Disconnect two vertices

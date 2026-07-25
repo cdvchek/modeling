@@ -79,14 +79,29 @@ void checkSelectionContext(AppContext& ctx) {
             } else {
                 ctx.scene.selection.addVertex(
                     hit.objectIndex,
-                    hit.vertexIndex,
-                    ctx.scene.objects.get(hit.objectIndex).meshData.getVertices()[hit.vertexIndex].position
+                    hit.vertexIndex
                 );
             }
         }
     }
 
     if (ctx.scene.selection.hasVertices() && actions.wasActionPressedThisFrame(Action::GrabSelection, input, ictx.getContext())) {
+        std::vector<Vec3> starts;
+        const auto& verts = ctx.scene.objects.get(0).meshData.getVertices();
+        for (const auto& vertIndex : ctx.scene.selection.getVertexIndices()) {
+            starts.push_back(verts[vertIndex].position);
+        }
+        ctx.scene.selection.setSelectionStartPositions(starts);
         ictx.setContext(InputContext_Grab);
+    }
+
+    if (ctx.scene.selection.getVertices().size() >= 2 && actions.wasActionPressedThisFrame(Action::ScaleSelection, input, ictx.getContext())) {
+        std::vector<Vec3> starts;
+        const auto& verts = ctx.scene.objects.get(0).meshData.getVertices();
+        for (const auto& vertIndex : ctx.scene.selection.getVertexIndices()) {
+            starts.push_back(verts[vertIndex].position);
+        }
+        ctx.scene.selection.setSelectionStartPositions(starts);
+        ictx.setContext(InputContext_Scale);
     }
 }

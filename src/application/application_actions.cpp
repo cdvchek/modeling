@@ -13,6 +13,9 @@ void Application::registerDefaultActions(AppContext& ctx) {
     actions.subscribe(Action::GrabSelection,   DefaultKeybinds::GrabSelection,   InputContext_Selection);
     actions.subscribe(Action::ConfirmGrab,     DefaultKeybinds::ConfirmGrab,     InputContext_Grab);
     actions.subscribe(Action::CancelGrab,      DefaultKeybinds::CancelGrab,      InputContext_Grab);
+    actions.subscribe(Action::ScaleSelection,  DefaultKeybinds::ScaleSelection,  InputContext_Selection);
+    actions.subscribe(Action::ConfirmScale,    DefaultKeybinds::ConfirmScale,    InputContext_Scale);
+    actions.subscribe(Action::CancelScale,     DefaultKeybinds::CancelScale,     InputContext_Scale);
     // actions.subscribe(Action::DeleteSelection, DefaultKeybinds::DeleteSelection);
     // actions.subscribe(Action::Duplicate, DefaultKeybinds::Duplicate);
     // actions.subscribe(Action::Connect, DefaultKeybinds::Connect);
