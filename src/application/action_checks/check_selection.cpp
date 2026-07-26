@@ -104,4 +104,20 @@ void checkSelectionContext(AppContext& ctx) {
         ctx.scene.selection.setSelectionStartPositions(starts);
         ictx.setContext(InputContext_Scale);
     }
+
+    if (ctx.scene.selection.getVertices().size() >= 3 && actions.wasActionPressedThisFrame(Action::ExtrudeSelection, input, ictx.getContext())) {
+        // find the face that we are extruding
+        // if no face found do not continue with extruding
+        // extrude only if the verts selected form a face
+        // call method on the objects meshdata that handles extruding
+        // paramaters of the method call should be the face index.
+
+        std::vector<Vec3> starts;
+        const auto& verts = ctx.scene.objects.get(0).meshData.getVertices();
+        for (const auto& vertIndex : ctx.scene.selection.getVertexIndices()) {
+            starts.push_back(verts[vertIndex].position);
+        }
+        ctx.scene.selection.setSelectionStartPositions(starts);
+        ictx.setContext(InputContext_Extrude);
+    }
 }

@@ -8,6 +8,7 @@ set(CMAKE_C_STANDARD 17)
 set(COMMON_SRC
     src/main.cpp
     src/application/action_checks/check_actions.cpp
+    src/application/action_checks/check_extrude.cpp
     src/application/action_checks/check_grab.cpp
     src/application/action_checks/check_scale.cpp
     src/application/action_checks/check_selection.cpp

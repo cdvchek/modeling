@@ -121,6 +121,24 @@ namespace DefaultKeybinds {
             mouse(MouseButton::Right)
         }
     };
+
+    inline Keybind ExtrudeSelection {
+        {
+            key(Key::E)
+        }
+    };
+
+    inline Keybind ConfirmExtrude {
+        {
+            mouse(MouseButton::Left)
+        }
+    };
+
+    inline Keybind CancelExtrude {
+        {
+            mouse(MouseButton::Right)
+        }
+    };
     
     inline Keybind DeleteSelection {
         {
