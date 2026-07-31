@@ -7,6 +7,10 @@ class MeshData {
 public:
     void setMesh(PresetMesh meshType);
     const std::vector<Vertex> getVertices() const;
+    const std::vector<Face> getFaces() const;
+
+    std::vector<u32> getFaceVertices(u32 face) const;
+    std::vector<Triangle> getFaceTriangles(u32 faceIndex);
 
     // CPU data manipulation
 
@@ -29,6 +33,7 @@ public:
     const std::vector<u32> getFaceData() const;
 
 private:
+    std::vector<Triangle> triangulateFace(u32 faceIndex) const;
     std::vector<Vertex> m_vertices;
     std::vector<Edge> m_edges;
     std::vector<Face> m_faces;

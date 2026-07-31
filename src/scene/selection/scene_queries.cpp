@@ -48,7 +48,7 @@ VertexHit pickVertex(
 
         Mat4 model = object.transform.getMatrix();
 
-        for (u32 vertexIndex = 0; vertexIndex < object.meshData.getVertices().size(); vertexIndex++) {
+        for (u32 vertexIndex = 0; vertexIndex < (u32)object.meshData.getVertices().size(); vertexIndex++) {
             const Vertex& vertex = object.meshData.getVertices()[vertexIndex];
 
             Vec4 worldPos4 = model * Vec4(
@@ -76,6 +76,22 @@ VertexHit pickVertex(
                 bestHit.vertexIndex = vertexIndex;
                 bestHit.distance = distance;
             }
+        }
+    }
+
+    return bestHit;
+}
+
+FaceHit pickFace(const Scene& scene, const Ray& ray, f32 radius) {
+    FaceHit bestHit;
+    bestHit.distance = FLT_MAX;
+
+    for (u32 objectIndex = 0; objectIndex < scene.objects.count(); objectIndex++) {
+        const Object& object = scene.objects.get(objectIndex);
+
+        Mat4 model = object.transform.getMatrix();
+        for (u32 faceIndex = 0; faceIndex < (u32)object.meshData.getFaces().size(); faceIndex++) {
+            const Face& face = object.meshData.getFaces()[faceIndex];
         }
     }
 

@@ -20,3 +20,18 @@ VertexHit pickVertex(
     const Ray& ray,
     f32 radius
 );
+
+struct FaceHit {
+    bool hit = false;
+
+    u32 objectIndex = 0;
+    u32 faceIndex = 0;
+
+    f32 distance = 0.0f;
+};
+
+FaceHit pickFace(
+    const Scene& scene,
+    const Ray& ray,
+    f32 radius
+);
