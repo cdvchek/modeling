@@ -84,3 +84,40 @@ void MeshData::positionVertex(u32 vIndex, Vec3 position) {
 void MeshData::translateVertex(u32 vIndex, Vec3 delta) {
     m_vertices[vIndex].position += delta;
 }
+
+struct EarVertex {
+    Vec2 position;
+    u32 meshVertexIndex;
+};
+
+std::vector<Triangle> MeshData::triangulateFace(u32 faceIndex) const {
+    if (faceIndex >= m_faces.size()) return {};
+
+    const Face& face = m_faces[faceIndex];
+    const u32 startEdge = face.edge;
+    u32 currentEdge = face.edge;
+
+    Vec3 normal = Vec3(0.0f);
+
+    do {
+        const Edge& edge = m_edges[currentEdge];
+        Vec3 current = edge.tip - m_edges[edge.prev].tip;
+        Vec3 next = m_edges[edge.next].tip - edge.tip;
+
+        normal.x += (current.y - next.y) * (current.z + next.z);
+        normal.y += (current.z - next.z) * (current.x + next.x);
+        normal.z += (current.x - next.x) * (current.y + next.y);
+
+        currentEdge = edge.next;
+    } while (currentEdge != startEdge);
+
+    f32 lengthSq = Vec3::dot(normal, normal);
+
+    // TODO: implement EPSILON as a checker
+    // if (lengthSq < EPSILON * EPSILON) return {};
+    // then find the dominant axis from the normal and drop that axis from each vertex in the face
+    // dropping that axis from each vertex projects it into the most parallel plane (XY, XZ, or YZ)
+    // after dropping the axis, package the vertices into a vector of EarVertex's (EarVertex is shown above)
+    // run earclipping on the vector of EarVertex's
+    // this should give you what you need to then append the generated triangle indices
+}
