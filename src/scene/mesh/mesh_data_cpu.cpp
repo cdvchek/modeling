@@ -1,6 +1,8 @@
 #include "scene/mesh/mesh_data.hpp"
 #include "scene/mesh/mesh_factory.hpp"
 
+#include <cmath>
+
 void MeshData::setMesh(PresetMesh meshType) {
     PackagedMesh pMesh;
 
@@ -85,11 +87,120 @@ void MeshData::translateVertex(u32 vIndex, Vec3 delta) {
     m_vertices[vIndex].position += delta;
 }
 
+constexpr f32 EPSILON = 1e-6f;
+
 struct EarVertex {
     Vec2 position;
     u32 meshVertexIndex;
 };
 
+f32 computeSignedArea(const std::vector<EarVertex>& verts) {
+    f32 area = 0.0f;
+
+    for (u32 i = 0; i < static_cast<u32>(verts.size()); ++i) {
+        const Vec2& current = verts[i].position;
+        const Vec2& next = verts[(i + 1) % static_cast<u32>(verts.size())].position;
+
+        area += current.x * next.y - next.x * current.y;
+    }
+
+    return area * 0.5f;
+}
+
+bool isPointInTriangle(Vec2 tri1, Vec2 tri2, Vec2 tri3, Vec2 point) {
+    auto cross = [](const Vec2& a, const Vec2& b, const Vec2& c) {
+        Vec2 ab = b - a;
+        Vec2 ac = c - a;
+        return ab.x * ac.y - ab.y * ac.x;
+    };
+
+    f32 d1 = cross(tri1, tri2, point);
+    f32 d2 = cross(tri2, tri3, point);
+    f32 d3 = cross(tri3, tri1, point);
+
+    bool hasNegative =
+        d1 < -EPSILON ||
+        d2 < -EPSILON ||
+        d3 < -EPSILON;
+
+    bool hasPositive =
+        d1 > EPSILON ||
+        d2 > EPSILON ||
+        d3 > EPSILON;
+
+    return !(hasNegative && hasPositive);
+}
+
+std::vector<Triangle> earclipping(std::vector<EarVertex> verts) {
+    // this will probably be a nested loop
+    // outer loop will just keep running until every vertex has been triangled sort of?
+    // inner loop will run over each vertex, test if the vertex is convex and if so, make a triangle
+    // and remove that vertex, if the vertex is concave, try the next vertex.
+
+    bool counterClockwise = computeSignedArea(verts) > 0.0f;
+
+    std::vector<Triangle> triangles;
+    while (verts.size() > 3) {
+        bool earFound = false;
+        for (u32 i = 0; i < static_cast<u32>(verts.size()); ++i) {
+            u32 prevIndex = (i == 0) ? static_cast<u32>(verts.size()) - 1 : i - 1;
+            u32 nextIndex = (i + 1) % static_cast<u32>(verts.size());
+            
+            const EarVertex& prevVert = verts[prevIndex];
+            const EarVertex& vert = verts[i];
+            const EarVertex& nextVert = verts[nextIndex];
+            
+            Vec2 incoming = vert.position - prevVert.position;
+            Vec2 outgoing = nextVert.position - vert.position;
+            
+            f32 cross = incoming.x * outgoing.y - incoming.y * outgoing.x;
+
+            bool isConvex = counterClockwise ? (cross > EPSILON) : (cross < -EPSILON);
+            
+            if (isConvex) { // convex
+                bool hasInsideVert = false;
+                for (u32 j = 0; j < static_cast<u32>(verts.size()); ++j) {
+                    if (j == prevIndex || j == i || j == nextIndex) continue;
+                    const EarVertex& testVert = verts[j];
+
+                    if (isPointInTriangle(
+                        prevVert.position,
+                        vert.position,
+                        nextVert.position,
+                        testVert.position
+                    )) {
+                        hasInsideVert = true;
+                        break;
+                    }
+                }
+
+                if (hasInsideVert) continue;
+                
+                earFound = true;
+                triangles.push_back(Triangle{
+                    prevVert.meshVertexIndex,
+                    vert.meshVertexIndex,
+                    nextVert.meshVertexIndex
+                });
+                verts.erase(verts.begin() + i);
+                break;
+            }
+        }
+
+        if (!earFound) return {};
+    }
+
+    triangles.push_back(Triangle{
+        verts[0].meshVertexIndex,
+        verts[1].meshVertexIndex,
+        verts[2].meshVertexIndex
+    });
+
+    return triangles;
+}
+
+// TODO: TEST!!!
+    
 std::vector<Triangle> MeshData::triangulateFace(u32 faceIndex) const {
     if (faceIndex >= m_faces.size()) return {};
 
@@ -101,8 +212,13 @@ std::vector<Triangle> MeshData::triangulateFace(u32 faceIndex) const {
 
     do {
         const Edge& edge = m_edges[currentEdge];
-        Vec3 current = edge.tip - m_edges[edge.prev].tip;
-        Vec3 next = m_edges[edge.next].tip - edge.tip;
+
+        Vec3 tipPos = m_vertices[edge.tip].position;
+        Vec3 prevTipPos = m_vertices[m_edges[edge.prev].tip].position;
+        Vec3 nextTipPos = m_vertices[m_edges[edge.next].tip].position;
+
+        Vec3 current = tipPos - prevTipPos;
+        Vec3 next = nextTipPos - tipPos;
 
         normal.x += (current.y - next.y) * (current.z + next.z);
         normal.y += (current.z - next.z) * (current.x + next.x);
@@ -112,12 +228,53 @@ std::vector<Triangle> MeshData::triangulateFace(u32 faceIndex) const {
     } while (currentEdge != startEdge);
 
     f32 lengthSq = Vec3::dot(normal, normal);
+    if (lengthSq < EPSILON * EPSILON) return {};
 
-    // TODO: implement EPSILON as a checker
-    // if (lengthSq < EPSILON * EPSILON) return {};
     // then find the dominant axis from the normal and drop that axis from each vertex in the face
     // dropping that axis from each vertex projects it into the most parallel plane (XY, XZ, or YZ)
-    // after dropping the axis, package the vertices into a vector of EarVertex's (EarVertex is shown above)
+    // while dropping the axis, package the vertices into a vector of EarVertex's (EarVertex is shown above)
+    std::vector<EarVertex> projVerts;
+    currentEdge = startEdge;
+
+    u8 dominant = 0;
+    Vec3 domNormal = Vec3(
+        std::abs(normal.x),
+        std::abs(normal.y),
+        std::abs(normal.z)
+    );
+
+    if (domNormal.x >= domNormal.y && domNormal.x >= domNormal.z) {
+        dominant = 0;
+    } else if (domNormal.y >= domNormal.x && domNormal.y >= domNormal.z) {
+        dominant = 1;
+    } else {
+        dominant = 2;
+    }
+
+    do {
+        const Edge& edge = m_edges[currentEdge];
+        Vertex current = m_vertices[edge.tip];
+
+        Vec2 earPosition;
+        switch (dominant) {
+        case 0:
+            earPosition = Vec2(current.position.y, current.position.z);
+            break;
+
+        case 1:
+            earPosition = Vec2(current.position.x, current.position.z);
+            break;
+
+        case 2:
+            earPosition = Vec2(current.position.x, current.position.y);
+            break;
+        }
+        projVerts.push_back(EarVertex{ earPosition, edge.tip });
+
+        currentEdge = edge.next;
+    } while (currentEdge != startEdge);
+
     // run earclipping on the vector of EarVertex's
     // this should give you what you need to then append the generated triangle indices
+    return earclipping(projVerts);
 }
