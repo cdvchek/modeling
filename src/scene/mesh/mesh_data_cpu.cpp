@@ -1,5 +1,6 @@
 #include "scene/mesh/mesh_data.hpp"
 #include "scene/mesh/mesh_factory.hpp"
+#include "core/math/math_utils.hpp"
 
 #include <cmath>
 
@@ -105,8 +106,6 @@ void MeshData::translateVertex(u32 vIndex, Vec3 delta) {
     m_vertices[vIndex].position += delta;
 }
 
-constexpr f32 EPSILON = 1e-6f;
-
 struct EarVertex {
     Vec2 position;
     u32 meshVertexIndex;
@@ -137,14 +136,14 @@ bool isPointInTriangle(Vec2 tri1, Vec2 tri2, Vec2 tri3, Vec2 point) {
     f32 d3 = cross(tri3, tri1, point);
 
     bool hasNegative =
-        d1 < -EPSILON ||
-        d2 < -EPSILON ||
-        d3 < -EPSILON;
+        d1 < -Math::EPSILON ||
+        d2 < -Math::EPSILON ||
+        d3 < -Math::EPSILON;
 
     bool hasPositive =
-        d1 > EPSILON ||
-        d2 > EPSILON ||
-        d3 > EPSILON;
+        d1 > Math::EPSILON ||
+        d2 > Math::EPSILON ||
+        d3 > Math::EPSILON;
 
     return !(hasNegative && hasPositive);
 }
@@ -173,7 +172,7 @@ std::vector<Triangle> earclipping(std::vector<EarVertex> verts) {
             
             f32 cross = incoming.x * outgoing.y - incoming.y * outgoing.x;
 
-            bool isConvex = counterClockwise ? (cross > EPSILON) : (cross < -EPSILON);
+            bool isConvex = counterClockwise ? (cross > Math::EPSILON) : (cross < -Math::EPSILON);
             
             if (isConvex) { // convex
                 bool hasInsideVert = false;
@@ -244,7 +243,7 @@ std::vector<Triangle> MeshData::triangulateFace(u32 faceIndex) const {
     } while (currentEdge != startEdge);
 
     f32 lengthSq = Vec3::dot(normal, normal);
-    if (lengthSq < EPSILON * EPSILON) return {};
+    if (lengthSq < Math::EPSILON * Math::EPSILON) return {};
 
     // then find the dominant axis from the normal and drop that axis from each vertex in the face
     // dropping that axis from each vertex projects it into the most parallel plane (XY, XZ, or YZ)

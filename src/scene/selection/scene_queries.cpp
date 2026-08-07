@@ -6,6 +6,7 @@
 #include "scene/object_collection.hpp"
 #include "scene/mesh/mesh_data.hpp"
 #include "core/math/vec4.hpp"
+#include "core/math/math_utils.hpp"
 
 static bool rayHitsPoint(
     const Ray& ray,
@@ -80,6 +81,50 @@ VertexHit pickVertex(
     }
 
     return bestHit;
+}
+
+static bool rayHitsTriangle(
+    const Ray& ray,
+    const Vec3& p1,
+    const Vec3& p2,
+    const Vec3& p3,
+    f32& distanceOut
+) {
+    const Vec3 edge1 = p2 - p1;
+    const Vec3 edge2 = p3 - p1;
+
+    const Vec3 h = Vec3::cross(ray.direction, edge2);
+    const f32 determinant = Vec3::dot(edge1, h);
+
+    // Ray is parallel to the triangle.
+    if (std::abs(determinant) < Math::EPSILON) {
+        return false;
+    }
+
+    const f32 invDet = 1.0f / determinant;
+
+    const Vec3 s = ray.origin - p1;
+    const f32 u = invDet * Vec3::dot(s, h);
+
+    if (u < 0.0f || u > 1.0f) {
+        return false;
+    }
+
+    const Vec3 q = Vec3::cross(s, edge1);
+    const f32 v = invDet * Vec3::dot(ray.direction, q);
+
+    if (v < 0.0f || u + v > 1.0f) {
+        return false;
+    }
+
+    const f32 t = invDet * Vec3::dot(edge2, q);
+
+    if (t < 0.0f) {
+        return false;
+    }
+
+    distanceOut = t;
+    return true;
 }
 
 FaceHit pickFace(const Scene& scene, const Ray& ray, f32 radius) {
