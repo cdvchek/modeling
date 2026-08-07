@@ -21,6 +21,7 @@ void checkGrabContext(AppContext& ctx) {
 
         obj.meshData.translateVertex(vs.vertexIndex, vertMove);
         obj.meshDirty = true;
+        obj.meshData.setFacesDirtyByVertex(vs.vertexIndex);
     }
 
     auto& selections = ctx.scene.selection.getVertices();

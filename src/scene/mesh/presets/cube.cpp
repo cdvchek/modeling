@@ -44,6 +44,7 @@ PackagedMesh MeshFactory::cube() {
     for (u32 faceIndex = 0; faceIndex < FACE_COUNT; ++faceIndex) {
         const u32 firstEdge = faceIndex * EDGES_PER_FACE;
 
+        mesh.faces[faceIndex].triangulationDirty = true;
         mesh.faces[faceIndex].edge = firstEdge;
 
         for (u32 localEdge = 0; localEdge < EDGES_PER_FACE; ++localEdge) {

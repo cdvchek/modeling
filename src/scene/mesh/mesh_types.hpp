@@ -34,8 +34,8 @@ struct Triangle {
 struct Face {
     u32 edge = INVALID_INDEX; // edge that belongs to the loop that circles this face
 
-    std::vector<Triangle> triangles;
-    bool triangulationDirty = true;
+    mutable std::vector<Triangle> triangles;
+    mutable bool triangulationDirty = true;
 };
 
 struct PackagedMesh {

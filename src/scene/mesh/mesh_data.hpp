@@ -10,7 +10,11 @@ public:
     const std::vector<Face> getFaces() const;
 
     std::vector<u32> getFaceVertices(u32 face) const;
-    std::vector<Triangle> getFaceTriangles(u32 faceIndex);
+    const std::vector<Triangle>& getFaceTriangles(u32 faceIndex) const;
+
+    void setFacesDirtyByVertex(u32 vertexIndex) const;
+    void setFacesDirtyByEdge(u32 edgeIndex) const;
+    void setFacesDirtyByFace(u32 faceIndex) const;
 
     // CPU data manipulation
 
@@ -28,9 +32,9 @@ public:
 
     // GPU data access
 
-    const std::vector<f32> getVertexData() const;
-    const std::vector<u32> getEdgeData() const;
-    const std::vector<u32> getFaceData() const;
+    std::vector<f32> getVertexData() const;
+    std::vector<u32> getEdgeData() const;
+    std::vector<u32> getFaceData() const;
 
 private:
     std::vector<Triangle> triangulateFace(u32 faceIndex) const;

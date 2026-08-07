@@ -1,6 +1,6 @@
 #include "scene/mesh/mesh_data.hpp"
 
-const std::vector<f32> MeshData::getVertexData() const {
+std::vector<f32> MeshData::getVertexData() const {
     std::vector<f32> vData(m_vertices.size() * 3);
     for (std::size_t i = 0; i < m_vertices.size(); ++i) {
         vData[i * 3 + 0] = m_vertices[i].position.x;
@@ -10,7 +10,7 @@ const std::vector<f32> MeshData::getVertexData() const {
     return vData;
 }
 
-const std::vector<u32> MeshData::getEdgeData() const {
+std::vector<u32> MeshData::getEdgeData() const {
     std::vector<u32> edgeData;
 
     // A closed manifold has two half-edges per rendered edge.
@@ -63,49 +63,16 @@ const std::vector<u32> MeshData::getEdgeData() const {
     return edgeData;
 }
 
-const std::vector<u32> MeshData::getFaceData() const {
+std::vector<u32> MeshData::getFaceData() const {
     std::vector<u32> faceData;
     faceData.reserve(m_faces.size() * 6);
 
-    for (const Face& face : m_faces) {
-        if (face.edge == INVALID_INDEX ||
-            face.edge >= m_edges.size()) {
-            continue;
-        }
-
-        std::vector<u32> faceVertices;
-
-        u32 edgeIndex = face.edge;
-
-        do {
-            const Edge& edge = m_edges[edgeIndex];
-
-            if (edge.tip == INVALID_INDEX ||
-                edge.tip >= m_vertices.size()) {
-                faceVertices.clear();
-                break;
-            }
-
-            faceVertices.push_back(edge.tip);
-
-            edgeIndex = edge.next;
-
-            if (edgeIndex == INVALID_INDEX ||
-                edgeIndex >= m_edges.size()) {
-                faceVertices.clear();
-                break;
-            }
-
-        } while (edgeIndex != face.edge);
-
-        if (faceVertices.size() < 3) {
-            continue;
-        }
-
-        for (size_t i = 1; i + 1 < faceVertices.size(); ++i) {
-            faceData.push_back(faceVertices[0]);
-            faceData.push_back(faceVertices[i]);
-            faceData.push_back(faceVertices[i + 1]);
+    for (u32 i = 0; i < static_cast<u32>(m_faces.size()); ++i) {
+        const auto& triangles = getFaceTriangles(i);
+        for (const Triangle& triangle : triangles) {
+            faceData.push_back(triangle.v0);
+            faceData.push_back(triangle.v1);
+            faceData.push_back(triangle.v2);
         }
     }
 

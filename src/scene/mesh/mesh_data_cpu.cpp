@@ -67,16 +67,34 @@ std::vector<u32> MeshData::getFaceVertices(u32 faceIndex) const {
     return vertices;
 }
 
-std::vector<Triangle> MeshData::getFaceTriangles(u32 faceIndex) {
-    if (faceIndex >= m_faces.size()) return {};
-    Face& face = m_faces[faceIndex];
+const std::vector<Triangle>& MeshData::getFaceTriangles(u32 faceIndex) const {
+    static const std::vector<Triangle> emptyTriangles;
+    if (faceIndex >= m_faces.size()) return emptyTriangles;
+    const Face& face = m_faces[faceIndex];
 
     if (face.triangulationDirty) {
-        // face.triangles = triangulateFace(faceIndex);
+        face.triangles = triangulateFace(faceIndex);
         face.triangulationDirty = false;
     }
 
     return face.triangles;
+}
+
+void MeshData::setFacesDirtyByVertex(u32 vertexInd) const {
+    if (vertexInd >= static_cast<u32>(m_vertices.size())) return;
+    const Vertex& vertex = m_vertices[vertexInd];
+
+    const u32 startEdge = vertex.edge;
+    u32 currEdge = vertex.edge;
+
+    do {
+        const Edge& edge = m_edges[currEdge];
+
+        const Face& face = m_faces[edge.face];
+        face.triangulationDirty = true;
+
+        currEdge = m_edges[edge.pair].next;
+    } while (currEdge != startEdge);
 }
 
 void MeshData::positionVertex(u32 vIndex, Vec3 position) {
@@ -198,8 +216,6 @@ std::vector<Triangle> earclipping(std::vector<EarVertex> verts) {
 
     return triangles;
 }
-
-// TODO: TEST!!!
     
 std::vector<Triangle> MeshData::triangulateFace(u32 faceIndex) const {
     if (faceIndex >= m_faces.size()) return {};
