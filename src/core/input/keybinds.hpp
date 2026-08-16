@@ -65,6 +65,27 @@ namespace DefaultKeybinds {
             axis()
         }
     };
+
+    inline Keybind VertexMode {
+        {
+            key(Key::M),
+            key(Key::V)
+        }
+    };
+
+    inline Keybind EdgeMode {
+        {
+            key(Key::M),
+            key(Key::E)
+        }
+    };
+
+    inline Keybind FaceMode {
+        {
+            key(Key::M),
+            key(Key::F)
+        }
+    };
     
     inline Keybind Select {
         {

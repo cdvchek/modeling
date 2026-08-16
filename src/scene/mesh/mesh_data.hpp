@@ -9,6 +9,8 @@ public:
     const std::vector<Vertex> getVertices() const;
     const std::vector<Face> getFaces() const;
 
+    Vec3 getVertexPosition(u32 vertexIndex) const;
+
     std::vector<u32> getFaceVertices(u32 face) const;
     const std::vector<Triangle>& getFaceTriangles(u32 faceIndex) const;
 

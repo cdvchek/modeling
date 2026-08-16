@@ -32,7 +32,7 @@ void checkGrabContext(AppContext& ctx) {
     Vec3 firstPos = ctx.scene.objects.get(firstObjIndex).meshData.getVertices()[firstVertIndex].position;
 
     if (ctx.systems.actions.wasActionPressedThisFrame(Action::ConfirmGrab, ctx.systems.input, ctx.systems.input_ctx.getContext())) {
-        ctx.systems.input_ctx.setContext(InputContext_Selection);
+        ctx.systems.input_ctx.setContext(ctx.systems.input_ctx.getSelectionContext());
     }
 
     if (ctx.systems.actions.wasActionPressedThisFrame(Action::CancelGrab, ctx.systems.input, ctx.systems.input_ctx.getContext())) {
@@ -44,6 +44,6 @@ void checkGrabContext(AppContext& ctx) {
             ctx.scene.objects.get(selection.objectIndex).meshData.positionVertex(selection.vertexIndex, start);
         }
         
-        ctx.systems.input_ctx.setContext(InputContext_Selection);
+        ctx.systems.input_ctx.setContext(ctx.systems.input_ctx.getSelectionContext());
     }
 }

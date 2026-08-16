@@ -35,7 +35,7 @@ void checkScaleContext(AppContext& ctx) {
     }
 
     if (ctx.systems.actions.wasActionPressedThisFrame(Action::ConfirmScale, ctx.systems.input, ctx.systems.input_ctx.getContext())) {
-        ctx.systems.input_ctx.setContext(InputContext_Selection);
+        ctx.systems.input_ctx.setContext(ctx.systems.input_ctx.getSelectionContext());
     }
 
     if (ctx.systems.actions.wasActionPressedThisFrame(Action::CancelScale, ctx.systems.input, ctx.systems.input_ctx.getContext())) {
@@ -48,6 +48,6 @@ void checkScaleContext(AppContext& ctx) {
             ctx.scene.objects.get(selection.objectIndex).meshData.positionVertex(selection.vertexIndex, start);
         }
         
-        ctx.systems.input_ctx.setContext(InputContext_Selection);
+        ctx.systems.input_ctx.setContext(ctx.systems.input_ctx.getSelectionContext());
     }
 }

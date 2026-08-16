@@ -17,7 +17,7 @@ bool Application::initialize(AppContext& ctx) {
     initializeCamera(ctx);
     loadTestScene(ctx);
 
-    ctx.systems.input_ctx.addContext(InputContext_Selection);
+    ctx.systems.input_ctx.setSelectionContext(InputContext_SelectionVertex);
     ctx.is_running = false;
     return true;
 }
@@ -31,7 +31,7 @@ void Application::run(AppContext& ctx) {
         checkActions(ctx);
         Application::renderFrame(ctx);
     }
-} 
+}
 
 void Application::renderFrame(AppContext& ctx) {
     ctx.renderer->beginFrame();

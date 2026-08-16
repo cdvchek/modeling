@@ -28,6 +28,11 @@ const std::vector<Face> MeshData::getFaces() const {
     return m_faces;
 }
 
+Vec3 MeshData::getVertexPosition(u32 vertexIndex) const {
+    if (vertexIndex > static_cast<u32>(m_vertices.size())) return Vec3();
+    return m_vertices[vertexIndex].position;
+}
+
 std::vector<u32> MeshData::getFaceVertices(u32 faceIndex) const {
     if (faceIndex >= m_faces.size()) {
         return {};

@@ -67,9 +67,7 @@ VertexHit pickVertex(
 
             f32 distance = 0.0f;
 
-            if (!rayHitsPoint(ray, worldPos, radius, distance)) {
-                continue;
-            }
+            if (!rayHitsPoint(ray, worldPos, radius, distance)) continue;
 
             if (distance < bestHit.distance) {
                 bestHit.hit = true;
@@ -127,7 +125,7 @@ static bool rayHitsTriangle(
     return true;
 }
 
-FaceHit pickFace(const Scene& scene, const Ray& ray, f32 radius) {
+FaceHit pickFace(const Scene& scene, const Ray& ray) {
     FaceHit bestHit;
     bestHit.distance = FLT_MAX;
 
@@ -136,7 +134,32 @@ FaceHit pickFace(const Scene& scene, const Ray& ray, f32 radius) {
 
         Mat4 model = object.transform.getMatrix();
         for (u32 faceIndex = 0; faceIndex < (u32)object.meshData.getFaces().size(); faceIndex++) {
-            const Face& face = object.meshData.getFaces()[faceIndex];
+            const auto& triangles = object.meshData.getFaceTriangles(faceIndex);
+            
+            for (const Triangle& triangle : triangles) {
+                Vec3 v1Pos = object.meshData.getVertexPosition(triangle.v0);
+                Vec3 v2Pos = object.meshData.getVertexPosition(triangle.v1);
+                Vec3 v3Pos = object.meshData.getVertexPosition(triangle.v2);
+
+                Vec4 worldPos4P1 = model * Vec4(v1Pos.x, v1Pos.y, v1Pos.z, 1.0f);
+                Vec4 worldPos4P2 = model * Vec4(v2Pos.x, v2Pos.y, v2Pos.z, 1.0f);
+                Vec4 worldPos4P3 = model * Vec4(v3Pos.x, v3Pos.y, v3Pos.z, 1.0f);
+
+                Vec3 worldPosP1(worldPos4P1.x, worldPos4P1.y, worldPos4P1.z);
+                Vec3 worldPosP2(worldPos4P2.x, worldPos4P2.y, worldPos4P2.z);
+                Vec3 worldPosP3(worldPos4P3.x, worldPos4P3.y, worldPos4P3.z);
+
+                f32 distance = 0.0f;
+                if (!rayHitsTriangle(ray, worldPosP1, worldPosP2, worldPosP3, distance)) continue;
+                
+                if (distance < bestHit.distance) {
+                    bestHit.hit = true;
+                    bestHit.objectIndex = objectIndex;
+                    bestHit.faceIndex = faceIndex;
+                    bestHit.distance = distance;
+                    break;
+                }
+            }
         }
     }
 

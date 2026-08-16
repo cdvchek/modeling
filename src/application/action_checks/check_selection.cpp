@@ -10,6 +10,21 @@ void checkSelectionContext(AppContext& ctx) {
     ContextManager& ictx = ctx.systems.input_ctx;
     Camera& camera = ctx.scene.camera;
 
+    if (actions.wasActionPressedThisFrame(Action::VertexMode, input, ictx.getContext())) {
+        ictx.setSelectionContext(InputContext_SelectionVertex);
+        ctx.scene.selection.clear();
+    }
+
+    if (actions.wasActionPressedThisFrame(Action::EdgeMode, input, ictx.getContext())) {
+        ictx.setSelectionContext(InputContext_SelectionEdge);
+        ctx.scene.selection.clear();
+    }
+
+    if (actions.wasActionPressedThisFrame(Action::FaceMode, input, ictx.getContext())) {
+        ictx.setSelectionContext(InputContext_SelectionFace);
+        ctx.scene.selection.clear();
+    }
+
     if (actions.isActionDown(Action::ViewportOrbit, input, ictx.getContext())) {
         i32 dx = input.getMouseDeltaX();
         i32 dy = input.getMouseDeltaY();
@@ -57,12 +72,6 @@ void checkSelectionContext(AppContext& ctx) {
             camera
         );
 
-        VertexHit hit = pickVertex(
-            ctx.scene,
-            ray,
-            0.03f
-        );
-
         bool addDown = actions.isActionDown(Action::AddSelection, input, ictx.getContext());
         bool removeDown = actions.isActionDown(Action::RemoveSelection, input, ictx.getContext());
 
@@ -70,17 +79,38 @@ void checkSelectionContext(AppContext& ctx) {
             ctx.scene.selection.clear();
         }
 
-        if (hit.hit) {
-            if (removeDown) {
-                ctx.scene.selection.removeVertex(
-                    hit.objectIndex,
-                    hit.vertexIndex
-                );
-            } else {
-                ctx.scene.selection.addVertex(
-                    hit.objectIndex,
-                    hit.vertexIndex
-                );
+        if (ictx.getSelectionContext() & InputContext_SelectionVertex) {
+            VertexHit hit = pickVertex(ctx.scene, ray, 0.03f);
+    
+            if (hit.hit) {
+                if (removeDown) {
+                    ctx.scene.selection.removeVertex(
+                        hit.objectIndex,
+                        hit.vertexIndex
+                    );
+                } else {
+                    ctx.scene.selection.addVertex(
+                        hit.objectIndex,
+                        hit.vertexIndex
+                    );
+                }
+            }
+        } else if (ictx.getSelectionContext() & InputContext_SelectionEdge) {
+
+        } else if (ictx.getSelectionContext() & InputContext_SelectionFace) {
+            FaceHit hit = pickFace(ctx.scene, ray);
+
+            if (hit.hit) {
+                std::vector<u32> selectedVerts = ctx.scene.objects.get(hit.objectIndex).meshData.getFaceVertices(hit.faceIndex);
+                if (removeDown) {
+                    for (u32 vertIndex : selectedVerts) {
+                        ctx.scene.selection.removeVertex(hit.objectIndex, vertIndex);
+                    }
+                } else {
+                    for (u32 vertIndex : selectedVerts) {
+                        ctx.scene.selection.addVertex(hit.objectIndex, vertIndex);
+                    }
+                }
             }
         }
     }

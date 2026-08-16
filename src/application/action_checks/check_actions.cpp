@@ -9,7 +9,7 @@ bool Application::checkActions(AppContext& ctx) {
         return false;
     }
     
-    if (ictx.isActive(InputContext_Selection)) {
+    if (ictx.isActive(InputContext_SelectionVertex | InputContext_SelectionEdge | InputContext_SelectionFace)) {
         checkSelectionContext(ctx);
     }
 
