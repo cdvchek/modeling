@@ -20,6 +20,7 @@ public:
     Vec3 getVertexPosition(u32 vertexIndex) const;
 
     std::vector<u32> getFaceVertices(u32 face) const;
+    std::vector<u32> getFaceEdges(u32 face) const;
     const std::vector<Triangle>& getFaceTriangles(u32 faceIndex) const;
 
     void setFacesDirtyByVertex(u32 vertexIndex) const;

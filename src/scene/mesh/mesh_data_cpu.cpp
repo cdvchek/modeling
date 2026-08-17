@@ -73,6 +73,8 @@ std::vector<u32> MeshData::getFaceVertices(u32 faceIndex) const {
     return vertices;
 }
 
+
+
 const std::vector<Triangle>& MeshData::getFaceTriangles(u32 faceIndex) const {
     static const std::vector<Triangle> emptyTriangles;
     if (faceIndex >= m_faces.size()) return emptyTriangles;

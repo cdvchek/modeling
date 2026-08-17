@@ -101,7 +101,9 @@ void checkSelectionContext(AppContext& ctx) {
             FaceHit hit = pickFace(ctx.scene, ray);
 
             if (hit.hit) {
-                std::vector<u32> selectedVerts = ctx.scene.objects.get(hit.objectIndex).meshData.getFaceVertices(hit.faceIndex);
+                const MeshData& mesh = ctx.scene.objects.get(hit.objectIndex).meshData;
+                std::vector<u32> selectedVerts = mesh.getFaceVertices(hit.faceIndex);
+                //std::vector<u32> selectedEdges = mesh.getFaceEdges(hit.faceIndex);
                 if (removeDown) {
                     for (u32 vertIndex : selectedVerts) {
                         ctx.scene.selection.removeVertex(hit.objectIndex, vertIndex);

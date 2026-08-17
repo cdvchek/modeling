@@ -39,16 +39,16 @@ struct ClearState {
 };
 
 struct DrawCommand {
-    std::vector<u32> selected;
-    // first entry is the number of highlighted verts, we will call it "x"
-    // second entry is the number of highlighted edges, we will call it "y"
-    // third entry is the number of highlighted faces, we will call it "z"
-    // the following "x" number of entries will be the indices of the highlighted verts
-    // after that, the following "y" number of entries will be the indices of the highlighted edges
-    // after that, the following "z" number of entries will be the indicis of the highlighted faces
+    bool showVerts = true;
+    bool showEdges = true;
+    bool showFaces = true;
+    u32 numHighlightedVerts = 0;
+    u32 numHighlightedEdges = 0;
+    u32 numHighlightedFaces = 0;
+    const std::vector<u32> selected;
+    // First indices are the verts, then edges, then faces
     
     IMesh* mesh = nullptr;
-    const std::vector<u32> selected;
     Mat4 mvp;
 };
 

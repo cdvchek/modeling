@@ -58,9 +58,14 @@ void Application::renderFrame(AppContext& ctx) {
         Mat4 model = object.transform.getMatrix();
         Mat4 mvp = viewProjection * model;
 
+        const Selection& selection = ctx.scene.selection;
         DrawCommand cmd(
+            true, true, true,
+            selection.getNumberOfVertices(),
+            selection.getNumberOfEdges(),
+            selection.getNumberOfFaces(),
+            ctx.scene.selection.getSelectionIndices(),
             &object.gpuMesh,
-            ctx.scene.selection.getVertexIndices(),
             mvp
         );
 

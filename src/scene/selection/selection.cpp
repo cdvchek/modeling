@@ -55,6 +55,43 @@ const std::vector<u32> Selection::getVertexIndices() const {
     return data;
 }
 
+// const std::vector<u32> Selection::getEdgeIndices() const {
+
+// }
+
+const std::vector<u32> Selection::getSelectionIndices() const {
+    std::vector<u32> data;
+    data.resize(m_selectedVertices.size() + m_selectedEdges.size() + m_selectedFaces.size());
+    
+    for (std::size_t i = 0; i < m_selectedVertices.size(); ++i) {
+        data[i] = m_selectedVertices[i].vertexIndex;
+    }
+
+    std::size_t edgeOffset = m_selectedVertices.size();
+    for (std::size_t i = 0; i < m_selectedEdges.size(); ++i) {
+        data[i + edgeOffset] = m_selectedEdges[i].edgeIndex;
+    }
+
+    std::size_t faceOffset = edgeOffset + m_selectedEdges.size();
+    for (std::size_t i = 0; i < m_selectedFaces.size(); ++i) {
+        data[i + faceOffset] = m_selectedFaces[i].faceIndex;
+    }
+
+    return data;
+}
+
+u32 Selection::getNumberOfVertices() const {
+    return static_cast<u32>(m_selectedVertices.size());
+}
+
+u32 Selection::getNumberOfEdges() const {
+    return static_cast<u32>(m_selectedEdges.size());
+}
+
+u32 Selection::getNumberOfFaces() const {
+    return static_cast<u32>(m_selectedFaces.size());
+}
+
 bool Selection::hasVertex(u32 object, u32 vertex) const {
     return std::any_of(
         m_selectedVertices.begin(),
