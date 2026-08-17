@@ -1,4 +1,5 @@
 #include "renderer/opengl/opengl_renderer.hpp"
+#include "core/input/contexts.hpp"
 
 #include <glad/glad.h>
 
@@ -42,6 +43,16 @@ void OpenGLRenderer::draw(const DrawCommand& command) {
     m_testShader->setMat4("u_MVP", command.mvp.m);
 
     // Faces
+    if (command.selectionCtx & InputContext_SelectionFace) {
+        m_testShader->setVec3(
+            "u_Color",
+            Vec3(1.0f, 1.0f, 0.0f)
+        );
+
+        for (u32 index : command.selected) {
+            command.mesh->drawFace(index);
+        }
+    }
     m_testShader->setVec3(
         "u_Color",
         Vec3(0.7f, 0.7f, 0.7f)

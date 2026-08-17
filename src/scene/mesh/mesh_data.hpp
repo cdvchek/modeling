@@ -1,7 +1,15 @@
 #pragma once
 
+#include <vector>
+#include <types>
+
 #include "scene/mesh/mesh_types.hpp"
 #include "core/math/vec2.hpp"
+
+struct FaceData {
+    std::vector<u32> indexMap;
+    std::vector<u32> indices;
+};
 
 class MeshData {
 public:
@@ -36,7 +44,7 @@ public:
 
     std::vector<f32> getVertexData() const;
     std::vector<u32> getEdgeData() const;
-    std::vector<u32> getFaceData() const;
+    FaceData getFaceData() const;
 
 private:
     std::vector<Triangle> triangulateFace(u32 faceIndex) const;

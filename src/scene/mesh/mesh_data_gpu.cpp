@@ -63,18 +63,31 @@ std::vector<u32> MeshData::getEdgeData() const {
     return edgeData;
 }
 
-std::vector<u32> MeshData::getFaceData() const {
-    std::vector<u32> faceData;
-    faceData.reserve(m_faces.size() * 6);
+FaceData MeshData::getFaceData() const {
+    FaceData data;
+
+    data.indexMap.reserve(m_faces.size() * 2);
+    data.indices.reserve(m_faces.size() * 6);
+
+    u32 indexCount = 0;
 
     for (u32 i = 0; i < static_cast<u32>(m_faces.size()); ++i) {
         const auto& triangles = getFaceTriangles(i);
+
+        u32 faceIndexCount =
+            static_cast<u32>(triangles.size()) * 3;
+
+        data.indexMap.push_back(indexCount);
+        data.indexMap.push_back(faceIndexCount);
+
         for (const Triangle& triangle : triangles) {
-            faceData.push_back(triangle.v0);
-            faceData.push_back(triangle.v1);
-            faceData.push_back(triangle.v2);
+            data.indices.push_back(triangle.v0);
+            data.indices.push_back(triangle.v1);
+            data.indices.push_back(triangle.v2);
         }
+
+        indexCount += faceIndexCount;
     }
 
-    return faceData;
+    return data;
 }

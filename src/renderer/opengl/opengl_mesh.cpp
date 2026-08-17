@@ -5,7 +5,10 @@
 bool OpenGLMesh::create(const MeshData& mesh) {
     const auto vertices = mesh.getVertexData();
     const auto edges = mesh.getEdgeData();
-    const auto faces = mesh.getFaceData();
+    
+    const FaceData faceData = mesh.getFaceData();
+    m_faceIndexMap = faceData.indexMap;
+    const auto& faces = faceData.indices;
 
     if (vertices.empty()) {
         return false;
@@ -69,7 +72,10 @@ bool OpenGLMesh::update(const MeshData& mesh) {
 
     const auto vertices = mesh.getVertexData();
     const auto edges = mesh.getEdgeData();
-    const auto faces = mesh.getFaceData();
+
+    const FaceData faceData = mesh.getFaceData();
+    m_faceIndexMap = faceData.indexMap;
+    const auto& faces = faceData.indices;
 
     if (vertices.empty()) {
         return false;
@@ -110,6 +116,33 @@ bool OpenGLMesh::update(const MeshData& mesh) {
     return true;
 }
 
+void OpenGLMesh::drawFace(u32 index) const {
+    if (m_vao == 0 || m_fIndCount == 0) {
+        return;
+    }
+
+    const u32 mapIndex = index * 2;
+
+    if (mapIndex + 1 >= m_faceIndexMap.size()) {
+        return;
+    }
+
+    const u32 offset = m_faceIndexMap[mapIndex];
+    const u32 count  = m_faceIndexMap[mapIndex + 1];
+
+    glBindVertexArray(m_vao);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_faceEbo);
+
+    glDrawElements(
+        GL_TRIANGLES,
+        static_cast<GLsizei>(count),
+        GL_UNSIGNED_INT,
+        reinterpret_cast<void*>(
+            static_cast<uintptr_t>(offset * sizeof(u32))
+        )
+    );
+}
+
 void OpenGLMesh::drawFaces() const {
     if (m_vao == 0 || m_fIndCount == 0) {
         return;
@@ -123,6 +156,24 @@ void OpenGLMesh::drawFaces() const {
         static_cast<GLsizei>(m_fIndCount),
         GL_UNSIGNED_INT,
         nullptr
+    );
+}
+
+void OpenGLMesh::drawEdge(u32 index) const {
+    if (m_vao == 0 || m_eIndCount == 0) {
+        return;
+    }
+
+    glBindVertexArray(m_vao);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_edgeEbo);
+
+    glDrawElements(
+        GL_LINES,
+        static_cast<GLsizei>(2),
+        GL_UNSIGNED_INT,
+        reinterpret_cast<void*>(
+            static_cast<uintptr_t>(index * 2 * sizeof(u32))
+        )
     );
 }
 

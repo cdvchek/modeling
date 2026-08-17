@@ -1,6 +1,7 @@
 #pragma once
 
 #include <types>
+#include <vector>
 
 #include "scene/mesh/mesh_data.hpp"
 #include "renderer/gpu_mesh.hpp"
@@ -11,9 +12,11 @@ public:
     bool update(const MeshData& mesh);
     void destroy();
 
-    void drawVertex(u32 vertexIndex) const override;
+    void drawVertex(u32 index) const override;
     void drawVertices() const override;
+    void drawEdge(u32 index) const override;
     void drawEdges() const override;
+    void drawFace(u32 index) const override;
     void drawFaces() const override;
 
 private:
@@ -27,6 +30,8 @@ private:
     u32 m_vCount = 0;
     u32 m_eIndCount = 0;
     u32 m_fIndCount = 0;
+
+    std::vector<u32> m_faceIndexMap;
 
     bool m_hasIndices = false;
     bool m_initialized = false;
