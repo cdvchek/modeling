@@ -1,10 +1,19 @@
 #pragma once
 
 #include <vector>
+#include <unordered_map>
 #include <types>
 
 #include "scene/mesh/mesh_types.hpp"
 #include "core/math/vec2.hpp"
+
+using HalfEdgeIndex = u32;
+using RendererIndex = u32;
+
+struct EdgeData {
+    std::unordered_map<HalfEdgeIndex, RendererIndex> indexMap;
+    std::vector<u32> indices;
+};
 
 struct FaceData {
     std::vector<u32> indexMap;
@@ -42,9 +51,8 @@ public:
     void scaleVertices(std::vector<u32> v_indices, f32 delta);
 
     // GPU data access
-
     std::vector<f32> getVertexData() const;
-    std::vector<u32> getEdgeData() const;
+    EdgeData getEdgeData() const;
     FaceData getFaceData() const;
 
 private:

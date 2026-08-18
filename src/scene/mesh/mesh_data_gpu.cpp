@@ -10,16 +10,15 @@ std::vector<f32> MeshData::getVertexData() const {
     return vData;
 }
 
-std::vector<u32> MeshData::getEdgeData() const {
-    std::vector<u32> edgeData;
-
+EdgeData MeshData::getEdgeData() const {
+    EdgeData data;
+    
     // A closed manifold has two half-edges per rendered edge.
-    edgeData.reserve(m_edges.size());
+    data.indices.reserve(m_edges.size());
+    data.indexMap.reserve(m_edges.size() / 2);
 
-    for (u32 edgeIndex = 0;
-         edgeIndex < static_cast<u32>(m_edges.size());
-         ++edgeIndex) {
-
+    u32 renderedIndex = 0;
+    for (u32 edgeIndex = 0; edgeIndex < static_cast<u32>(m_edges.size()); ++edgeIndex) {
         const Edge& edge = m_edges[edgeIndex];
 
         if (edge.prev == INVALID_INDEX ||
@@ -56,11 +55,13 @@ std::vector<u32> MeshData::getEdgeData() const {
         const u32 startVertex = previousEdge.tip;
         const u32 endVertex = edge.tip;
 
-        edgeData.push_back(startVertex);
-        edgeData.push_back(endVertex);
+        data.indices.push_back(startVertex);
+        data.indices.push_back(endVertex);
+        data.indexMap.emplace(edgeIndex, renderedIndex);
+        renderedIndex++;
     }
 
-    return edgeData;
+    return data;
 }
 
 FaceData MeshData::getFaceData() const {

@@ -4,7 +4,10 @@
 
 bool OpenGLMesh::create(const MeshData& mesh) {
     const auto vertices = mesh.getVertexData();
-    const auto edges = mesh.getEdgeData();
+
+    const EdgeData edgeData = mesh.getEdgeData();
+    m_edgeIndexMap = edgeData.indexMap;
+    const auto& edges = edgeData.indices;
     
     const FaceData faceData = mesh.getFaceData();
     m_faceIndexMap = faceData.indexMap;
@@ -71,7 +74,10 @@ bool OpenGLMesh::update(const MeshData& mesh) {
     }
 
     const auto vertices = mesh.getVertexData();
-    const auto edges = mesh.getEdgeData();
+
+    const EdgeData edgeData = mesh.getEdgeData();
+    m_edgeIndexMap = edgeData.indexMap;
+    const auto& edges = edgeData.indices;
 
     const FaceData faceData = mesh.getFaceData();
     m_faceIndexMap = faceData.indexMap;
@@ -164,6 +170,8 @@ void OpenGLMesh::drawEdge(u32 index) const {
         return;
     }
 
+    u32 renderIndex = m_edgeIndexMap.at(index);
+
     glBindVertexArray(m_vao);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_edgeEbo);
 
@@ -172,7 +180,7 @@ void OpenGLMesh::drawEdge(u32 index) const {
         static_cast<GLsizei>(2),
         GL_UNSIGNED_INT,
         reinterpret_cast<void*>(
-            static_cast<uintptr_t>(index * 2 * sizeof(u32))
+            static_cast<uintptr_t>(renderIndex * 2 * sizeof(u32))
         )
     );
 }

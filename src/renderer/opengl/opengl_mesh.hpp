@@ -2,6 +2,7 @@
 
 #include <types>
 #include <vector>
+#include <unordered_map>
 
 #include "scene/mesh/mesh_data.hpp"
 #include "renderer/gpu_mesh.hpp"
@@ -31,6 +32,7 @@ private:
     u32 m_eIndCount = 0;
     u32 m_fIndCount = 0;
 
+    std::unordered_map<HalfEdgeIndex, RendererIndex> m_edgeIndexMap;
     std::vector<u32> m_faceIndexMap;
 
     bool m_hasIndices = false;
