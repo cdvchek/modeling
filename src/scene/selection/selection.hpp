@@ -25,6 +25,9 @@ public:
     void addVertex(u32 object, u32 vertex);
     void removeVertex(u32 object, u32 vertex);
 
+    void addFace(u32 object, u32 face);
+    void removeFace(u32 object, u32 face);
+
     bool hasVertices() const;
     bool hasVertex(u32 object, u32 vertex) const;
     

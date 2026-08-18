@@ -4,6 +4,8 @@
 
 void Selection::clear() {
     m_selectedVertices.clear();
+    m_selectedEdges.clear();
+    m_selectedFaces.clear();
 }
 
 void Selection::addVertex(u32 object, u32 vertex) {
@@ -37,6 +39,39 @@ void Selection::removeVertex(u32 object, u32 vertex) {
     );
 
     m_selectedVertices.erase(it, m_selectedVertices.end());
+}
+
+void Selection::addFace(u32 object, u32 face) {
+    auto it = std::find_if(
+        m_selectedFaces.begin(),
+        m_selectedFaces.end(),
+        [object, face](const FaceSelection& selection) {
+            return selection.objectIndex == object &&
+                   selection.faceIndex == face;
+        }
+    );
+
+    if (it != m_selectedFaces.end()) {
+        return;
+    }
+
+    m_selectedFaces.push_back({
+        object,
+        face
+    });
+}
+
+void Selection::removeFace(u32 object, u32 face) {
+    auto it = std::remove_if(
+        m_selectedFaces.begin(),
+        m_selectedFaces.end(),
+        [object, face](const FaceSelection& selection) {
+            return selection.objectIndex == object &&
+                   selection.faceIndex == face;
+        }
+    );
+
+    m_selectedFaces.erase(it, m_selectedFaces.end());
 }
 
 bool Selection::hasVertices() const {

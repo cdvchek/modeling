@@ -39,6 +39,7 @@ struct ClearState {
 };
 
 struct DrawCommand {
+    DrawCommand(const std::vector<u32> selected) : selected(selected) {}
     bool showVerts = true;
     bool showEdges = true;
     bool showFaces = true;

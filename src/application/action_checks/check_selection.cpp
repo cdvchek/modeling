@@ -108,10 +108,12 @@ void checkSelectionContext(AppContext& ctx) {
                     for (u32 vertIndex : selectedVerts) {
                         ctx.scene.selection.removeVertex(hit.objectIndex, vertIndex);
                     }
+                    ctx.scene.selection.removeFace(hit.objectIndex, hit.faceIndex);
                 } else {
                     for (u32 vertIndex : selectedVerts) {
                         ctx.scene.selection.addVertex(hit.objectIndex, vertIndex);
                     }
+                    ctx.scene.selection.addFace(hit.objectIndex, hit.faceIndex);
                 }
             }
         }

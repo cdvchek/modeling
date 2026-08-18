@@ -59,15 +59,18 @@ void Application::renderFrame(AppContext& ctx) {
         Mat4 mvp = viewProjection * model;
 
         const Selection& selection = ctx.scene.selection;
-        DrawCommand cmd(
-            true, true, true,
-            selection.getNumberOfVertices(),
-            selection.getNumberOfEdges(),
-            selection.getNumberOfFaces(),
-            ctx.scene.selection.getSelectionIndices(),
-            &object.gpuMesh,
-            mvp
-        );
+        
+        DrawCommand cmd(selection.getSelectionIndices());
+        u32 selectionContext = ctx.systems.input_ctx.getSelectionContext();
+        bool showVerts = selectionContext & InputContext_SelectionVertex;
+        cmd.showVerts = showVerts;
+        cmd.showEdges = true;
+        cmd.showFaces = true;
+        cmd.numHighlightedVerts = selection.getNumberOfVertices();
+        cmd.numHighlightedEdges = selection.getNumberOfEdges();
+        cmd.numHighlightedFaces = selection.getNumberOfFaces();
+        cmd.mesh = &object.gpuMesh;
+        cmd.mvp = mvp;
 
         ctx.renderer->draw(cmd);
     }
