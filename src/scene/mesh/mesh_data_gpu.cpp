@@ -58,7 +58,7 @@ EdgeData MeshData::getEdgeData() const {
         data.indices.push_back(startVertex);
         data.indices.push_back(endVertex);
         data.indexMap.emplace(edgeIndex, renderedIndex);
-        renderedIndex++;
+        renderedIndex += 2;
     }
 
     return data;
