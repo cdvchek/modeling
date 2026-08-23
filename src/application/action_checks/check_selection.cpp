@@ -105,6 +105,8 @@ void checkSelectionContext(AppContext& ctx) {
                 std::vector<u32> selectedVerts = mesh.getFaceVertices(hit.faceIndex);
                 //std::vector<u32> selectedEdges = mesh.getFaceEdges(hit.faceIndex);
                 if (removeDown) {
+                    // TODO: current bug, if you remove a face from the selection, all of the adjacent selected faces will only be partially selected.
+                    // the vertices that the adjacent faces share with the deselected face will be deselected and they shouldn't.
                     for (u32 vertIndex : selectedVerts) {
                         ctx.scene.selection.removeVertex(hit.objectIndex, vertIndex);
                     }
@@ -139,12 +141,11 @@ void checkSelectionContext(AppContext& ctx) {
         ictx.setContext(InputContext_Scale);
     }
 
-    if (ctx.scene.selection.getVertices().size() >= 3 && actions.wasActionPressedThisFrame(Action::ExtrudeSelection, input, ictx.getContext())) {
-        // find the face that we are extruding
-        // if no face found do not continue with extruding
-        // extrude only if the verts selected form a face
-        // call method on the objects meshdata that handles extruding
-        // paramaters of the method call should be the face index.
+    if (ctx.systems.input_ctx.getSelectionContext() == InputContext_SelectionFace && actions.wasActionPressedThisFrame(Action::ExtrudeSelection, input, ictx.getContext())) {
+        // insert the new additions to the mesh
+        // then act like the selection is just being grabbed on the axis of the normal of the face
+
+        // TODO: implement this: ctx.scene.objects.get(0).meshData.insertExtrusion(ctx.scene.selection.getFaces());
 
         std::vector<Vec3> starts;
         const auto& verts = ctx.scene.objects.get(0).meshData.getVertices();
@@ -152,6 +153,6 @@ void checkSelectionContext(AppContext& ctx) {
             starts.push_back(verts[vertIndex].position);
         }
         ctx.scene.selection.setSelectionStartPositions(starts);
-        ictx.setContext(InputContext_Extrude);
+        ictx.setContext(InputContext_Grab);
     }
 }

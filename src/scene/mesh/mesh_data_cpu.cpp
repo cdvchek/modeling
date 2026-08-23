@@ -105,6 +105,31 @@ void MeshData::setFacesDirtyByVertex(u32 vertexInd) const {
     } while (currEdge != startEdge);
 }
 
+void MeshData::setFacesDirtyByEdge(u32 edgeInd) const {
+    if (edgeInd >= static_cast<u32>(m_edges.size())) return;
+    const Edge& edge = m_edges[edgeInd];
+
+    const u32 startVert = m_edges[edge.prev].tip;
+    const u32 endVert = edge.tip;
+
+    setFacesDirtyByVertex(startVert);
+    setFacesDirtyByVertex(endVert);
+}
+
+void MeshData::setFacesDirtyByFace(u32 faceInd) const {
+    if (faceInd >= static_cast<u32>(m_faces.size())) return;
+    const Face& face = m_faces[faceInd];
+
+    const u32 startEdge = face.edge;
+    u32 currEdge = face.edge;
+
+    do {
+        const Edge& edge = m_edges[currEdge];
+        setFacesDirtyByVertex(edge.tip);
+        currEdge = edge.next;
+    } while (currEdge != startEdge);
+}
+
 void MeshData::positionVertex(u32 vIndex, Vec3 position) {
     m_vertices[vIndex].position = position;
 }
