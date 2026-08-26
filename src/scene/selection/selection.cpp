@@ -94,6 +94,14 @@ const std::vector<u32> Selection::getVertexIndices() const {
 
 // }
 
+const std::vector<u32> Selection::getFaceIndices() const {
+    std::vector<u32> data(m_selectedFaces.size());
+    for (std::size_t i = 0; i < m_selectedFaces.size(); ++i) {
+        data[i] = m_selectedFaces[i].faceIndex;
+    }
+    return data;
+}
+
 const std::vector<u32> Selection::getSelectionIndices() const {
     std::vector<u32> data;
     data.resize(m_selectedVertices.size() + m_selectedEdges.size() + m_selectedFaces.size());

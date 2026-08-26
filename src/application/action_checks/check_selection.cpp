@@ -145,7 +145,7 @@ void checkSelectionContext(AppContext& ctx) {
         // insert the new additions to the mesh
         // then act like the selection is just being grabbed on the axis of the normal of the face
 
-        // TODO: implement this: ctx.scene.objects.get(0).meshData.insertExtrusion(ctx.scene.selection.getFaces());
+        ctx.scene.objects.get(0).meshData.insertExtrusion(ctx.scene.selection.getFaceIndices()[0]);
 
         std::vector<Vec3> starts;
         const auto& verts = ctx.scene.objects.get(0).meshData.getVertices();

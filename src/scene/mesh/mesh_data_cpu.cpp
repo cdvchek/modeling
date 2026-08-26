@@ -138,6 +138,192 @@ void MeshData::translateVertex(u32 vIndex, Vec3 delta) {
     m_vertices[vIndex].position += delta;
 }
 
+void MeshData::insertExtrusion(u32 faceIndex) {
+    if (faceIndex >= static_cast<u32>(m_faces.size())) {
+        return;
+    }
+
+    const u32 faceEdge = m_faces[faceIndex].edge;
+
+    if (faceEdge == INVALID_INDEX) {
+        return;
+    }
+
+    std::vector<u32> faceEdges;
+    std::vector<u32> oldVertices;
+    std::vector<u32> oldPairs;
+
+    u32 edge = faceEdge;
+
+    do {
+        faceEdges.push_back(edge);
+        oldVertices.push_back(m_edges[edge].tip);
+        oldPairs.push_back(m_edges[edge].pair);
+
+        edge = m_edges[edge].next;
+    } while (edge != faceEdge);
+
+    const u32 count = static_cast<u32>(faceEdges.size());
+
+    if (count < 3) {
+        return;
+    }
+
+    for (u32 pair : oldPairs) {
+        if (pair == INVALID_INDEX) {
+            return;
+        }
+    }
+
+    const u32 firstNewVertex =
+        static_cast<u32>(m_vertices.size());
+
+    const u32 firstNewEdge =
+        static_cast<u32>(m_edges.size());
+
+    const u32 firstNewFace =
+        static_cast<u32>(m_faces.size());
+
+    // Prevent unnecessary reallocations.
+    m_vertices.reserve(m_vertices.size() + count);
+    m_edges.reserve(m_edges.size() + count * 4);
+    m_faces.reserve(m_faces.size() + count);
+
+    std::vector<u32> newVertices;
+    newVertices.reserve(count);
+
+    for (u32 i = 0; i < count; ++i) {
+        const u32 newVertexIndex =
+            static_cast<u32>(m_vertices.size());
+
+        m_vertices.push_back(Vertex{
+            m_vertices[oldVertices[i]].position,
+            INVALID_INDEX
+        });
+
+        newVertices.push_back(newVertexIndex);
+    }
+
+    for (u32 i = 0; i < count; ++i) {
+        const u32 prev = (i + count - 1) % count;
+        const u32 next = (i + 1) % count;
+
+        const u32 oldPrev = oldVertices[prev];
+        const u32 oldCurr = oldVertices[i];
+
+        const u32 newPrev = newVertices[prev];
+        const u32 newCurr = newVertices[i];
+
+        const u32 selectedEdge = faceEdges[i];
+        const u32 oldPair = oldPairs[i];
+
+        const u32 sideFace = firstNewFace + i;
+
+        const u32 s0 = firstNewEdge + i * 4 + 0;
+
+        const u32 s1 = firstNewEdge + i * 4 + 1;
+
+        const u32 s2 = firstNewEdge + i * 4 + 2;
+
+        const u32 s3 = firstNewEdge + i * 4 + 3;
+
+        const u32 previousSideS3 = firstNewEdge + prev * 4 + 3;
+
+        const u32 nextSideS1 = firstNewEdge + next * 4 + 1;
+
+        // Side face.
+        m_faces.push_back(Face{
+            s0,
+            {},
+            true
+        });
+
+        m_edges.push_back(Edge{
+            selectedEdge, // pair
+            s1,           // next
+            s3,           // prev
+            oldPrev,      // tip
+            sideFace
+        });
+
+        m_edges.push_back(Edge{
+            previousSideS3,
+            s2,
+            s0,
+            newPrev,
+            sideFace
+        });
+
+        m_edges.push_back(Edge{
+            oldPair,
+            s3,
+            s1,
+            newCurr,
+            sideFace
+        });
+
+        m_edges.push_back(Edge{
+            nextSideS1,
+            s0,
+            s2,
+            oldCurr,
+            sideFace
+        });
+    }
+
+    for (u32 i = 0; i < count; ++i) {
+        const u32 selectedIncomingEdge = faceEdges[i];
+
+        u32 currEdge = m_edges[m_edges[selectedIncomingEdge].next].pair;
+
+        while (currEdge != selectedIncomingEdge) {
+            m_edges[currEdge].tip = newVertices[i];
+
+            const u32 affectedFace = m_edges[currEdge].face;
+
+            if (affectedFace != INVALID_INDEX) {
+                m_faces[affectedFace].triangulationDirty = true;
+            }
+
+            const u32 outgoingEdge = m_edges[currEdge].next;
+
+            currEdge = m_edges[outgoingEdge].pair;
+
+            // Defensive check.
+            if (currEdge == INVALID_INDEX) {
+                break;
+            }
+        }
+    }
+
+    for (u32 i = 0; i < count; ++i) {
+        const u32 selectedEdge = faceEdges[i];
+        const u32 oldPair = oldPairs[i];
+
+        const u32 s0 =
+            firstNewEdge + i * 4 + 0;
+
+        const u32 s2 =
+            firstNewEdge + i * 4 + 2;
+
+        m_edges[selectedEdge].pair = s0;
+
+        m_edges[oldPair].pair = s2;
+    }
+
+    for (u32 i = 0; i < count; ++i) {
+        const u32 next = (i + 1) % count;
+
+        m_vertices[oldVertices[i]].edge =
+            faceEdges[next];
+
+        const u32 s3 =
+            firstNewEdge + i * 4 + 3;
+
+        m_vertices[newVertices[i]].edge = s3;
+    }
+}
+
 struct EarVertex {
     Vec2 position;
     u32 meshVertexIndex;

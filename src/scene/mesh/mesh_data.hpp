@@ -46,7 +46,7 @@ public:
     void translateEdge(u32 e_index, Vec3 delta);
     void translateFace(u32 f_index, Vec3 delta);
 
-    void extrudeFace(u32 f_index, Vec3 delta);
+    void insertExtrusion(u32 f_index);
 
     void scaleVertices(std::vector<u32> v_indices, f32 delta);
 

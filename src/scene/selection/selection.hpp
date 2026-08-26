@@ -34,7 +34,7 @@ public:
     const std::vector<VertexSelection>& getVertices() const;
     const std::vector<u32> getVertexIndices() const;
     // const std::vector<u32> getEdgeIndices() const;
-    // const std::vector<u32> getFaceIndices() const;
+    const std::vector<u32> getFaceIndices() const;
     const std::vector<u32> getSelectionIndices() const;
 
     u32 getNumberOfVertices() const;
