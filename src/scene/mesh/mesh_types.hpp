@@ -4,9 +4,6 @@
 
 #include <types>
 #include <vector>
-// #include <limits>
-
-// constexpr u32 INVALID_INDEX = std::numeric_limits<u32>::max();
 
 struct Vertex;
 struct Face;
