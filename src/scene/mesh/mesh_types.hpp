@@ -24,9 +24,9 @@ struct Vertex {
 };
 
 struct Triangle {
-    u32 v0;
-    u32 v1;
-    u32 v2;
+    VertexHandle v0;
+    VertexHandle v1;
+    VertexHandle v2;
 };
 
 struct Face {

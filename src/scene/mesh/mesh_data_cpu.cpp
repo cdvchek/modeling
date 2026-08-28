@@ -129,203 +129,205 @@ void MeshData::setFacesDirtyByFace(FaceHandle handle) const {
     } while (!(currEdge == startEdge));
 }
 
-void MeshData::positionVertex(u32 vIndex, Vec3 position) {
-    m_vertices[vIndex].position = position;
+void MeshData::positionVertex(VertexHandle handle, Vec3 position) {
+    Vertex* vertex = m_vertices.tryGet(handle);
+    if (vertex) vertex->position = position;
 }
 
-void MeshData::translateVertex(u32 vIndex, Vec3 delta) {
-    m_vertices[vIndex].position += delta;
+void MeshData::translateVertex(VertexHandle handle, Vec3 delta) {
+    Vertex* vertex = m_vertices.tryGet(handle);
+    if (vertex) vertex->position += delta;
 }
 
-void MeshData::insertExtrusion(u32 faceIndex) {
-    if (faceIndex >= static_cast<u32>(m_faces.size())) {
-        return;
-    }
+// void MeshData::insertExtrusion(u32 faceIndex) {
+//     if (faceIndex >= static_cast<u32>(m_faces.size())) {
+//         return;
+//     }
 
-    const u32 faceEdge = m_faces[faceIndex].edge;
+//     const u32 faceEdge = m_faces[faceIndex].edge;
 
-    if (faceEdge == INVALID_INDEX) {
-        return;
-    }
+//     if (faceEdge == INVALID_INDEX) {
+//         return;
+//     }
 
-    std::vector<u32> faceEdges;
-    std::vector<u32> oldVertices;
-    std::vector<u32> oldPairs;
+//     std::vector<u32> faceEdges;
+//     std::vector<u32> oldVertices;
+//     std::vector<u32> oldPairs;
 
-    u32 edge = faceEdge;
+//     u32 edge = faceEdge;
 
-    do {
-        faceEdges.push_back(edge);
-        oldVertices.push_back(m_edges[edge].tip);
-        oldPairs.push_back(m_edges[edge].pair);
+//     do {
+//         faceEdges.push_back(edge);
+//         oldVertices.push_back(m_edges[edge].tip);
+//         oldPairs.push_back(m_edges[edge].pair);
 
-        edge = m_edges[edge].next;
-    } while (edge != faceEdge);
+//         edge = m_edges[edge].next;
+//     } while (edge != faceEdge);
 
-    const u32 count = static_cast<u32>(faceEdges.size());
+//     const u32 count = static_cast<u32>(faceEdges.size());
 
-    if (count < 3) {
-        return;
-    }
+//     if (count < 3) {
+//         return;
+//     }
 
-    for (u32 pair : oldPairs) {
-        if (pair == INVALID_INDEX) {
-            return;
-        }
-    }
+//     for (u32 pair : oldPairs) {
+//         if (pair == INVALID_INDEX) {
+//             return;
+//         }
+//     }
 
-    const u32 firstNewVertex =
-        static_cast<u32>(m_vertices.size());
+//     const u32 firstNewVertex =
+//         static_cast<u32>(m_vertices.size());
 
-    const u32 firstNewEdge =
-        static_cast<u32>(m_edges.size());
+//     const u32 firstNewEdge =
+//         static_cast<u32>(m_edges.size());
 
-    const u32 firstNewFace =
-        static_cast<u32>(m_faces.size());
+//     const u32 firstNewFace =
+//         static_cast<u32>(m_faces.size());
 
-    // Prevent unnecessary reallocations.
-    m_vertices.reserve(m_vertices.size() + count);
-    m_edges.reserve(m_edges.size() + count * 4);
-    m_faces.reserve(m_faces.size() + count);
+//     // Prevent unnecessary reallocations.
+//     m_vertices.reserve(m_vertices.size() + count);
+//     m_edges.reserve(m_edges.size() + count * 4);
+//     m_faces.reserve(m_faces.size() + count);
 
-    std::vector<u32> newVertices;
-    newVertices.reserve(count);
+//     std::vector<u32> newVertices;
+//     newVertices.reserve(count);
 
-    for (u32 i = 0; i < count; ++i) {
-        const u32 newVertexIndex =
-            static_cast<u32>(m_vertices.size());
+//     for (u32 i = 0; i < count; ++i) {
+//         const u32 newVertexIndex =
+//             static_cast<u32>(m_vertices.size());
 
-        m_vertices.push_back(Vertex{
-            m_vertices[oldVertices[i]].position,
-            INVALID_INDEX
-        });
+//         m_vertices.push_back(Vertex{
+//             m_vertices[oldVertices[i]].position,
+//             INVALID_INDEX
+//         });
 
-        newVertices.push_back(newVertexIndex);
-    }
+//         newVertices.push_back(newVertexIndex);
+//     }
 
-    for (u32 i = 0; i < count; ++i) {
-        const u32 prev = (i + count - 1) % count;
-        const u32 next = (i + 1) % count;
+//     for (u32 i = 0; i < count; ++i) {
+//         const u32 prev = (i + count - 1) % count;
+//         const u32 next = (i + 1) % count;
 
-        const u32 oldPrev = oldVertices[prev];
-        const u32 oldCurr = oldVertices[i];
+//         const u32 oldPrev = oldVertices[prev];
+//         const u32 oldCurr = oldVertices[i];
 
-        const u32 newPrev = newVertices[prev];
-        const u32 newCurr = newVertices[i];
+//         const u32 newPrev = newVertices[prev];
+//         const u32 newCurr = newVertices[i];
 
-        const u32 selectedEdge = faceEdges[i];
-        const u32 oldPair = oldPairs[i];
+//         const u32 selectedEdge = faceEdges[i];
+//         const u32 oldPair = oldPairs[i];
 
-        const u32 sideFace = firstNewFace + i;
+//         const u32 sideFace = firstNewFace + i;
 
-        const u32 s0 = firstNewEdge + i * 4 + 0;
+//         const u32 s0 = firstNewEdge + i * 4 + 0;
 
-        const u32 s1 = firstNewEdge + i * 4 + 1;
+//         const u32 s1 = firstNewEdge + i * 4 + 1;
 
-        const u32 s2 = firstNewEdge + i * 4 + 2;
+//         const u32 s2 = firstNewEdge + i * 4 + 2;
 
-        const u32 s3 = firstNewEdge + i * 4 + 3;
+//         const u32 s3 = firstNewEdge + i * 4 + 3;
 
-        const u32 previousSideS3 = firstNewEdge + prev * 4 + 3;
+//         const u32 previousSideS3 = firstNewEdge + prev * 4 + 3;
 
-        const u32 nextSideS1 = firstNewEdge + next * 4 + 1;
+//         const u32 nextSideS1 = firstNewEdge + next * 4 + 1;
 
-        // Side face.
-        m_faces.push_back(Face{
-            s0,
-            {},
-            true
-        });
+//         // Side face.
+//         m_faces.push_back(Face{
+//             s0,
+//             {},
+//             true
+//         });
 
-        m_edges.push_back(Edge{
-            selectedEdge, // pair
-            s1,           // next
-            s3,           // prev
-            oldPrev,      // tip
-            sideFace
-        });
+//         m_edges.push_back(Edge{
+//             selectedEdge, // pair
+//             s1,           // next
+//             s3,           // prev
+//             oldPrev,      // tip
+//             sideFace
+//         });
 
-        m_edges.push_back(Edge{
-            previousSideS3,
-            s2,
-            s0,
-            newPrev,
-            sideFace
-        });
+//         m_edges.push_back(Edge{
+//             previousSideS3,
+//             s2,
+//             s0,
+//             newPrev,
+//             sideFace
+//         });
 
-        m_edges.push_back(Edge{
-            oldPair,
-            s3,
-            s1,
-            newCurr,
-            sideFace
-        });
+//         m_edges.push_back(Edge{
+//             oldPair,
+//             s3,
+//             s1,
+//             newCurr,
+//             sideFace
+//         });
 
-        m_edges.push_back(Edge{
-            nextSideS1,
-            s0,
-            s2,
-            oldCurr,
-            sideFace
-        });
-    }
+//         m_edges.push_back(Edge{
+//             nextSideS1,
+//             s0,
+//             s2,
+//             oldCurr,
+//             sideFace
+//         });
+//     }
 
-    for (u32 i = 0; i < count; ++i) {
-        const u32 selectedIncomingEdge = faceEdges[i];
+//     for (u32 i = 0; i < count; ++i) {
+//         const u32 selectedIncomingEdge = faceEdges[i];
 
-        u32 currEdge = m_edges[m_edges[selectedIncomingEdge].next].pair;
+//         u32 currEdge = m_edges[m_edges[selectedIncomingEdge].next].pair;
 
-        while (currEdge != selectedIncomingEdge) {
-            m_edges[currEdge].tip = newVertices[i];
+//         while (currEdge != selectedIncomingEdge) {
+//             m_edges[currEdge].tip = newVertices[i];
 
-            const u32 affectedFace = m_edges[currEdge].face;
+//             const u32 affectedFace = m_edges[currEdge].face;
 
-            if (affectedFace != INVALID_INDEX) {
-                m_faces[affectedFace].triangulationDirty = true;
-            }
+//             if (affectedFace != INVALID_INDEX) {
+//                 m_faces[affectedFace].triangulationDirty = true;
+//             }
 
-            const u32 outgoingEdge = m_edges[currEdge].next;
+//             const u32 outgoingEdge = m_edges[currEdge].next;
 
-            currEdge = m_edges[outgoingEdge].pair;
+//             currEdge = m_edges[outgoingEdge].pair;
 
-            // Defensive check.
-            if (currEdge == INVALID_INDEX) {
-                break;
-            }
-        }
-    }
+//             // Defensive check.
+//             if (currEdge == INVALID_INDEX) {
+//                 break;
+//             }
+//         }
+//     }
 
-    for (u32 i = 0; i < count; ++i) {
-        const u32 selectedEdge = faceEdges[i];
-        const u32 oldPair = oldPairs[i];
+//     for (u32 i = 0; i < count; ++i) {
+//         const u32 selectedEdge = faceEdges[i];
+//         const u32 oldPair = oldPairs[i];
 
-        const u32 s0 =
-            firstNewEdge + i * 4 + 0;
+//         const u32 s0 =
+//             firstNewEdge + i * 4 + 0;
 
-        const u32 s2 =
-            firstNewEdge + i * 4 + 2;
+//         const u32 s2 =
+//             firstNewEdge + i * 4 + 2;
 
-        m_edges[selectedEdge].pair = s0;
+//         m_edges[selectedEdge].pair = s0;
 
-        m_edges[oldPair].pair = s2;
-    }
+//         m_edges[oldPair].pair = s2;
+//     }
 
-    for (u32 i = 0; i < count; ++i) {
-        const u32 next = (i + 1) % count;
+//     for (u32 i = 0; i < count; ++i) {
+//         const u32 next = (i + 1) % count;
 
-        m_vertices[oldVertices[i]].edge =
-            faceEdges[next];
+//         m_vertices[oldVertices[i]].edge =
+//             faceEdges[next];
 
-        const u32 s3 =
-            firstNewEdge + i * 4 + 3;
+//         const u32 s3 =
+//             firstNewEdge + i * 4 + 3;
 
-        m_vertices[newVertices[i]].edge = s3;
-    }
-}
+//         m_vertices[newVertices[i]].edge = s3;
+//     }
+// }
 
 struct EarVertex {
     Vec2 position;
-    u32 meshVertexIndex;
+    VertexHandle handle;
 };
 
 f32 computeSignedArea(const std::vector<EarVertex>& verts) {
@@ -412,9 +414,9 @@ std::vector<Triangle> earclipping(std::vector<EarVertex> verts) {
                 
                 earFound = true;
                 triangles.push_back(Triangle{
-                    prevVert.meshVertexIndex,
-                    vert.meshVertexIndex,
-                    nextVert.meshVertexIndex
+                    prevVert.handle,
+                    vert.handle,
+                    nextVert.handle
                 });
                 verts.erase(verts.begin() + i);
                 break;
@@ -425,29 +427,41 @@ std::vector<Triangle> earclipping(std::vector<EarVertex> verts) {
     }
 
     triangles.push_back(Triangle{
-        verts[0].meshVertexIndex,
-        verts[1].meshVertexIndex,
-        verts[2].meshVertexIndex
+        verts[0].handle,
+        verts[1].handle,
+        verts[2].handle
     });
 
     return triangles;
 }
     
-std::vector<Triangle> MeshData::triangulateFace(u32 faceIndex) const {
-    if (faceIndex >= m_faces.size()) return {};
+std::vector<Triangle> MeshData::triangulateFace(FaceHandle handle) const {
+    if (!m_faces.isValid(handle)) return {};
 
-    const Face& face = m_faces[faceIndex];
-    const u32 startEdge = face.edge;
-    u32 currentEdge = face.edge;
+    const Face& face = m_faces.get(handle);
+    const EdgeHandle startEdge = face.edge;
+    EdgeHandle currentEdge = face.edge;
 
     Vec3 normal = Vec3(0.0f);
 
     do {
-        const Edge& edge = m_edges[currentEdge];
+        if (!m_edges.isValid(currentEdge)) return {};
+        const Edge& edge = m_edges.get(currentEdge);
 
-        Vec3 tipPos = m_vertices[edge.tip].position;
-        Vec3 prevTipPos = m_vertices[m_edges[edge.prev].tip].position;
-        Vec3 nextTipPos = m_vertices[m_edges[edge.next].tip].position;
+        if (!m_edges.isValid(edge.prev) || !m_edges.isValid(edge.next)) return {};
+        
+        const Edge& prevEdge = m_edges.get(edge.prev);
+        const Edge& nextEdge = m_edges.get(edge.next);
+
+        if (!m_vertices.isValid(edge.tip) || !m_vertices.isValid(prevEdge.tip) || !m_vertices.isValid(nextEdge.tip)) return {};
+
+        const Vertex& edgeTip = m_vertices.get(edge.tip);
+        const Vertex& prevTip = m_vertices.get(prevEdge.tip);
+        const Vertex& nextTip = m_vertices.get(nextEdge.tip);
+
+        Vec3 tipPos = edgeTip.position;
+        Vec3 prevTipPos = prevTip.position;
+        Vec3 nextTipPos = nextTip.position;
 
         Vec3 current = tipPos - prevTipPos;
         Vec3 next = nextTipPos - tipPos;
@@ -457,7 +471,7 @@ std::vector<Triangle> MeshData::triangulateFace(u32 faceIndex) const {
         normal.z += (current.x - next.x) * (current.y + next.y);
 
         currentEdge = edge.next;
-    } while (currentEdge != startEdge);
+    } while (!(currentEdge == startEdge));
 
     f32 lengthSq = Vec3::dot(normal, normal);
     if (lengthSq < Math::EPSILON * Math::EPSILON) return {};
@@ -484,8 +498,11 @@ std::vector<Triangle> MeshData::triangulateFace(u32 faceIndex) const {
     }
 
     do {
-        const Edge& edge = m_edges[currentEdge];
-        Vertex current = m_vertices[edge.tip];
+        if (!m_edges.isValid(currentEdge)) return {};
+        const Edge& edge = m_edges.get(currentEdge);
+
+        if (!m_vertices.isValid(edge.tip)) return {};
+        Vertex current = m_vertices.get(edge.tip);
 
         Vec2 earPosition;
         switch (dominant) {
@@ -504,7 +521,7 @@ std::vector<Triangle> MeshData::triangulateFace(u32 faceIndex) const {
         projVerts.push_back(EarVertex{ earPosition, edge.tip });
 
         currentEdge = edge.next;
-    } while (currentEdge != startEdge);
+    } while (!(currentEdge == startEdge));
 
     // run earclipping on the vector of EarVertex's
     // this should give you what you need to then append the generated triangle indices
