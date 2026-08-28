@@ -84,6 +84,22 @@ const T* MeshArray<T, HandleT>::tryGet(HandleT handle) const {
 }
 
 template <typename T, typename HandleT>
+std::vector<T> MeshArray<T, HandleT>::getActiveValues() const {
+    std::vector<T> values;
+    values.reserve(m_activeCount);
+
+    for (const Slot<T>& slot : m_slots) {
+        if (!slot.valid) {
+            continue;
+        }
+
+        values.push_back(slot.value);
+    }
+
+    return values;
+}
+
+template <typename T, typename HandleT>
 u32 MeshArray<T, HandleT>::size() const {
     return static_cast<u32>(m_slots.size());
 }

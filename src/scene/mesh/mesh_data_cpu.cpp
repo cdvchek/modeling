@@ -21,113 +21,112 @@ void MeshData::setMesh(PresetMesh meshType) {
 }
 
 const std::vector<Vertex> MeshData::getVertices() const {
-    return m_vertices;
+    return m_vertices.getActiveValues();
 }
 
 const std::vector<Face> MeshData::getFaces() const {
-    return m_faces;
+    return m_faces.getActiveValues();
 }
 
-Vec3 MeshData::getVertexPosition(u32 vertexIndex) const {
-    if (vertexIndex > static_cast<u32>(m_vertices.size())) return Vec3();
-    return m_vertices[vertexIndex].position;
+Vec3 MeshData::getVertexPosition(VertexHandle handle) const {
+    const Vertex* vert = m_vertices.tryGet(handle);
+    if (vert) return vert->position;
+    return Vec3();
 }
 
-std::vector<u32> MeshData::getFaceVertices(u32 faceIndex) const {
-    if (faceIndex >= m_faces.size()) {
-        return {};
-    }
+std::vector<VertexHandle> MeshData::getFaceVertices(FaceHandle handle) const {
+    const Face* face = m_faces.tryGet(handle);
+    if (!face) return {};
 
-    const u32 firstEdgeIndex = m_faces[faceIndex].edge;
+    const EdgeHandle firstEdgeHandle = face->edge;
+    if (!m_edges.isValid(firstEdgeHandle)) return {};
 
-    if (firstEdgeIndex == INVALID_INDEX ||
-        firstEdgeIndex >= m_edges.size()) {
-        return {};
-    }
-
-    std::vector<u32> vertices;
-    u32 edgeIndex = firstEdgeIndex;
+    std::vector<VertexHandle> vertices;
+    EdgeHandle edgeHandle = firstEdgeHandle;
 
     do {
-        if (edgeIndex == INVALID_INDEX ||
-            edgeIndex >= m_edges.size()) {
-            return {};
-        }
+        if (!m_edges.isValid(edgeHandle)) return {};
 
-        const Edge& edge = m_edges[edgeIndex];
+        const Edge& edge = m_edges.get(edgeHandle);
 
-        if (edge.tip == INVALID_INDEX ||
-            edge.tip >= m_vertices.size()) {
-            return {};
-        }
+        if (!m_vertices.isValid(edge.tip)) return {};
 
         vertices.push_back(edge.tip);
-        edgeIndex = edge.next;
+        edgeHandle = edge.next;
 
         // A valid face cannot contain more half-edges than exist globally.
-        if (vertices.size() > m_edges.size()) {
-            return {};
-        }
-    } while (edgeIndex != firstEdgeIndex);
+        if (static_cast<u32>(vertices.size()) > m_edges.size()) return {};
+    } while (!(edgeHandle == firstEdgeHandle));
 
     return vertices;
 }
 
-
-
-const std::vector<Triangle>& MeshData::getFaceTriangles(u32 faceIndex) const {
+const std::vector<Triangle>& MeshData::getFaceTriangles(FaceHandle handle) const {
     static const std::vector<Triangle> emptyTriangles;
-    if (faceIndex >= m_faces.size()) return emptyTriangles;
-    const Face& face = m_faces[faceIndex];
+    if (!m_faces.isValid(handle)) return emptyTriangles;
+    const Face& face = m_faces.get(handle);
 
     if (face.triangulationDirty) {
-        face.triangles = triangulateFace(faceIndex);
+        face.triangles = triangulateFace(handle);
         face.triangulationDirty = false;
     }
 
     return face.triangles;
 }
 
-void MeshData::setFacesDirtyByVertex(u32 vertexInd) const {
-    if (vertexInd >= static_cast<u32>(m_vertices.size())) return;
-    const Vertex& vertex = m_vertices[vertexInd];
+void MeshData::setFacesDirtyByVertex(VertexHandle handle) const {
+    if (!m_vertices.isValid(handle)) return;
+    const Vertex& vertex = m_vertices.get(handle);
 
-    const u32 startEdge = vertex.edge;
-    u32 currEdge = vertex.edge;
+    const EdgeHandle startEdge = vertex.edge;
+    EdgeHandle currEdge = vertex.edge;
 
     do {
-        const Edge& edge = m_edges[currEdge];
+        if (!m_edges.isValid(currEdge)) return;
+        const Edge& edge = m_edges.get(currEdge);
 
-        const Face& face = m_faces[edge.face];
+        if (!m_faces.isValid(edge.face)) return;
+        const Face& face = m_faces.get(edge.face);
         face.triangulationDirty = true;
 
-        currEdge = m_edges[edge.pair].next;
-    } while (currEdge != startEdge);
+        currEdge = m_edges.get(edge.pair).next;
+    } while (!(currEdge == startEdge));
 }
 
-void MeshData::setFacesDirtyByEdge(u32 edgeInd) const {
-    if (edgeInd >= static_cast<u32>(m_edges.size())) return;
-    const Edge& edge = m_edges[edgeInd];
+void MeshData::setFacesDirtyByEdge(EdgeHandle handle) const {
+    if (!m_edges.isValid(handle)) return;
+    const Edge& edge = m_edges.get(handle);
 
-    const u32 startVert = m_edges[edge.prev].tip;
-    const u32 endVert = edge.tip;
+    const Edge* prevEdge = m_edges.tryGet(edge.prev);
+    if (!prevEdge) return;
+
+    const VertexHandle startVert = prevEdge->tip;
+    if (!m_vertices.isValid(startVert)) return;
+
+    const VertexHandle endVert = edge.tip;
+    if (!m_vertices.isValid(endVert)) return;
 
     setFacesDirtyByVertex(startVert);
     setFacesDirtyByVertex(endVert);
 }
 
-void MeshData::setFacesDirtyByFace(u32 faceInd) const {
-    if (faceInd >= static_cast<u32>(m_faces.size())) return;
-    const Face& face = m_faces[faceInd];
+void MeshData::setFacesDirtyByFace(FaceHandle handle) const {
+    if (!m_faces.isValid(handle)) return;
+    const Face& face = m_faces.get(handle);
+    if (!m_edges.isValid(face.edge)) return;
 
-    const u32 startEdge = face.edge;
-    u32 currEdge = face.edge;
+    const EdgeHandle startEdge = face.edge;
+    EdgeHandle currEdge = face.edge;
 
     do {
-        const Edge& edge = m_edges[currEdge];
+        if (!m_edges.isValid(currEdge)) return;
+        const Edge& edge = m_edges.get(currEdge);
+
+        if (!m_vertices.isValid(edge.tip)) return;
         setFacesDirtyByVertex(edge.tip);
+
         currEdge = edge.next;
-    } while (currEdge != startEdge);
+    } while (!(currEdge == startEdge));
 }
 
 void MeshData::positionVertex(u32 vIndex, Vec3 position) {

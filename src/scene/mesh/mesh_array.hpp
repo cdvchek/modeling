@@ -15,6 +15,9 @@ template <typename Tag>
 struct Handle {
     u32 index = INVALID_INDEX;
     u32 generation = 0;
+
+    bool operator==(const Handle&) const = default;
+    bool isNull() { return index == INVALID_INDEX; }
 };
 
 struct VertexTag {};
@@ -39,6 +42,8 @@ public:
 
     T* tryGet(HandleT handle);
     const T* tryGet(HandleT handle) const;
+
+    std::vector<T> getActiveValues() const;
 
     u32 size() const;
     u32 activeSize() const;
