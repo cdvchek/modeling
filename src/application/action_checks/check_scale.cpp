@@ -4,50 +4,82 @@
 #include <cmath>
 
 void checkScaleContext(AppContext& ctx) {
-    // figure out the center of the window
     u32 width, height;
     ctx.windows[0].get()->getDimensions(width, height);
-    u32 centerX = width / 2;
-    u32 centerY = height / 2;
 
-    // figure out if the mouse is moving towards the center of the window or away from the center
-    i32 mouseX = ctx.systems.input.getMouseX();
-    i32 mouseY = ctx.systems.input.getMouseY();
+    const u32 centerX = width / 2;
+    const u32 centerY = height / 2;
 
-    f64 scaling = std::hypot((f64)((mouseX + ctx.systems.input.getMouseDeltaX()) - (i32)centerX), (f64)((mouseY + ctx.systems.input.getMouseDeltaY()) - (i32)centerY)) / std::hypot((f64)(mouseX - (i32)centerX), (f64)(mouseY - (i32)centerY));
+    const i32 mouseX = ctx.systems.input.getMouseX();
+    const i32 mouseY = ctx.systems.input.getMouseY();
 
-    // figure out the center of all the selected points
-    const auto& verts = ctx.scene.objects.get(0).meshData.getVertices();
-    Vec3 center = Vec3(0);
-    for(const auto& vertIndex : ctx.scene.selection.getVertexIndices()) {
-        Vertex vert = verts[vertIndex];
-        center += vert.position;
+    const f64 oldDistance = std::hypot(
+        static_cast<f64>(mouseX - static_cast<i32>(centerX)),
+        static_cast<f64>(mouseY - static_cast<i32>(centerY))
+    );
+
+    const f64 newDistance = std::hypot(
+        static_cast<f64>(mouseX + ctx.systems.input.getMouseDeltaX() - static_cast<i32>(centerX)),
+        static_cast<f64>(mouseY + ctx.systems.input.getMouseDeltaY() - static_cast<i32>(centerY))
+    );
+
+    if (oldDistance == 0.0) return;
+
+    const f64 scaling = newDistance / oldDistance;
+    const auto& selections = ctx.scene.selection.getVertices();
+
+    if (selections.empty()) return;
+
+    // Find center of all selected vertices.
+    Vec3 center(0.0f);
+
+    for (const VertexSelection& selection : selections) {
+        const Object& object = ctx.scene.objects.get(selection.objectIndex);
+        const Vec3 vertexPos = object.meshData.getVertexPosition(selection.vertex);
+
+        center += vertexPos;
     }
-    center = center / ctx.scene.selection.getVertexIndices().size();
 
-    // move points towards or away from center of points depending on mouse movement
-    for(const auto& vertIndex : ctx.scene.selection.getVertexIndices()) {
-        Vertex vert = verts[vertIndex];
-        Vec3 scaleDir = vert.position - center;
-        Vec3 newPos = center + (scaleDir * scaling);
-        ctx.scene.objects.get(0).meshData.positionVertex(vertIndex, newPos);
-        ctx.scene.objects.get(0).meshDirty = true;
+    center = center / static_cast<f32>(selections.size());
+
+    // Scale each selected vertex around the selection center.
+    for (const VertexSelection& selection : selections) {
+        Object& object = ctx.scene.objects.get(selection.objectIndex);
+        const Vec3 vertexPos = object.meshData.getVertexPosition(selection.vertex);
+
+        const Vec3 scaleDir = vertexPos - center;
+        const Vec3 newPos = center + scaleDir * static_cast<f32>(scaling);
+
+        object.meshData.positionVertex(selection.vertex, newPos);
+        object.meshData.setFacesDirtyByVertex(selection.vertex);
+        object.meshDirty = true;
     }
 
-    if (ctx.systems.actions.wasActionPressedThisFrame(Action::ConfirmScale, ctx.systems.input, ctx.systems.input_ctx.getContext())) {
+    if (ctx.systems.actions.wasActionPressedThisFrame(
+        Action::ConfirmScale,
+        ctx.systems.input,
+        ctx.systems.input_ctx.getContext()
+    )) {
         ctx.systems.input_ctx.setContext(ctx.systems.input_ctx.getSelectionContext());
     }
 
-    if (ctx.systems.actions.wasActionPressedThisFrame(Action::CancelScale, ctx.systems.input, ctx.systems.input_ctx.getContext())) {
+    if (ctx.systems.actions.wasActionPressedThisFrame(
+        Action::CancelScale,
+        ctx.systems.input,
+        ctx.systems.input_ctx.getContext()
+    )) {
         const auto& starts = ctx.scene.selection.getSelectionStartPositions();
-        const auto& selections = ctx.scene.selection.getVertices();
 
-        for (u32 i = 0; i < (u32)selections.size(); ++i) {
-            const auto& selection = selections[i];
-            const auto& start = starts[i];
-            ctx.scene.objects.get(selection.objectIndex).meshData.positionVertex(selection.vertexIndex, start);
+        for (u32 i = 0; i < static_cast<u32>(selections.size()); ++i) {
+            const VertexSelection& selection = selections[i];
+            const Vec3& start = starts[i];
+            Object& object = ctx.scene.objects.get(selection.objectIndex);
+
+            object.meshData.positionVertex(selection.vertex, start);
+            object.meshData.setFacesDirtyByVertex(selection.vertex);
+            object.meshDirty = true;
         }
-        
+
         ctx.systems.input_ctx.setContext(ctx.systems.input_ctx.getSelectionContext());
     }
 }

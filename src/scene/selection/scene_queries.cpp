@@ -36,30 +36,24 @@ static bool rayHitsPoint(
     return true;
 }
 
-VertexHit pickVertex(
-    const Scene& scene,
-    const Ray& ray,
-    f32 radius
-) {
+VertexHit pickVertex(const Scene& scene, const Ray& ray, f32 radius) {
     VertexHit bestHit;
-    bestHit.distance = FLT_MAX;
 
-    for (u32 objectIndex = 0; objectIndex < scene.objects.count(); objectIndex++) {
+    for (u32 objectIndex = 0; objectIndex < scene.objects.count(); ++objectIndex) {
         const Object& object = scene.objects.get(objectIndex);
+        const Mat4 model = object.transform.getMatrix();
 
-        Mat4 model = object.transform.getMatrix();
+        for (const VertexHandle& vertexHandle : object.meshData.getVertexHandles()) {
+            const Vec3 vertexPos = object.meshData.getVertexPosition(vertexHandle);
 
-        for (u32 vertexIndex = 0; vertexIndex < (u32)object.meshData.getVertices().size(); vertexIndex++) {
-            const Vertex& vertex = object.meshData.getVertices()[vertexIndex];
-
-            Vec4 worldPos4 = model * Vec4(
-                vertex.position.x,
-                vertex.position.y,
-                vertex.position.z,
+            const Vec4 worldPos4 = model * Vec4(
+                vertexPos.x,
+                vertexPos.y,
+                vertexPos.z,
                 1.0f
             );
 
-            Vec3 worldPos(
+            const Vec3 worldPos(
                 worldPos4.x,
                 worldPos4.y,
                 worldPos4.z
@@ -67,12 +61,18 @@ VertexHit pickVertex(
 
             f32 distance = 0.0f;
 
-            if (!rayHitsPoint(ray, worldPos, radius, distance)) continue;
+            if (!rayHitsPoint(
+                    ray,
+                    worldPos,
+                    radius,
+                    distance)) {
+                continue;
+            }
 
             if (distance < bestHit.distance) {
                 bestHit.hit = true;
                 bestHit.objectIndex = objectIndex;
-                bestHit.vertexIndex = vertexIndex;
+                bestHit.vertex = vertexHandle;
                 bestHit.distance = distance;
             }
         }
@@ -129,35 +129,49 @@ FaceHit pickFace(const Scene& scene, const Ray& ray) {
     FaceHit bestHit;
     bestHit.distance = FLT_MAX;
 
-    for (u32 objectIndex = 0; objectIndex < scene.objects.count(); objectIndex++) {
+    for (u32 objectIndex = 0; objectIndex < scene.objects.count(); ++objectIndex) {
         const Object& object = scene.objects.get(objectIndex);
-
         Mat4 model = object.transform.getMatrix();
-        for (u32 faceIndex = 0; faceIndex < (u32)object.meshData.getFaces().size(); faceIndex++) {
-            const auto& triangles = object.meshData.getFaceTriangles(faceIndex);
-            
+
+        for (const FaceHandle faceHandle : object.meshData.getFaceHandles()) {
+            const auto& triangles = object.meshData.getFaceTriangles(faceHandle);
+
             for (const Triangle& triangle : triangles) {
-                Vec3 v1Pos = object.meshData.getVertexPosition(triangle.v0);
-                Vec3 v2Pos = object.meshData.getVertexPosition(triangle.v1);
-                Vec3 v3Pos = object.meshData.getVertexPosition(triangle.v2);
+                const Vec3 v1Pos = object.meshData.getVertexPosition(triangle.v0);
+                const Vec3 v2Pos = object.meshData.getVertexPosition(triangle.v1);
+                const Vec3 v3Pos = object.meshData.getVertexPosition(triangle.v2);
+                
+                const Vec4 worldPos4P1 = model * Vec4(v1Pos.x, v1Pos.y, v1Pos.z, 1.0f);
+                const Vec4 worldPos4P2 = model * Vec4(v2Pos.x, v2Pos.y, v2Pos.z, 1.0f);
+                const Vec4 worldPos4P3 = model * Vec4(v3Pos.x, v3Pos.y, v3Pos.z, 1.0f);
 
-                Vec4 worldPos4P1 = model * Vec4(v1Pos.x, v1Pos.y, v1Pos.z, 1.0f);
-                Vec4 worldPos4P2 = model * Vec4(v2Pos.x, v2Pos.y, v2Pos.z, 1.0f);
-                Vec4 worldPos4P3 = model * Vec4(v3Pos.x, v3Pos.y, v3Pos.z, 1.0f);
+                const Vec3 worldPosP1(
+                    worldPos4P1.x,
+                    worldPos4P1.y,
+                    worldPos4P1.z
+                );
 
-                Vec3 worldPosP1(worldPos4P1.x, worldPos4P1.y, worldPos4P1.z);
-                Vec3 worldPosP2(worldPos4P2.x, worldPos4P2.y, worldPos4P2.z);
-                Vec3 worldPosP3(worldPos4P3.x, worldPos4P3.y, worldPos4P3.z);
+                const Vec3 worldPosP2(
+                    worldPos4P2.x,
+                    worldPos4P2.y,
+                    worldPos4P2.z
+                );
+
+                const Vec3 worldPosP3(
+                    worldPos4P3.x,
+                    worldPos4P3.y,
+                    worldPos4P3.z
+                );
 
                 f32 distance = 0.0f;
+
                 if (!rayHitsTriangle(ray, worldPosP1, worldPosP2, worldPosP3, distance)) continue;
-                
+
                 if (distance < bestHit.distance) {
                     bestHit.hit = true;
                     bestHit.objectIndex = objectIndex;
-                    bestHit.faceIndex = faceIndex;
+                    bestHit.face = faceHandle;
                     bestHit.distance = distance;
-                    break;
                 }
             }
         }

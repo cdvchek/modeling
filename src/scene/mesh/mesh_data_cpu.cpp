@@ -28,6 +28,18 @@ const std::vector<Face> MeshData::getFaces() const {
     return m_faces.getActiveValues();
 }
 
+const std::vector<VertexHandle> MeshData::getVertexHandles() const {
+    return m_vertices.getActiveHandles();
+}
+
+const std::vector<EdgeHandle> MeshData::getEdgeHandles() const {
+    return m_edges.getActiveHandles();
+}
+
+const std::vector<FaceHandle> MeshData::getFaceHandles() const {
+    return m_faces.getActiveHandles();
+}
+
 Vec3 MeshData::getVertexPosition(VertexHandle handle) const {
     const Vertex* vert = m_vertices.tryGet(handle);
     if (vert) return vert->position;

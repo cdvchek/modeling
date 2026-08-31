@@ -60,15 +60,18 @@ void Application::renderFrame(AppContext& ctx) {
 
         const Selection& selection = ctx.scene.selection;
         
-        DrawCommand cmd(selection.getSelectionIndices());
+        DrawCommand cmd;
+
         u32 selectionContext = ctx.systems.input_ctx.getSelectionContext();
-        bool showVerts = selectionContext & InputContext_SelectionVertex;
-        cmd.showVerts = showVerts;
+
+        cmd.showVerts = selectionContext & InputContext_SelectionVertex;
         cmd.showEdges = true;
         cmd.showFaces = true;
-        cmd.numHighlightedVerts = selection.getNumberOfVertices();
-        cmd.numHighlightedEdges = selection.getNumberOfEdges();
-        cmd.numHighlightedFaces = selection.getNumberOfFaces();
+
+        cmd.highlightedVerts = selection.getVertexHandles();
+        cmd.highlightedEdges = selection.getEdgeHandles();
+        cmd.highlightedFaces = selection.getFaceHandles();
+        
         cmd.mesh = &object.gpuMesh;
         cmd.mvp = mvp;
 

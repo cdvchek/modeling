@@ -3,14 +3,16 @@
 #include <glad/glad.h>
 
 bool OpenGLMesh::create(const MeshData& mesh) {
-    const auto vertices = mesh.getVertexData();
+    const VertexData vertexData = mesh.getVertexData();
+    const EdgeData edgeData = mesh.getEdgeData(vertexData);
+    const FaceData faceData = mesh.getFaceData(vertexData);
 
-    const EdgeData edgeData = mesh.getEdgeData();
+    m_vertexIndexMap = vertexData.indexMap;
     m_edgeIndexMap = edgeData.indexMap;
-    const auto& edges = edgeData.indices;
-    
-    const FaceData faceData = mesh.getFaceData();
     m_faceIndexMap = faceData.indexMap;
+
+    const auto& vertices = vertexData.vertices;
+    const auto& edges = edgeData.indices;
     const auto& faces = faceData.indices;
 
     if (vertices.empty()) {
@@ -28,6 +30,7 @@ bool OpenGLMesh::create(const MeshData& mesh) {
 
     glBindVertexArray(m_vao);
 
+    // Vertex buffer
     glBindBuffer(GL_ARRAY_BUFFER, m_vbo);
     glBufferData(
         GL_ARRAY_BUFFER,
@@ -37,6 +40,7 @@ bool OpenGLMesh::create(const MeshData& mesh) {
     );
 
     glEnableVertexAttribArray(0);
+
     glVertexAttribPointer(
         0,
         3,
@@ -46,6 +50,7 @@ bool OpenGLMesh::create(const MeshData& mesh) {
         nullptr
     );
 
+    // Edge index buffer
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_edgeEbo);
     glBufferData(
         GL_ELEMENT_ARRAY_BUFFER,
@@ -54,6 +59,7 @@ bool OpenGLMesh::create(const MeshData& mesh) {
         GL_DYNAMIC_DRAW
     );
 
+    // Face index buffer
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_faceEbo);
     glBufferData(
         GL_ELEMENT_ARRAY_BUFFER,
@@ -65,6 +71,7 @@ bool OpenGLMesh::create(const MeshData& mesh) {
     glBindVertexArray(0);
 
     m_initialized = true;
+
     return true;
 }
 
@@ -73,14 +80,16 @@ bool OpenGLMesh::update(const MeshData& mesh) {
         return create(mesh);
     }
 
-    const auto vertices = mesh.getVertexData();
+    const VertexData vertexData = mesh.getVertexData();
+    const EdgeData edgeData = mesh.getEdgeData(vertexData);
+    const FaceData faceData = mesh.getFaceData(vertexData);
 
-    const EdgeData edgeData = mesh.getEdgeData();
+    m_vertexIndexMap = vertexData.indexMap;
     m_edgeIndexMap = edgeData.indexMap;
-    const auto& edges = edgeData.indices;
-
-    const FaceData faceData = mesh.getFaceData();
     m_faceIndexMap = faceData.indexMap;
+
+    const auto& vertices = vertexData.vertices;
+    const auto& edges = edgeData.indices;
     const auto& faces = faceData.indices;
 
     if (vertices.empty()) {
@@ -122,19 +131,17 @@ bool OpenGLMesh::update(const MeshData& mesh) {
     return true;
 }
 
-void OpenGLMesh::drawFace(u32 index) const {
-    if (m_vao == 0 || m_fIndCount == 0) {
-        return;
-    }
+void OpenGLMesh::drawFace(FaceHandle handle) const {
+    if (m_vao == 0 || m_fIndCount == 0) return;
 
-    const u32 mapIndex = index * 2;
+    const u32 mapIndex = handle.index * 2;
 
-    if (mapIndex + 1 >= m_faceIndexMap.size()) {
-        return;
-    }
+    if (mapIndex + 1 >= m_faceIndexMap.size()) return;
 
     const u32 offset = m_faceIndexMap[mapIndex];
-    const u32 count  = m_faceIndexMap[mapIndex + 1];
+    const u32 count = m_faceIndexMap[mapIndex + 1];
+
+    if (offset == INVALID_INDEX || count == INVALID_INDEX) return;
 
     glBindVertexArray(m_vao);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_faceEbo);
@@ -165,22 +172,23 @@ void OpenGLMesh::drawFaces() const {
     );
 }
 
-void OpenGLMesh::drawEdge(u32 index) const {
-    if (m_vao == 0 || m_eIndCount == 0) {
-        return;
-    }
+void OpenGLMesh::drawEdge(EdgeHandle handle) const {
+    if (m_vao == 0 || m_eIndCount == 0) return;
 
-    u32 renderIndex = m_edgeIndexMap.at(index);
+    auto it = m_edgeIndexMap.find(handle.index);
+    if (it == m_edgeIndexMap.end()) return;
+
+    const u32 offset = it->second;
 
     glBindVertexArray(m_vao);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_edgeEbo);
 
     glDrawElements(
         GL_LINES,
-        static_cast<GLsizei>(2),
+        2,
         GL_UNSIGNED_INT,
         reinterpret_cast<void*>(
-            static_cast<uintptr_t>(renderIndex * 2 * sizeof(u32))
+            static_cast<uintptr_t>(offset * sizeof(u32))
         )
     );
 }
@@ -201,16 +209,19 @@ void OpenGLMesh::drawEdges() const {
     );
 }
 
-void OpenGLMesh::drawVertex(u32 vertexIndex) const {
-    if (m_vao == 0 || vertexIndex >= m_vCount) {
-        return;
-    }
+void OpenGLMesh::drawVertex(VertexHandle handle) const {
+    if (m_vao == 0) return;
+    if (handle.index >= m_vertexIndexMap.size()) return;
+
+    const u32 renderIndex = m_vertexIndexMap[handle.index];
+
+    if (renderIndex == INVALID_INDEX) return;
 
     glBindVertexArray(m_vao);
 
     glDrawArrays(
         GL_POINTS,
-        static_cast<GLint>(vertexIndex),
+        static_cast<GLint>(renderIndex),
         1
     );
 }

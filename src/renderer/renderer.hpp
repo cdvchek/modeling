@@ -39,16 +39,14 @@ struct ClearState {
 };
 
 struct DrawCommand {
-    DrawCommand(const std::vector<u32> selected) : selected(selected) {}
     bool showVerts = true;
     bool showEdges = true;
     bool showFaces = true;
-    u32 numHighlightedVerts = 0;
-    u32 numHighlightedEdges = 0;
-    u32 numHighlightedFaces = 0;
-    const std::vector<u32> selected;
-    // First indices are the verts, then edges, then faces
-    
+
+    std::vector<VertexHandle> highlightedVerts;
+    std::vector<EdgeHandle> highlightedEdges;
+    std::vector<FaceHandle> highlightedFaces;
+
     IMesh* mesh = nullptr;
     Mat4 mvp;
 };

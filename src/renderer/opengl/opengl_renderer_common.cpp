@@ -35,82 +35,53 @@ void OpenGLRenderer::beginMainPass(const ClearState& clearState){
 }
 
 void OpenGLRenderer::draw(const DrawCommand& command) {
-    if (!m_initialized || !command.mesh) {
-        return;
-    }
-
-    u32 numHighlightedVerts = command.numHighlightedVerts;
-    u32 numHighlightedEdges = command.numHighlightedEdges;
-    u32 numHighlightedFaces = command.numHighlightedFaces;
+    if (!m_initialized || !command.mesh) return;
 
     m_testShader->bind();
     m_testShader->setMat4("u_MVP", command.mvp.m);
 
     // Faces
     if (command.showFaces) {
-        m_testShader->setVec3(
-            "u_Color",
-            Vec3(1.0f, 1.0f, 0.0f)
-        );
-    
-        u32 faceOffset = numHighlightedVerts + numHighlightedEdges;
-        for (u32 i = 0; i < numHighlightedFaces; ++i) {
-            u32 faceIndex = command.selected[i + faceOffset];
-            command.mesh->drawFace(faceIndex);
+        m_testShader->setVec3("u_Color", Vec3(1.0f, 1.0f, 0.0f));
+
+        for (const FaceHandle& face : command.highlightedFaces) {
+            command.mesh->drawFace(face);
         }
-    
-        m_testShader->setVec3(
-            "u_Color",
-            Vec3(0.7f, 0.7f, 0.7f)
-        );
-    
+
+        m_testShader->setVec3("u_Color", Vec3(0.7f, 0.7f, 0.7f));
+
         glEnable(GL_POLYGON_OFFSET_FILL);
         glPolygonOffset(1.0f, 1.0f);
-    
+
         command.mesh->drawFaces();
-    
+
         glDisable(GL_POLYGON_OFFSET_FILL);
     }
 
     // Edges
     if (command.showEdges) {
-        m_testShader->setVec3(
-            "u_Color",
-            Vec3(1.0f, 1.0f, 0.0f)
-        );
-    
-        u32 edgeOffset = numHighlightedVerts;
-        for (u32 i = 0; i < numHighlightedEdges; ++i) {
-            u32 edgeIndex = command.selected[i + edgeOffset];
-            command.mesh->drawEdge(edgeIndex);
+        m_testShader->setVec3("u_Color", Vec3(1.0f, 1.0f, 0.0f));
+
+        for (const EdgeHandle& edge : command.highlightedEdges) {
+            command.mesh->drawEdge(edge);
         }
-    
-        m_testShader->setVec3(
-            "u_Color",
-            Vec3(0.0f, 0.0f, 0.0f)
-        );
-    
+
+        m_testShader->setVec3("u_Color", Vec3(0.0f, 0.0f, 0.0f));
+
         glLineWidth(2.0f);
         command.mesh->drawEdges();
     }
 
     // Vertices
     if (command.showVerts) {
-        m_testShader->setVec3(
-            "u_Color",
-            Vec3(1.0f, 1.0f, 0.0f)
-        );
-    
-        for (u32 i = 0; i < numHighlightedVerts; ++i) {
-            u32 vertIndex = command.selected[i];
-            command.mesh->drawVertex(vertIndex);
+        m_testShader->setVec3("u_Color", Vec3(1.0f, 1.0f, 0.0f));
+
+        for (const VertexHandle& vertex : command.highlightedVerts) {
+            command.mesh->drawVertex(vertex);
         }
-    
-        m_testShader->setVec3(
-            "u_Color",
-            Vec3(0.0f, 0.0f, 0.0f)
-        );
-    
+
+        m_testShader->setVec3("u_Color", Vec3(0.0f, 0.0f, 0.0f));
+
         glPointSize(8.0f);
         command.mesh->drawVertices();
     }

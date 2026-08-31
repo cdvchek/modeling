@@ -8,11 +8,13 @@
 #include "scene/mesh/mesh_array.hpp"
 #include "core/math/vec2.hpp"
 
-using HalfEdgeIndex = u32;
-using RendererIndex = u32;
+struct VertexData {
+    std::vector<f32> vertices;
+    std::vector<u32> indexMap;
+};
 
 struct EdgeData {
-    std::unordered_map<HalfEdgeIndex, RendererIndex> indexMap;
+    std::unordered_map<u32, u32> indexMap;
     std::vector<u32> indices;
 };
 
@@ -26,6 +28,10 @@ public:
     void setMesh(PresetMesh meshType);
     const std::vector<Vertex> getVertices() const;
     const std::vector<Face> getFaces() const;
+
+    const std::vector<VertexHandle> getVertexHandles() const;
+    const std::vector<EdgeHandle> getEdgeHandles() const;
+    const std::vector<FaceHandle> getFaceHandles() const;
 
     Vec3 getVertexPosition(VertexHandle handle) const;
 
@@ -43,12 +49,12 @@ public:
     void translateVertex(VertexHandle handle, Vec3 delta);
     void scaleVertices(std::vector<VertexHandle> handles, f32 delta);
 
-    void insertExtrusion(FaceHandle handle);
+    //void insertExtrusion(FaceHandle handle);
 
     // GPU data access
-    std::vector<f32> getVertexData() const;
-    EdgeData getEdgeData() const;
-    FaceData getFaceData() const;
+    VertexData getVertexData() const;
+    EdgeData getEdgeData(const VertexData& vertexData) const;
+    FaceData getFaceData(const VertexData& vertexData) const;
 
 private:
     VertexHandle addVertex(const Vec3& position); // Add a vertex and return its index
