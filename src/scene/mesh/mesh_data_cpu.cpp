@@ -530,7 +530,13 @@ void MeshData::deleteFace(FaceHandle handle) {
 }
 
 VertexHandle MeshData::duplicateVertex(VertexHandle handle) {
+    Vertex* oldVert = m_vertices.tryGet(handle);
+    if (!oldVert) return INVALID_VERTEX;
 
+    Vertex vertex;
+    vertex.position = oldVert->position;
+
+    return m_vertices.insert(vertex);
 }
 
 FaceHandle MeshData::addQuad(VertexHandle v0, VertexHandle v1, VertexHandle v2, VertexHandle v3) {
