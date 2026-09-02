@@ -28,6 +28,10 @@ using VertexHandle = Handle<VertexTag>;
 using EdgeHandle   = Handle<EdgeTag>;
 using FaceHandle   = Handle<FaceTag>;
 
+constexpr VertexHandle INVALID_VERTEX { INVALID_INDEX, 0 };
+constexpr EdgeHandle INVALID_EDGE { INVALID_INDEX, 0 };
+constexpr FaceHandle INVALID_FACE { INVALID_INDEX, 0 };
+
 template <typename T, typename HandleT>
 class MeshArray {
 public:

@@ -10,17 +10,17 @@ struct Vertex;
 struct Face;
 
 struct Edge {
-    EdgeHandle pair{}; // parallel edge
-    EdgeHandle next{}; // next edge after in the loop
-    EdgeHandle prev{}; // prev edge before in the loop
+    EdgeHandle pair = INVALID_EDGE; // parallel edge
+    EdgeHandle next = INVALID_EDGE; // next edge after in the loop
+    EdgeHandle prev = INVALID_EDGE; // prev edge before in the loop
 
-    VertexHandle tip{}; // vertex that this edge is pointing towards
-    FaceHandle face{}; // face that is to the left of this edge
+    VertexHandle tip = INVALID_VERTEX; // vertex that this edge is pointing towards
+    FaceHandle face = INVALID_FACE; // face that is to the left of this edge
 };
 
 struct Vertex {
     Vec3 position;
-    EdgeHandle edge{}; // edge that is coming out of this vertex
+    EdgeHandle edge = INVALID_EDGE; // edge that is coming out of this vertex
 };
 
 struct Triangle {
@@ -30,7 +30,7 @@ struct Triangle {
 };
 
 struct Face {
-    EdgeHandle edge{}; // edge that belongs to the loop that circles this face
+    EdgeHandle edge = INVALID_EDGE; // edge that belongs to the loop that circles this face
 
     mutable std::vector<Triangle> triangles;
     mutable bool triangulationDirty = true;
