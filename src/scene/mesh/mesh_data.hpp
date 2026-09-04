@@ -50,6 +50,7 @@ public:
     void scaleVertices(std::vector<VertexHandle> handles, f32 delta);
 
     FaceHandle insertExtrusion(FaceHandle handle);
+    FaceHandle insetFace(FaceHandle handle);
 
     // GPU data access
     VertexData getVertexData() const;

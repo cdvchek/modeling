@@ -139,17 +139,24 @@ void checkSelectionContext(AppContext& ctx) {
         ictx.setContext(InputContext_Scale);
     }
 
-    // if (ctx.systems.input_ctx.getSelectionContext() == InputContext_SelectionFace && actions.wasActionPressedThisFrame(Action::ExtrudeSelection, input, ictx.getContext())) {
-    //     // insert the new additions to the mesh
-    //     // then act like the selection is just being grabbed on the axis of the normal of the face
+    if (ctx.systems.input_ctx.getSelectionContext() == InputContext_SelectionFace && actions.wasActionPressedThisFrame(Action::ExtrudeSelection, input, ictx.getContext())) {
 
-    //     ctx.scene.objects.get(0).meshData.insertExtrusion(ctx.scene.selection.getFaceHandles()[0]);
+        FaceHandle newFace = ctx.scene.objects.get(0).meshData.insertExtrusion(ctx.scene.selection.getFaceHandles()[0]);
 
-    //     std::vector<Vec3> starts;
-    //     for (const auto handle : ctx.scene.selection.getVertexHandles()) {
-    //         starts.push_back(ctx.scene.objects.get(0).meshData.getVertexPosition(handle));
-    //     }
-    //     ctx.scene.selection.setSelectionStartPositions(starts);
-    //     ictx.setContext(InputContext_Grab);
-    // }
+        ctx.scene.selection.clear();
+
+        std::vector<VertexHandle> newFaceVerts = ctx.scene.objects.get(0).meshData.getFaceVertices(newFace);
+        
+        ctx.scene.selection.addFace(0, newFace);
+        for (VertexHandle vert : newFaceVerts) {
+            ctx.scene.selection.addVertex(0, vert);
+        }
+        
+        std::vector<Vec3> starts;
+        for (const auto handle : ctx.scene.selection.getVertexHandles()) {
+            starts.push_back(ctx.scene.objects.get(0).meshData.getVertexPosition(handle));
+        }
+        ctx.scene.selection.setSelectionStartPositions(starts);
+        ictx.setContext(InputContext_Grab);
+    }
 }
