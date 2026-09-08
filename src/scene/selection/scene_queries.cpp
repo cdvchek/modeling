@@ -1,6 +1,7 @@
 #include "scene/selection/scene_queries.hpp"
 
 #include <cfloat>
+#include <algorithm>
 
 #include "scene/scene.hpp"
 #include "scene/object_collection.hpp"
@@ -73,6 +74,152 @@ VertexHit pickVertex(const Scene& scene, const Ray& ray, f32 radius) {
                 bestHit.hit = true;
                 bestHit.objectIndex = objectIndex;
                 bestHit.vertex = vertexHandle;
+                bestHit.distance = distance;
+            }
+        }
+    }
+
+    return bestHit;
+}
+
+bool rayHitsEdge(
+    const Ray& ray,
+    const Vec3& a,
+    const Vec3& b,
+    f32 radius,
+    f32& distance
+) {
+    const Vec3 edgeDir = b - a;
+    const Vec3 rayToA = ray.origin - a;
+
+    const f32 edgeLengthSq = Vec3::dot(edgeDir, edgeDir);
+
+    if (edgeLengthSq <= 0.000001f) {
+        return false;
+    }
+
+    const f32 aDot = Vec3::dot(ray.direction, ray.direction);
+    const f32 bDot = Vec3::dot(ray.direction, edgeDir);
+    const f32 cDot = edgeLengthSq;
+    const f32 dDot = Vec3::dot(ray.direction, rayToA);
+    const f32 eDot = Vec3::dot(edgeDir, rayToA);
+
+    const f32 denominator = aDot * cDot - bDot * bDot;
+
+    f32 rayT;
+    f32 edgeT;
+
+    if (std::abs(denominator) > 0.000001f) {
+        rayT = (bDot * eDot - cDot * dDot) / denominator;
+        edgeT = (aDot * eDot - bDot * dDot) / denominator;
+    } else {
+        // Ray and edge are nearly parallel.
+        rayT = 0.0f;
+        edgeT = eDot / cDot;
+    }
+
+    // The edge is a segment, so clamp to [0, 1].
+    edgeT = std::clamp(edgeT, 0.0f, 1.0f);
+
+    // Picking should only happen in front of the camera.
+    if (rayT < 0.0f) {
+        rayT = 0.0f;
+    }
+
+    // Once edgeT has been clamped, recompute the nearest
+    // point on the ray to that selected point on the edge.
+    const Vec3 edgePoint = a + edgeDir * edgeT;
+
+    rayT = Vec3::dot(edgePoint - ray.origin, ray.direction)
+         / Vec3::dot(ray.direction, ray.direction);
+
+    if (rayT < 0.0f) {
+        return false;
+    }
+
+    const Vec3 rayPoint = ray.origin + ray.direction * rayT;
+
+    const f32 separation = (edgePoint - rayPoint).length();
+
+    if (separation > radius) {
+        return false;
+    }
+
+    distance = rayT;
+
+    return true;
+}
+
+EdgeHit pickEdge(
+    const Scene& scene,
+    const Ray& ray,
+    f32 radius
+) {
+    EdgeHit bestHit;
+
+    for (u32 objectIndex = 0;
+         objectIndex < scene.objects.count();
+         ++objectIndex) {
+
+        const Object& object = scene.objects.get(objectIndex);
+
+        const Mat4 model = object.transform.getMatrix();
+
+        for (const EdgeHandle& edgeHandle : object.meshData.getEdgeHandles()) {
+            const VertexHandle originHandle = object.meshData.getEdgeOrigin(edgeHandle);
+
+            const VertexHandle tipHandle = object.meshData.getEdgeTip(edgeHandle);
+
+            if (!object.meshData.isValidHandle(originHandle) ||
+                !object.meshData.isValidHandle(tipHandle)) {
+                continue;
+            }
+
+            const Vec3 originPos = object.meshData.getVertexPosition(originHandle);
+
+            const Vec3 tipPos = object.meshData.getVertexPosition(tipHandle);
+
+            const Vec4 worldOrigin4 = model * Vec4(
+                originPos.x,
+                originPos.y,
+                originPos.z,
+                1.0f
+            );
+
+            const Vec4 worldTip4 = model * Vec4(
+                tipPos.x,
+                tipPos.y,
+                tipPos.z,
+                1.0f
+            );
+
+            const Vec3 worldOrigin(
+                worldOrigin4.x,
+                worldOrigin4.y,
+                worldOrigin4.z
+            );
+
+            const Vec3 worldTip(
+                worldTip4.x,
+                worldTip4.y,
+                worldTip4.z
+            );
+
+            f32 distance = 0.0f;
+
+            if (!rayHitsEdge(
+                    ray,
+                    worldOrigin,
+                    worldTip,
+                    radius,
+                    distance)) {
+                continue;
+            }
+
+            if (distance < bestHit.distance) {
+                bestHit.hit = true;
+                bestHit.objectIndex = objectIndex;
+                bestHit.edge = edgeHandle;
                 bestHit.distance = distance;
             }
         }

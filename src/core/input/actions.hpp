@@ -20,8 +20,7 @@ enum class Action : u8 {
     ConfirmScale,     // Quit scaling and leave the vertices where they are
     CancelScale,      // Quit scaling and reset vertices to where they were before scale
     ExtrudeSelection, // Extrude the vertices selected
-    ConfirmExtrude,   // Quit extruding and leave the vertices where they are
-    CancelExtrude,    // Quit extruding and reset vertices to where they were before extrude
+    InsetSelection,   // Inset the vertices selected
     DeleteSelection,  // Delete one or more selected vertices
     Duplicate,        // Duplicate one or more selected vertices
     Disconnect,       // Disconnect two vertices

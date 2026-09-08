@@ -152,7 +152,7 @@ void MeshData::translateVertex(VertexHandle handle, Vec3 delta) {
     if (vertex) vertex->position += delta;
 }
 
-FaceHandle MeshData::insertExtrusion(FaceHandle handle) {
+FaceHandle MeshData::insertFaceRing(FaceHandle handle) {
     // 1. Get the face's vertices in order.
     std::vector<VertexHandle> oldVerts = getFaceVertices(handle);
 
@@ -748,20 +748,76 @@ void MeshData::pairEdges(EdgeHandle a, EdgeHandle b) {
     edgeB->pair = a;
 }
 
-FaceHandle MeshData::insetFace(FaceHandle handle) {
-    // 1. get vertices for selected face
-    std::vector<VertexHandle> oldVerts = getFaceVertices(handle);
-    // 2. delete selected face with half edges
-    deleteFaceWithHalfEdgeLoop(handle);
-    // 3. duplicate vertices
-    std::vector<VertexHandle> newVerts;
-    for (VertexHandle vert : oldVerts) {
-        newVerts.push_back(duplicateVertex(vert));
-    }
-    // 4. create outside faces
+VertexHandle MeshData::getEdgeTip(EdgeHandle handle) const {
+    const Edge* edge = m_edges.tryGet(handle);
+    if (!edge) return INVALID_VERTEX;
+
+    if (m_vertices.isValid(edge->tip)) return edge->tip;
+    else return INVALID_VERTEX;
+}
+
+bool MeshData::isValidHandle(VertexHandle handle) const {
+    return m_vertices.isValid(handle);
+}
+
+bool MeshData::isValidHandle(EdgeHandle handle) const {
+    return m_edges.isValid(handle);
+}
+
+bool MeshData::isValidHandle(FaceHandle handle) const {
+    return m_faces.isValid(handle);
+}
+
+VertexHandle MeshData::splitEdge(EdgeHandle handle) {
+    if (!isValidHandle(handle)) return INVALID_VERTEX;
+
+    Edge& edge = m_edges.get(handle);
+    if (!isValidHandle(edge.pair)) return INVALID_VERTEX;
+
+    Edge& pair = m_edges.get(edge.pair);
+
+    if (!isValidHandle(edge.tip)) return INVALID_VERTEX;
+    if (!isValidHandle(pair.tip)) return INVALID_VERTEX;
+
+    Edge* oldNextEdge = m_edges.tryGet(edge.next);
+    Edge* oldPrevPair = m_edges.tryGet(pair.prev);
+
+    if (!oldNextEdge || !oldPrevPair) return INVALID_VERTEX;
+
+    Vertex& edgeTip = m_vertices.get(edge.tip);
+    Vertex& pairTip = m_vertices.get(pair.tip);
+    Vec3 firstPos = edgeTip.position;
+    Vec3 secondPos = pairTip.position;
     
-    // 5. pair outside faces to mesh
-    // 6. create inner face
-    // 7. pair inner face to mesh
-    // 8. return inner face
+    Vec3 newVertPos = (firstPos + secondPos) / 2;
+    
+    VertexHandle newVert = m_vertices.insert({ newVertPos });
+    EdgeHandle prevPairH = m_edges.insert({});
+    EdgeHandle nextEdgeH = m_edges.insert({});
+
+    Edge& prevPair = m_edges.get(prevPairH);
+    Edge& nextEdge = m_edges.get(nextEdgeH);
+
+    oldNextEdge->prev = nextEdgeH;
+    oldPrevPair->next = prevPairH;
+
+    nextEdge.pair = prevPairH;
+    nextEdge.next = edge.next;
+    nextEdge.prev = handle;
+    nextEdge.tip = edge.tip;
+    nextEdge.face = edge.face;
+
+    prevPair.pair = nextEdgeH;
+    prevPair.next = edge.pair;
+    prevPair.prev = pair.prev;
+    prevPair.tip = newVert;
+    prevPair.face = pair.face;
+
+    pair.prev = prevPairH;
+    edge.tip = newVert;
+    edge.next = nextEdgeH;
+
+    m_vertices.get(newVert).edge = edge.pair;
+
+    return newVert;
 }

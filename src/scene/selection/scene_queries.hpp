@@ -19,6 +19,17 @@ struct VertexHit {
 
 VertexHit pickVertex(const Scene& scene, const Ray& ray, f32 radius);
 
+struct EdgeHit {
+    bool hit = false;
+
+    u32 objectIndex = 0;
+    EdgeHandle edge;
+
+    f32 distance = FLT_MAX;
+};
+
+EdgeHit pickEdge(const Scene& scene, const Ray& ray, f32 radius);
+
 struct FaceHit {
     bool hit = false;
 

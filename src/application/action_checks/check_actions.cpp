@@ -21,9 +21,5 @@ bool Application::checkActions(AppContext& ctx) {
         checkScaleContext(ctx);
     }
 
-    if (ictx.isActive(InputContext_Extrude)) {
-        checkExtrudeContext(ctx);
-    }
-
     return true;
 }

@@ -49,14 +49,20 @@ public:
     void translateVertex(VertexHandle handle, Vec3 delta);
     void scaleVertices(std::vector<VertexHandle> handles, f32 delta);
 
-    FaceHandle insertExtrusion(FaceHandle handle);
-    FaceHandle insetFace(FaceHandle handle);
+    FaceHandle insertFaceRing(FaceHandle handle);
+    VertexHandle splitEdge(EdgeHandle handle);
 
     // GPU data access
     VertexData getVertexData() const;
     EdgeData getEdgeData(const VertexData& vertexData) const;
     FaceData getFaceData(const VertexData& vertexData) const;
 
+    VertexHandle getEdgeOrigin(EdgeHandle handle) const;
+    VertexHandle getEdgeTip(EdgeHandle handle) const;
+    
+    bool isValidHandle(VertexHandle handle) const;
+    bool isValidHandle(EdgeHandle handle) const;
+    bool isValidHandle(FaceHandle handle) const;
 private:
     std::vector<Triangle> triangulateFace(FaceHandle handle) const;
 
@@ -68,7 +74,6 @@ private:
     EdgeHandle findEdgeInFace(FaceHandle face, VertexHandle origin, VertexHandle tip) const;
     void pairEdges(EdgeHandle a, EdgeHandle b);
     std::vector<EdgeHandle> getFaceEdges(FaceHandle handle) const;
-    VertexHandle getEdgeOrigin(EdgeHandle handle) const;
     EdgeHandle findOutgoingEdge(VertexHandle handle, const std::vector<EdgeHandle>& excluded) const;
     void deleteHalfEdge(EdgeHandle handle);
     void deleteFace(FaceHandle face);

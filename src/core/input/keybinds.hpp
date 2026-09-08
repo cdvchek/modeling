@@ -149,15 +149,9 @@ namespace DefaultKeybinds {
         }
     };
 
-    inline Keybind ConfirmExtrude {
+    inline Keybind InsetSelection {
         {
-            mouse(MouseButton::Left)
-        }
-    };
-
-    inline Keybind CancelExtrude {
-        {
-            mouse(MouseButton::Right)
+            key(Key::I)
         }
     };
     

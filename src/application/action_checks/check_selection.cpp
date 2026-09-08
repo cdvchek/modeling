@@ -96,7 +96,26 @@ void checkSelectionContext(AppContext& ctx) {
                 }
             }
         } else if (ictx.getSelectionContext() & InputContext_SelectionEdge) {
+            EdgeHit hit = pickEdge(ctx.scene, ray, 0.03f);
 
+            if (hit.hit) {
+                const MeshData& mesh = ctx.scene.objects.get(hit.objectIndex).meshData;
+                std::vector<VertexHandle> selectedVerts;
+                selectedVerts.push_back(mesh.getEdgeOrigin(hit.edge));
+                selectedVerts.push_back(mesh.getEdgeTip(hit.edge));
+
+                if (removeDown) {
+                    for (VertexHandle handle: selectedVerts) {
+                        ctx.scene.selection.removeVertex(hit.objectIndex, handle);
+                    }
+                    ctx.scene.selection.removeEdge(hit.objectIndex, hit.edge);
+                } else {
+                    for (VertexHandle handle : selectedVerts) {
+                        ctx.scene.selection.addVertex(hit.objectIndex, handle);
+                    }
+                    ctx.scene.selection.addEdge(hit.objectIndex, hit.edge);
+                }
+            }
         } else if (ictx.getSelectionContext() & InputContext_SelectionFace) {
             FaceHit hit = pickFace(ctx.scene, ray);
 
@@ -107,6 +126,7 @@ void checkSelectionContext(AppContext& ctx) {
                 if (removeDown) {
                     // TODO: current bug, if you remove a face from the selection, all of the adjacent selected faces will only be partially selected.
                     // the vertices that the adjacent faces share with the deselected face will be deselected and they shouldn't.
+                    // This also occurrs with the edges
                     for (VertexHandle handle : selectedVerts) {
                         ctx.scene.selection.removeVertex(hit.objectIndex, handle);
                     }
@@ -139,24 +159,28 @@ void checkSelectionContext(AppContext& ctx) {
         ictx.setContext(InputContext_Scale);
     }
 
-    if (ctx.systems.input_ctx.getSelectionContext() == InputContext_SelectionFace && actions.wasActionPressedThisFrame(Action::ExtrudeSelection, input, ictx.getContext())) {
-
-        FaceHandle newFace = ctx.scene.objects.get(0).meshData.insertExtrusion(ctx.scene.selection.getFaceHandles()[0]);
-
-        ctx.scene.selection.clear();
-
-        std::vector<VertexHandle> newFaceVerts = ctx.scene.objects.get(0).meshData.getFaceVertices(newFace);
-        
-        ctx.scene.selection.addFace(0, newFace);
-        for (VertexHandle vert : newFaceVerts) {
-            ctx.scene.selection.addVertex(0, vert);
+    if (ctx.systems.input_ctx.getSelectionContext() == InputContext_SelectionFace) {
+        bool extruding = actions.wasActionPressedThisFrame(Action::ExtrudeSelection, input, ictx.getContext());
+        bool insetting = actions.wasActionPressedThisFrame(Action::InsetSelection, input, ictx.getContext());
+        if (extruding || insetting) {
+            FaceHandle newFace = ctx.scene.objects.get(0).meshData.insertFaceRing(ctx.scene.selection.getFaceHandles()[0]);
+    
+            ctx.scene.selection.clear();
+    
+            std::vector<VertexHandle> newFaceVerts = ctx.scene.objects.get(0).meshData.getFaceVertices(newFace);
+            
+            ctx.scene.selection.addFace(0, newFace);
+            for (VertexHandle vert : newFaceVerts) {
+                ctx.scene.selection.addVertex(0, vert);
+            }
+            
+            std::vector<Vec3> starts;
+            for (const auto handle : ctx.scene.selection.getVertexHandles()) {
+                starts.push_back(ctx.scene.objects.get(0).meshData.getVertexPosition(handle));
+            }
+            ctx.scene.selection.setSelectionStartPositions(starts);
+            if (extruding) ictx.setContext(InputContext_Grab);
+            else if (insetting) ictx.setContext(InputContext_Scale);
         }
-        
-        std::vector<Vec3> starts;
-        for (const auto handle : ctx.scene.selection.getVertexHandles()) {
-            starts.push_back(ctx.scene.objects.get(0).meshData.getVertexPosition(handle));
-        }
-        ctx.scene.selection.setSelectionStartPositions(starts);
-        ictx.setContext(InputContext_Grab);
     }
 }
