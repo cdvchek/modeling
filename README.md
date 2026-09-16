@@ -6,6 +6,10 @@ This project explores the systems behind modern 3D modeling software by implemen
 
 The application is currently under active development.
 
+![3D Modeling Software](assets/modeling1.PNG)
+![3D Modeling Software](assets/modeling2.PNG)
+![3D Modeling Software](assets/modeling3.PNG)
+
 ## Features
 
 * Real-time 3D rendering with OpenGL
