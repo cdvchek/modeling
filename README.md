@@ -2,7 +2,7 @@
 
 A 3D modeling application built from scratch in C++ and OpenGL.
 
-This project explores the systems behind modern 3D modeling software by implementing the underlying geometry, rendering, interaction, and editing tools directly rather than relying on an existing game engine or modeling framework.
+This project explores the systems behind modern 3D modeling software by implementing the underlying geometry, rendering, interaction, and editing tools directly.
 
 The application is currently under active development.
 
@@ -20,9 +20,6 @@ The application is currently under active development.
 * Vertex and edge manipulation
 * Face extrusion
 * Polygon triangulation for rendering
-* Multiple mesh/object support
-* Object transformations
-* Interactive modeling tools
 
 ## Technology
 

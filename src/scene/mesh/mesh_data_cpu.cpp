@@ -797,6 +797,10 @@ VertexHandle MeshData::splitEdge(EdgeHandle handle) {
 
     Edge& prevPair = m_edges.get(prevPairH);
     Edge& nextEdge = m_edges.get(nextEdgeH);
+    edge = m_edges.get(handle);
+    pair = m_edges.get(edge.pair);
+    oldNextEdge = m_edges.tryGet(edge.next);
+    oldPrevPair = m_edges.tryGet(pair.prev);
 
     oldNextEdge->prev = nextEdgeH;
     oldPrevPair->next = prevPairH;
