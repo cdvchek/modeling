@@ -28,6 +28,63 @@ void main() {
 }
 )";
 
+const char* console_vert_source = R"(
+#version 330 core
+
+void main() {
+    vec2 positions[3] = vec2[](
+        vec2(-1.0, -1.0),
+        vec2( 3.0, -1.0),
+        vec2(-1.0,  3.0)
+    );
+
+    gl_Position = vec4(positions[gl_VertexID], 0.0, 1.0);
+}
+)";
+
+const char* console_frag_source = R"(
+#version 330 core
+
+out vec4 FragColor;
+
+void main() {
+    FragColor = vec4(0.15, 0.15, 0.15, 0.7);
+}
+)";
+
+const char* console_text_vert_source = R"(
+#version 330 core
+
+layout (location = 0) in vec2 aPosition;
+layout (location = 1) in vec2 aTexCoord;
+
+out vec2 TexCoord;
+
+void main()
+{
+    gl_Position = vec4(aPosition, 0.0, 1.0);
+    TexCoord = aTexCoord;
+}
+)";
+
+const char* console_text_frag_source = R"(
+#version 330 core
+
+in vec2 TexCoord;
+
+out vec4 FragColor;
+
+uniform sampler2D uFont;
+uniform vec3 uColor;
+
+void main()
+{
+    float alpha = texture(uFont, TexCoord).r;
+
+    FragColor = vec4(uColor, alpha);
+}
+)";
+
 bool OpenGLRenderer::initialize(void* window, void* surface, const RendererConfig& config) {
     if (m_initialized) return true;
     if (window == nullptr) return false;
@@ -94,30 +151,41 @@ bool OpenGLRenderer::initialize(void* window, void* surface, const RendererConfi
     glViewport(0, 0, static_cast<GLsizei>(config.width), static_cast<GLsizei>(config.height));
     glEnable(GL_DEPTH_TEST);
 
-    glGenVertexArrays(1, &m_pointVAO);
-    glGenBuffers(1, &m_pointVBO);
+    glGenVertexArrays(1, &m_textVAO);
+    glGenBuffers(1, &m_textVBO);
 
-    glBindVertexArray(m_pointVAO);
-    glBindBuffer(GL_ARRAY_BUFFER, m_pointVBO);
-
-    f32 vertex[3] = { 0.0f, 0.0f, 0.0f };
+    glBindVertexArray(m_textVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, m_textVBO);
 
     glBufferData(
         GL_ARRAY_BUFFER,
-        sizeof(vertex),
-        vertex,
-        GL_STATIC_DRAW
+        sizeof(float) * 6 * 4,
+        nullptr,
+        GL_DYNAMIC_DRAW
     );
 
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(
         0,
-        3,
+        2,
         GL_FLOAT,
         GL_FALSE,
-        sizeof(f32) * 3,
-        nullptr
+        4 * sizeof(float),
+        (void*)0
     );
+
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(
+        1,
+        2,
+        GL_FLOAT,
+        GL_FALSE,
+        4 * sizeof(float),
+        (void*)(2 * sizeof(float))
+    );
+
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
 
     glBindVertexArray(0);
 
@@ -125,6 +193,16 @@ bool OpenGLRenderer::initialize(void* window, void* surface, const RendererConfi
 
     m_testShader = std::make_unique<OpenGLShader>();
     m_testShader->create(vertex_source, fragment_source);
+
+    m_consoleShader = std::make_unique<OpenGLShader>();
+    m_consoleShader->create(console_vert_source, console_frag_source);
+
+    m_textShader = std::make_unique<OpenGLShader>();
+    m_textShader->create(console_text_vert_source, console_text_frag_source);
+
+    BitmapFont font;
+    if (!font.load("./console.bmf")) return false;
+    m_consoleFont.create(font);
 
     m_initialized = true;
     return true;

@@ -17,6 +17,7 @@ struct Handle {
     u32 generation = 0;
 
     bool operator==(const Handle&) const = default;
+    bool operator!=(const Handle&) const = default;
     bool isNull() const { return index == INVALID_INDEX; }
 };
 

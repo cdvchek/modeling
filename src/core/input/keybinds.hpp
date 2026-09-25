@@ -47,6 +47,18 @@ namespace DefaultKeybinds {
             key(Key::F4)
         }
     };
+
+    inline Keybind ToggleConsole {
+        {
+            key(Key::Tab)
+        }
+    };
+
+    inline Keybind EnterCommand {
+        {
+            key(Key::Enter)
+        }
+    };
     
     inline Keybind ViewportOrbit {
         {

@@ -1,5 +1,6 @@
 #include "renderer/opengl/opengl_renderer.hpp"
 #include "core/input/contexts.hpp"
+#include "core/font/bitmap_font.hpp"
 
 #include <glad/glad.h>
 
@@ -89,24 +90,16 @@ void OpenGLRenderer::draw(const DrawCommand& command) {
     glBindVertexArray(0);
 }
 
-void OpenGLRenderer::drawPoint(const PointDrawCommand& command) {
-    if (!m_initialized) return;
+void OpenGLRenderer::drawConsole() {
+    glDisable(GL_DEPTH_TEST);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    m_consoleShader->bind();
+    glDrawArrays(GL_TRIANGLES, 0, 3);
+    glDisable(GL_BLEND);
+    glEnable(GL_DEPTH_TEST);
 
-    m_testShader->bind();
-
-    Mat4 model = Mat4::translation(command.position);
-    Mat4 mvp = command.viewProjection * model;
-
-    m_testShader->setMat4("u_MVP", mvp.m);
-    m_testShader->setVec3("u_Color", command.color);
-
-    glBindVertexArray(m_pointVAO);
-
-    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-    glPointSize(command.size);
-    glDrawArrays(GL_POINTS, 0, 1);
-
-    glBindVertexArray(0);
+    drawCharacter(m_consoleFont, 'A', 20.0f, 20.0f);
 }
 
 void OpenGLRenderer::endMainPass(){
@@ -132,4 +125,100 @@ RendererBackend OpenGLRenderer::getBackend() const{
 
 const char* OpenGLRenderer::getBackendName() const{
     return "OpenGL";
+}
+
+void OpenGLRenderer::drawCharacter(
+    const OpenGLFont& font,
+    char character,
+    float x,
+    float y
+) {
+
+    // Get this character's location in the font atlas.
+    GlyphUV uv = font.getGlyphUV(character);
+
+    float width = 16.0f;
+    float height = 24.0f;
+
+    float left = (x / static_cast<float>(m_width)) * 2.0f - 1.0f;
+
+    float right = ((x + width) / static_cast<float>(m_width)) * 2.0f - 1.0f;
+
+    float top = 1.0f - (y / static_cast<float>(m_height)) * 2.0f;
+
+    float bottom = 1.0f - ((y + height) / static_cast<float>(m_height)) * 2.0f;
+
+    float vertices[] = {
+
+        // position       // texture
+
+        left,  top,       uv.u0, uv.v0,
+        left,  bottom,    uv.u0, uv.v1,
+        right, bottom,    uv.u1, uv.v1,
+
+        left,  top,       uv.u0, uv.v0,
+        right, bottom,    uv.u1, uv.v1,
+        right, top,       uv.u1, uv.v0
+    };
+
+
+    // Update our text VBO with this character.
+
+    glBindBuffer(
+        GL_ARRAY_BUFFER,
+        m_textVBO
+    );
+
+    glBufferSubData(
+        GL_ARRAY_BUFFER,
+        0,
+        sizeof(vertices),
+        vertices
+    );
+
+
+    // Text should render over the scene/console.
+
+    glDisable(GL_DEPTH_TEST);
+
+    glEnable(GL_BLEND);
+
+    glBlendFunc(
+        GL_SRC_ALPHA,
+        GL_ONE_MINUS_SRC_ALPHA
+    );
+
+
+    // Use text shader.
+
+    m_textShader->bind();
+
+
+    // Bind font atlas.
+
+    glActiveTexture(GL_TEXTURE0);
+
+    glBindTexture(
+        GL_TEXTURE_2D,
+        font.getTexture()
+    );
+
+
+    // Draw character.
+
+    glBindVertexArray(m_textVAO);
+
+    glDrawArrays(
+        GL_TRIANGLES,
+        0,
+        6
+    );
+
+
+    glBindVertexArray(0);
+
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+
+    glEnable(GL_DEPTH_TEST);
 }

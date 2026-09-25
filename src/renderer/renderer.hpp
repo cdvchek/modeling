@@ -71,7 +71,7 @@ public:
     virtual void beginFrame() = 0;
     virtual void beginMainPass(const ClearState& clearState) = 0;
     virtual void draw(const DrawCommand& command) = 0;
-    virtual void drawPoint(const PointDrawCommand& comand) = 0;
+    virtual void drawConsole() = 0;
     virtual void endMainPass() = 0;
     virtual void endFrame() = 0;
     virtual void present() = 0;

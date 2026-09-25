@@ -52,6 +52,10 @@ public:
     FaceHandle insertFaceRing(FaceHandle handle);
     VertexHandle splitEdge(EdgeHandle handle);
 
+    bool removeVertex(VertexHandle handle);
+    bool removeEdge(EdgeHandle handle);
+    bool removeFace(FaceHandle handle);
+
     // GPU data access
     VertexData getVertexData() const;
     EdgeData getEdgeData(const VertexData& vertexData) const;
@@ -76,7 +80,7 @@ private:
     std::vector<EdgeHandle> getFaceEdges(FaceHandle handle) const;
     EdgeHandle findOutgoingEdge(VertexHandle handle, const std::vector<EdgeHandle>& excluded) const;
     void deleteHalfEdge(EdgeHandle handle);
-    void deleteFace(FaceHandle face);
+    void deleteFace(FaceHandle handle);
 
     MeshArray<Vertex, VertexHandle> m_vertices;
     MeshArray<Edge, EdgeHandle> m_edges;

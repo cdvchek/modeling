@@ -16,6 +16,7 @@ set(COMMON_SRC
     src/application/application_render.cpp
     src/application/application_scene.cpp
     src/application/application.cpp
+    src/core/font/bitmap_font.cpp
     src/core/input/input_state.cpp
     src/core/input/action_map.cpp
     src/core/input/context_manager.cpp
@@ -28,6 +29,7 @@ set(COMMON_SRC
     src/platform/window/window_event_callback_win32.cpp
     src/platform/window/window_win32.cpp
     src/platform/platform_win32.cpp
+    src/renderer/opengl/opengl_font.cpp
     src/renderer/opengl/opengl_mesh.cpp
     src/renderer/opengl/opengl_renderer_common.cpp
     src/renderer/opengl/opengl_shader.cpp

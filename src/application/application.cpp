@@ -78,6 +78,10 @@ void Application::renderFrame(AppContext& ctx) {
         ctx.renderer->draw(cmd);
     }
 
+    if (ctx.systems.input_ctx.getContext() & InputContext_Console) {
+        ctx.renderer->drawConsole();
+    }
+
     ctx.renderer->endMainPass();
     ctx.renderer->endFrame();
     ctx.renderer->present();

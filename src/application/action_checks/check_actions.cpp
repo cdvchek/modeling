@@ -8,6 +8,16 @@ bool Application::checkActions(AppContext& ctx) {
         ctx.systems.events.trigger(Event::Quit{});
         return false;
     }
+
+    if (ctx.systems.actions.wasActionPressedThisFrame(Action::ToggleConsole, ctx.systems.input, ictx.getContext())) {
+        ctx.systems.input_ctx.toggleContext(InputContext_Console);
+    }
+
+    if (ictx.isActive(InputContext_Console)) {
+        if (ctx.systems.actions.wasActionPressedThisFrame(Action::EnterCommand, ctx.systems.input, ictx.getContext())) {
+            // submit the command
+        }
+    }
     
     if (ictx.isActive(InputContext_SelectionVertex | InputContext_SelectionEdge | InputContext_SelectionFace)) {
         checkSelectionContext(ctx);

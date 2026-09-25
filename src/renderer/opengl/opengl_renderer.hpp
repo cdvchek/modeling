@@ -5,6 +5,7 @@
 #include "renderer/renderer.hpp"
 #include "renderer/opengl/opengl_shader.hpp"
 #include "renderer/opengl/opengl_mesh.hpp"
+#include "renderer/opengl/opengl_font.hpp"
 
 class OpenGLRenderer : public IRenderer {
 public:
@@ -20,7 +21,7 @@ public:
     void beginFrame() override;
     void beginMainPass(const ClearState& clearState) override;
     void draw(const DrawCommand& command) override;
-    void drawPoint(const PointDrawCommand& command) override;
+    void drawConsole() override;
     void endMainPass() override;
     void endFrame() override;
     void resize(u32 width, u32 height) override;
@@ -29,6 +30,8 @@ public:
     const char* getBackendName() const override;
 
 private:
+    virtual void drawCharacter(const OpenGLFont& font, char character, f32 x, f32 y);
+
     void* m_window = nullptr;
     void* m_surface = nullptr;
     void* m_glContext = nullptr;
@@ -38,9 +41,13 @@ private:
     bool m_vsyncEnabled = true;
 
     std::unique_ptr<OpenGLShader> m_testShader;
+    std::unique_ptr<OpenGLShader> m_consoleShader;
+    std::unique_ptr<OpenGLShader> m_textShader;
 
-    u32 m_pointVAO = 0;
-    u32 m_pointVBO = 0;
+    OpenGLFont m_consoleFont;
+
+    u32 m_textVAO = 0;
+    u32 m_textVBO = 0;
     
     bool m_initialized = false;
 };

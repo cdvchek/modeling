@@ -4,6 +4,8 @@ void Application::registerDefaultActions(AppContext& ctx) {
     auto& actions = ctx.systems.actions;
 
     actions.subscribe(Action::Quit,             DefaultKeybinds::Quit,             InputContext_Global);
+    actions.subscribe(Action::ToggleConsole,    DefaultKeybinds::ToggleConsole,    InputContext_Global | InputContext_Console);
+    actions.subscribe(Action::EnterCommand,     DefaultKeybinds::EnterCommand,     InputContext_Console);
     actions.subscribe(Action::ViewportOrbit,    DefaultKeybinds::ViewportOrbit,    InputContext_SelectionVertex | InputContext_SelectionEdge | InputContext_SelectionFace);
     actions.subscribe(Action::ViewportPan,      DefaultKeybinds::ViewportPan,      InputContext_SelectionVertex | InputContext_SelectionEdge | InputContext_SelectionFace);
     actions.subscribe(Action::ViewportZoom,     DefaultKeybinds::ViewportZoom,     InputContext_SelectionVertex | InputContext_SelectionEdge | InputContext_SelectionFace);
