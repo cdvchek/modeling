@@ -6,6 +6,10 @@ enum class Action : u8 {
     Quit,
     ToggleConsole,    // Toggles whether the console is open or closed
     EnterCommand,     // Button to push to submit the command in the console if its open
+    ConsoleCursorLeft,
+    ConsoleCursorRight,
+    ConsoleHistoryOlder,
+    ConsoleHistoryNewer,
     ViewportOrbit,    // Orbit around camera target
     ViewportPan,      // Pan tangentially to the camera target
     ViewportZoom,     // Zoom in and out of the camera target

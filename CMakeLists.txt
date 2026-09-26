@@ -8,6 +8,7 @@ set(CMAKE_C_STANDARD 17)
 set(COMMON_SRC
     src/main.cpp
     src/application/action_checks/check_actions.cpp
+    src/application/action_checks/check_console.cpp
     src/application/action_checks/check_grab.cpp
     src/application/action_checks/check_scale.cpp
     src/application/action_checks/check_selection.cpp
@@ -16,6 +17,7 @@ set(COMMON_SRC
     src/application/application_render.cpp
     src/application/application_scene.cpp
     src/application/application.cpp
+    src/core/console/console.hpp
     src/core/font/bitmap_font.cpp
     src/core/input/input_state.cpp
     src/core/input/action_map.cpp

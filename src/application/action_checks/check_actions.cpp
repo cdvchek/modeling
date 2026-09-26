@@ -14,9 +14,7 @@ bool Application::checkActions(AppContext& ctx) {
     }
 
     if (ictx.isActive(InputContext_Console)) {
-        if (ctx.systems.actions.wasActionPressedThisFrame(Action::EnterCommand, ctx.systems.input, ictx.getContext())) {
-            // submit the command
-        }
+        checkConsoleContext(ctx);
     }
     
     if (ictx.isActive(InputContext_SelectionVertex | InputContext_SelectionEdge | InputContext_SelectionFace)) {

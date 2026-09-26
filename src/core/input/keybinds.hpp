@@ -59,6 +59,30 @@ namespace DefaultKeybinds {
             key(Key::Enter)
         }
     };
+
+    inline Keybind ConsoleCursorLeft {
+        {
+            key(Key::ArrowLeft)
+        }
+    };
+
+    inline Keybind ConsoleCursorRight {
+        {
+            key(Key::ArrowRight)
+        }
+    };
+
+    inline Keybind ConsoleHistoryOlder {
+        {
+            key(Key::ArrowUp)
+        }
+    };
+
+    inline Keybind ConsoleHistoryNewer {
+        {
+            key(Key::ArrowDown)
+        }
+    };
     
     inline Keybind ViewportOrbit {
         {
