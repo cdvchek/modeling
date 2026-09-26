@@ -29,6 +29,9 @@ void Application::run(AppContext& ctx) {
         ctx.systems.input.beginFrame();
         Platform::pollEvents();
         checkActions(ctx);
+
+        std::cout << "Console: \"" << ctx.systems.console.getCurrentCommand() << "\"" << std::endl;
+
         Application::renderFrame(ctx);
     }
 }

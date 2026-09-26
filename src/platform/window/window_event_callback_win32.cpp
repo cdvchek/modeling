@@ -44,6 +44,15 @@ LRESULT WindowCallback::handleKeyUp(Window::Impl* impl, WPARAM w_param, LPARAM l
     return 0;
 }
 
+LRESULT WindowCallback::handleChar(Window::Impl* impl, WPARAM w_param, LPARAM l_param) {
+    if (impl && impl->events) {
+        char character = static_cast<char>(w_param);
+        impl->events->trigger(Event::Char{ character });
+    }
+
+    return 0;
+}
+
 LRESULT WindowCallback::handleMouseMove(Window::Impl* impl, WPARAM w_param, LPARAM l_param) {
     if (impl && impl->events) {
         i32 x = (i16)LOWORD(l_param);

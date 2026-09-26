@@ -6,6 +6,8 @@ enum class Action : u8 {
     Quit,
     ToggleConsole,    // Toggles whether the console is open or closed
     EnterCommand,     // Button to push to submit the command in the console if its open
+    ConsoleBackspace,
+    ConsoleDelete,
     ConsoleCursorLeft,
     ConsoleCursorRight,
     ConsoleHistoryOlder,

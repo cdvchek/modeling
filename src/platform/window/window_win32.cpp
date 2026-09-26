@@ -139,6 +139,8 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
         case WM_KEYUP:
         case WM_SYSKEYUP:
             return WindowCallback::handleKeyUp(impl, wParam, lParam);
+        case WM_CHAR:
+            return WindowCallback::handleChar(impl, wParam, lParam);
         case WM_MOUSEMOVE:
             return WindowCallback::handleMouseMove(impl, wParam, lParam);
         case WM_LBUTTONDOWN:

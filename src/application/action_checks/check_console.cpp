@@ -35,4 +35,18 @@ void checkConsoleContext(AppContext& ctx) {
         ctx.systems.input_ctx.getContext())) {
         ctx.systems.console.enterCurrentCommand();
     }
+
+    if (ctx.systems.actions.wasActionPressedThisFrame(
+        Action::ConsoleBackspace,
+        ctx.systems.input,
+        ctx.systems.input_ctx.getContext())) {
+        ctx.systems.console.removeFromCurrentCommandBack();
+    }
+
+    if (ctx.systems.actions.wasActionPressedThisFrame(
+        Action::ConsoleDelete,
+        ctx.systems.input,
+        ctx.systems.input_ctx.getContext())) {
+        ctx.systems.console.removeFromCurrentCommandForward();
+    }
 }

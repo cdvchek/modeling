@@ -9,6 +9,7 @@
 enum class EventType : u8 {
     KeyDown,
     KeyUp,
+    Char,
     MouseMove,
     MouseButtonDown,
     MouseButtonUp,
@@ -26,6 +27,10 @@ namespace Event {
 
     struct KeyUp { EVENT_TYPE(KeyUp);
         u16 key;
+    };
+
+    struct Char { EVENT_TYPE(Char);
+        char character;
     };
 
     struct MouseMove { EVENT_TYPE(MouseMove);

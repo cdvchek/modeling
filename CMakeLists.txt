@@ -17,7 +17,7 @@ set(COMMON_SRC
     src/application/application_render.cpp
     src/application/application_scene.cpp
     src/application/application.cpp
-    src/core/console/console.hpp
+    src/core/console/console.cpp
     src/core/font/bitmap_font.cpp
     src/core/input/input_state.cpp
     src/core/input/action_map.cpp

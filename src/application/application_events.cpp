@@ -15,6 +15,16 @@ void Application::registerInputEvents(AppContext& ctx) {
         }
     );
 
+    ctx.systems.events.subscribe<Event::Char>(
+        [&ctx](const Event::Char& event) -> bool {
+            if (ctx.systems.input_ctx.getContext() & InputContext_Console) {
+                if (event.character != '\b' && event.character != '\r')
+                    ctx.systems.console.insertToCurrentCommand(event.character);
+            }
+            return false;
+        }
+    );
+
     ctx.systems.events.subscribe<Event::MouseButtonDown>(
         [&ctx](const Event::MouseButtonDown& event) -> bool {
             ctx.systems.input.onMouseButton(event.button, true);

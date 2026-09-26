@@ -35,8 +35,10 @@ void Console::insertToCurrentCommand(char character) {
 }
 
 void Console::removeFromCurrentCommandBack() {
-    m_command.erase(m_cursorIndex - 1, 1);
-    m_cursorIndex--;
+    if (m_cursorIndex > 0) {
+        m_command.erase(m_cursorIndex - 1, 1);
+        m_cursorIndex--;
+    }
 }
 
 void Console::removeFromCurrentCommandForward() {
@@ -44,11 +46,12 @@ void Console::removeFromCurrentCommandForward() {
 }
 
 void Console::moveCursorLeft() {
-    if (m_cursorIndex > 0) m_cursorIndex--;
+    if (m_cursorIndex > 0 && m_commandIndex == static_cast<u32>(m_history.size())) m_cursorIndex--;
 }
 
 void Console::moveCursorRight() {
-    if (m_cursorIndex < static_cast<u32>(m_command.size())) m_cursorIndex++;
+    if (m_cursorIndex < static_cast<u32>(m_command.size())
+    && m_commandIndex == static_cast<u32>(m_history.size())) m_cursorIndex++;
 }
 
 void Console::setCursor(u32 index) {

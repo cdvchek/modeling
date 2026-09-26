@@ -6,6 +6,8 @@ void Application::registerDefaultActions(AppContext& ctx) {
     actions.subscribe(Action::Quit,                DefaultKeybinds::Quit,                InputContext_Global);
     actions.subscribe(Action::ToggleConsole,       DefaultKeybinds::ToggleConsole,       InputContext_Global | InputContext_Console);
     actions.subscribe(Action::EnterCommand,        DefaultKeybinds::EnterCommand,        InputContext_Console);
+    actions.subscribe(Action::ConsoleBackspace,    DefaultKeybinds::ConsoleBackspace,    InputContext_Console);
+    actions.subscribe(Action::ConsoleDelete,       DefaultKeybinds::ConsoleDelete,       InputContext_Console);
     actions.subscribe(Action::ConsoleCursorLeft,   DefaultKeybinds::ConsoleCursorLeft,   InputContext_Console);
     actions.subscribe(Action::ConsoleCursorRight,  DefaultKeybinds::ConsoleCursorRight,  InputContext_Console);
     actions.subscribe(Action::ConsoleHistoryOlder, DefaultKeybinds::ConsoleHistoryOlder, InputContext_Console);

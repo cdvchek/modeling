@@ -60,6 +60,18 @@ namespace DefaultKeybinds {
         }
     };
 
+    inline Keybind ConsoleBackspace {
+        {
+            key(Key::Backspace)
+        }
+    };
+
+    inline Keybind ConsoleDelete {
+        {
+            key(Key::Delete)
+        }
+    };
+
     inline Keybind ConsoleCursorLeft {
         {
             key(Key::ArrowLeft)

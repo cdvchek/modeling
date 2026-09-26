@@ -7,7 +7,7 @@
             "request": "launch",
             "program": "${workspaceFolder}/bin/modeling.exe",
             "args": [],
-            "cwd": "${workspaceFolder}",
+            "cwd": "${workspaceFolder}/bin",
             "stopAtEntry": false,
             "externalConsole": false,
             "MIMode": "gdb",

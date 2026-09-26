@@ -7,6 +7,7 @@
 namespace WindowCallback {
     LRESULT handleKeyDown(Window::Impl* impl, WPARAM wParam, LPARAM lParam);
     LRESULT handleKeyUp(Window::Impl* impl, WPARAM wParam, LPARAM lParam);
+    LRESULT handleChar(Window::Impl* impl, WPARAM wParam, LPARAM lParam);
     LRESULT handleMouseMove(Window::Impl* impl, WPARAM wParam, LPARAM lParam);
     LRESULT handleMouseLeftButtonDown(Window::Impl* impl, WPARAM wParam, LPARAM lParam);
     LRESULT handleMouseRightButtonDown(Window::Impl* impl, WPARAM wParam, LPARAM lParam);
