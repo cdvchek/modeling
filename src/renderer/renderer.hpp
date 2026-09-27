@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <memory>
 #include <vector>
+#include <string>
 
 #include "core/math/mat4.hpp"
 #include "core/math/vec3.hpp"
@@ -71,7 +72,8 @@ public:
     virtual void beginFrame() = 0;
     virtual void beginMainPass(const ClearState& clearState) = 0;
     virtual void draw(const DrawCommand& command) = 0;
-    virtual void drawConsole() = 0;
+    virtual void drawText(const std::string& text, f32 x, f32 y) = 0;
+    virtual void drawConsoleBackground() = 0;
     virtual void endMainPass() = 0;
     virtual void endFrame() = 0;
     virtual void present() = 0;

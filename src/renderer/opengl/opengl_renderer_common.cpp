@@ -90,7 +90,97 @@ void OpenGLRenderer::draw(const DrawCommand& command) {
     glBindVertexArray(0);
 }
 
-void OpenGLRenderer::drawConsole() {
+void OpenGLRenderer::drawText(const std::string& text, f32 x, f32 y) {
+    if (text.empty()) return;
+
+    constexpr f32 charWidth = 16.0f;
+    constexpr f32 charHeight = 24.0f;
+
+    std::vector<f32> vertices;
+    vertices.reserve(text.size() * 6 * 4);
+
+    f32 currentX = x;
+    f32 currentY = y;
+
+    for (char character : text) {
+        if (character == '\n') {
+            currentX = x;
+            currentY += charHeight;
+            continue;
+        }
+
+        GlyphUV uv = m_consoleFont.getGlyphUV(character);
+
+        f32 left =
+            (currentX / static_cast<f32>(m_width)) * 2.0f - 1.0f;
+
+        f32 right =
+            ((currentX + charWidth) / static_cast<f32>(m_width)) * 2.0f - 1.0f;
+
+        f32 top =
+            1.0f - (currentY / static_cast<f32>(m_height)) * 2.0f;
+
+        f32 bottom =
+            1.0f - ((currentY + charHeight) / static_cast<f32>(m_height)) * 2.0f;
+
+        f32 characterVertices[] = {
+            left,  top,       uv.u0, uv.v0,
+            left,  bottom,    uv.u0, uv.v1,
+            right, bottom,    uv.u1, uv.v1,
+
+            left,  top,       uv.u0, uv.v0,
+            right, bottom,    uv.u1, uv.v1,
+            right, top,       uv.u1, uv.v0
+        };
+
+        vertices.insert(
+            vertices.end(),
+            std::begin(characterVertices),
+            std::end(characterVertices)
+        );
+
+        currentX += charWidth;
+    }
+
+    glBindBuffer(GL_ARRAY_BUFFER, m_textVBO);
+
+    glBufferData(
+        GL_ARRAY_BUFFER,
+        vertices.size() * sizeof(f32),
+        vertices.data(),
+        GL_DYNAMIC_DRAW
+    );
+
+    glDisable(GL_DEPTH_TEST);
+
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    m_textShader->bind();
+
+    m_textShader->setVec3("uColor", {1.0f, 1.0f, 1.0f});
+
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(
+        GL_TEXTURE_2D,
+        m_consoleFont.getTexture()
+    );
+
+    glBindVertexArray(m_textVAO);
+
+    glDrawArrays(
+        GL_TRIANGLES,
+        0,
+        static_cast<GLsizei>(vertices.size() / 4)
+    );
+
+    glBindVertexArray(0);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    glEnable(GL_DEPTH_TEST);
+}
+
+void OpenGLRenderer::drawConsoleBackground() {
     glDisable(GL_DEPTH_TEST);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -98,8 +188,6 @@ void OpenGLRenderer::drawConsole() {
     glDrawArrays(GL_TRIANGLES, 0, 3);
     glDisable(GL_BLEND);
     glEnable(GL_DEPTH_TEST);
-
-    drawCharacter(m_consoleFont, 'A', 20.0f, 20.0f);
 }
 
 void OpenGLRenderer::endMainPass(){

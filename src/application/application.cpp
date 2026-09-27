@@ -29,9 +29,6 @@ void Application::run(AppContext& ctx) {
         ctx.systems.input.beginFrame();
         Platform::pollEvents();
         checkActions(ctx);
-
-        std::cout << "Console: \"" << ctx.systems.console.getCurrentCommand() << "\"" << std::endl;
-
         Application::renderFrame(ctx);
     }
 }
@@ -82,7 +79,25 @@ void Application::renderFrame(AppContext& ctx) {
     }
 
     if (ctx.systems.input_ctx.getContext() & InputContext_Console) {
-        ctx.renderer->drawConsole();
+        ctx.renderer->drawConsoleBackground();
+        
+        u32 width;
+        u32 height;
+        ctx.windows[0].get()->getDimensions(width, height);
+
+        const std::vector<std::string>& commandHistory = ctx.systems.console.getHistory();
+        u32 j = 1;
+        for (u32 i = static_cast<u32>(commandHistory.size()); i-- > 0;) {
+            const std::string& command = commandHistory[i];
+
+            ctx.renderer->drawText(
+                command,
+                25.0f,
+                static_cast<f32>(height) - (84.0f + (28.0f * j++))
+            );
+        }
+
+        ctx.renderer->drawText(ctx.systems.console.getCurrentCommand(), 25.0f, static_cast<f32>(height) - 49);
     }
 
     ctx.renderer->endMainPass();

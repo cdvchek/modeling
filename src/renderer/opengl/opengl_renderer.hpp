@@ -21,7 +21,8 @@ public:
     void beginFrame() override;
     void beginMainPass(const ClearState& clearState) override;
     void draw(const DrawCommand& command) override;
-    void drawConsole() override;
+    void drawText(const std::string& text, f32 x, f32 y) override;
+    void drawConsoleBackground() override;
     void endMainPass() override;
     void endFrame() override;
     void resize(u32 width, u32 height) override;

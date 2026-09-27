@@ -10,6 +10,7 @@ public:
     void enterCurrentCommand();
     // get current command
     const std::string& getCurrentCommand();
+    const std::vector<std::string>& getHistory();
     void viewNewerCommand();
     void viewOlderCommand();
     // add to current command
