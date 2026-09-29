@@ -12,6 +12,7 @@ namespace Application {
 
     void registerInputEvents(AppContext& ctx);
     void registerDefaultActions(AppContext& ctx);
+    void registerCommands(AppContext& ctx);
 
     bool checkActions(AppContext& ctx);
 

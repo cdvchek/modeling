@@ -13,10 +13,12 @@ set(COMMON_SRC
     src/application/action_checks/check_scale.cpp
     src/application/action_checks/check_selection.cpp
     src/application/application_actions.cpp
+    src/application/application_commands.cpp
     src/application/application_events.cpp
     src/application/application_render.cpp
     src/application/application_scene.cpp
     src/application/application.cpp
+    src/core/console/command_system.cpp
     src/core/console/console.cpp
     src/core/font/bitmap_font.cpp
     src/core/input/input_state.cpp

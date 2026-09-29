@@ -1,9 +1,10 @@
 #include "core/console/console.hpp"
 
-void Console::enterCurrentCommand() {
+void Console::enterCurrentCommand(CommandSystem& commands) {
     // check if command is valid
     // if valid:
         // execute command
+        commands.execute(m_command);
 
     if (!m_command.empty()) m_history.push_back(m_command);
 

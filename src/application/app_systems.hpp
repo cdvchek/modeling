@@ -5,6 +5,7 @@
 #include "core/input/action_map.hpp"
 #include "core/input/context_manager.hpp"
 #include "core/console/console.hpp"
+#include "core/console/command_system.hpp"
 
 struct Systems {
     EventDispatcher events;
@@ -12,4 +13,5 @@ struct Systems {
     ActionMap actions;
     ContextManager input_ctx;
     Console console;
+    CommandSystem commands;
 };

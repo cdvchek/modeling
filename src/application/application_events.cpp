@@ -18,7 +18,7 @@ void Application::registerInputEvents(AppContext& ctx) {
     ctx.systems.events.subscribe<Event::Char>(
         [&ctx](const Event::Char& event) -> bool {
             if (ctx.systems.input_ctx.getContext() & InputContext_Console) {
-                if (event.character != '\b' && event.character != '\r')
+                if (event.character != '\b' && event.character != '\r' && event.character != '\t')
                     ctx.systems.console.insertToCurrentCommand(event.character);
             }
             return false;

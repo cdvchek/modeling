@@ -4,10 +4,12 @@
 #include <vector>
 #include <types>
 
+#include "core/console/command_system.hpp"
+
 class Console {
 public:
     // enter a command
-    void enterCurrentCommand();
+    void enterCurrentCommand(CommandSystem& commands);
     // get current command
     const std::string& getCurrentCommand();
     const std::vector<std::string>& getHistory();

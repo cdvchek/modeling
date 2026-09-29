@@ -13,6 +13,7 @@ bool Application::initialize(AppContext& ctx) {
 
     registerInputEvents(ctx);
     registerDefaultActions(ctx);
+    registerCommands(ctx);
 
     initializeCamera(ctx);
     loadTestScene(ctx);

@@ -33,7 +33,7 @@ void checkConsoleContext(AppContext& ctx) {
         Action::EnterCommand,
         ctx.systems.input, 
         ctx.systems.input_ctx.getContext())) {
-        ctx.systems.console.enterCurrentCommand();
+        ctx.systems.console.enterCurrentCommand(ctx.systems.commands);
     }
 
     if (ctx.systems.actions.wasActionPressedThisFrame(
