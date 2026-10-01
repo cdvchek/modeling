@@ -85,6 +85,42 @@ void main()
 }
 )";
 
+const char* text_3d_vert_source = R"(
+#version 330 core
+
+layout(location = 0) in vec3 a_Position;
+layout(location = 1) in vec2 a_UV;
+
+uniform mat4 u_MVP;
+
+out vec2 v_UV;
+
+void main() {
+    gl_Position = u_MVP * vec4(a_Position, 1.0);
+    v_UV = a_UV;
+}
+)";
+
+const char* text_3d_frag_source = R"(
+#version 330 core
+
+in vec2 v_UV;
+
+uniform sampler2D u_Texture;
+uniform vec3 u_Color;
+
+out vec4 FragColor;
+
+void main() {
+    float alpha = texture(u_Texture, v_UV).r;
+
+    if (alpha < 0.01)
+        discard;
+
+    FragColor = vec4(u_Color, alpha);
+}
+)";
+
 bool OpenGLRenderer::initialize(void* window, void* surface, const RendererConfig& config) {
     if (m_initialized) return true;
     if (window == nullptr) return false;
@@ -210,6 +246,41 @@ bool OpenGLRenderer::initialize(void* window, void* surface, const RendererConfi
         (void*)0
     );
 
+    glGenVertexArrays(1, &m_text3DVAO);
+    glGenBuffers(1, &m_text3DVBO);
+
+    glBindVertexArray(m_text3DVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, m_text3DVBO);
+
+    glBufferData(
+        GL_ARRAY_BUFFER,
+        sizeof(f32) * 6 * 5,
+        nullptr,
+        GL_DYNAMIC_DRAW
+    );
+
+    // Position: x, y, z
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(
+        0,
+        3,
+        GL_FLOAT,
+        GL_FALSE,
+        5 * sizeof(f32),
+        (void*)0
+    );
+
+    // UV: u, v
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(
+        1,
+        2,
+        GL_FLOAT,
+        GL_FALSE,
+        5 * sizeof(f32),
+        (void*)(3 * sizeof(f32))
+    );
+
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
 
@@ -223,6 +294,9 @@ bool OpenGLRenderer::initialize(void* window, void* surface, const RendererConfi
 
     m_textShader = std::make_unique<OpenGLShader>();
     m_textShader->create(console_text_vert_source, console_text_frag_source);
+
+    m_text3DShader = std::make_unique<OpenGLShader>();
+    m_text3DShader->create(text_3d_vert_source, text_3d_frag_source);
 
     BitmapFont font;
     if (!font.load("./console.bmf")) return false;

@@ -82,7 +82,8 @@ void Application::renderFrame(AppContext& ctx) {
     if (ctx.systems.input_ctx.isActive(InputContext_Debug)) {
         ctx.debug_renderer.render(
             *ctx.renderer,
-            ctx.scene
+            ctx.scene,
+            viewProjection
         );
     }
 
@@ -99,13 +100,21 @@ void Application::renderFrame(AppContext& ctx) {
             const std::string& command = commandHistory[i];
 
             ctx.renderer->drawText(
-                command,
-                25.0f,
-                static_cast<f32>(height) - (84.0f + (28.0f * j++))
+                DrawTextCommand{
+                    command,
+                    25.0f,
+                    static_cast<f32>(height) - (84.0f + (28.0f * j++))
+                }
             );
         }
 
-        ctx.renderer->drawText(ctx.systems.console.getCurrentCommand(), 25.0f, static_cast<f32>(height) - 49);
+        ctx.renderer->drawText(
+            DrawTextCommand{
+                ctx.systems.console.getCurrentCommand(),
+                25.0f,
+                static_cast<f32>(height) - 49
+            }
+        );
     }
 
     ctx.renderer->endMainPass();

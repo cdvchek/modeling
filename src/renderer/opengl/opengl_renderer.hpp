@@ -21,8 +21,9 @@ public:
     void beginFrame() override;
     void beginMainPass(const ClearState& clearState) override;
     void draw(const DrawCommand& command) override;
-    void drawText(const std::string& text, f32 x, f32 y) override;
-    void drawDebugLine(const Vec3& start, const Vec3& end) override;
+    void drawText(const DrawTextCommand& command) override;
+    void drawText3D(const DrawText3DCommand& command) override;
+    void drawDebugLine(const Vec3& start, const Vec3& end, const Mat4& mvp) override;
     void drawConsoleBackground() override;
     void endMainPass() override;
     void endFrame() override;
@@ -45,11 +46,15 @@ private:
     std::unique_ptr<OpenGLShader> m_testShader;
     std::unique_ptr<OpenGLShader> m_consoleShader;
     std::unique_ptr<OpenGLShader> m_textShader;
+    std::unique_ptr<OpenGLShader> m_text3DShader;
 
     OpenGLFont m_consoleFont;
 
     u32 m_textVAO = 0;
     u32 m_textVBO = 0;
+
+    u32 m_text3DVAO = 0;
+    u32 m_text3DVBO = 0;
 
     u32 m_debugLineVAO = 0;
     u32 m_debugLineVBO = 0;

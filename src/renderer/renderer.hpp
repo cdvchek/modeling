@@ -52,11 +52,20 @@ struct DrawCommand {
     Mat4 mvp;
 };
 
-struct PointDrawCommand {
-    Vec3 position;
-    Mat4 viewProjection;
-    Vec3 color = Vec3(1.0f, 0.8f, 0.0f);
-    f32 size = 12.0f;
+struct DrawTextCommand {
+    const std::string& text;
+    f32 x;
+    f32 y;
+    Vec3 color;
+};
+
+struct DrawText3DCommand {
+    const std::string& text;
+    const Vec3& position;
+    const Vec3& right;
+    const Vec3& up;
+    f32 size;
+    const Mat4& mvp;
 };
 
 class IRenderer {
@@ -72,8 +81,9 @@ public:
     virtual void beginFrame() = 0;
     virtual void beginMainPass(const ClearState& clearState) = 0;
     virtual void draw(const DrawCommand& command) = 0;
-    virtual void drawText(const std::string& text, f32 x, f32 y) = 0;
-    virtual void drawDebugLine(const Vec3& start, const Vec3& end) = 0;
+    virtual void drawText(const DrawTextCommand& command) = 0;
+    virtual void drawText3D(const DrawText3DCommand& command) = 0;
+    virtual void drawDebugLine(const Vec3& start, const Vec3& end, const Mat4& mvp) = 0;
     virtual void drawConsoleBackground() = 0;
     virtual void endMainPass() = 0;
     virtual void endFrame() = 0;

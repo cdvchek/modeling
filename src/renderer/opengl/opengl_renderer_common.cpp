@@ -90,38 +90,31 @@ void OpenGLRenderer::draw(const DrawCommand& command) {
     glBindVertexArray(0);
 }
 
-void OpenGLRenderer::drawText(const std::string& text, f32 x, f32 y) {
-    if (text.empty()) return;
+void OpenGLRenderer::drawText(const DrawTextCommand& command) {
+    if (command.text.empty()) return;
 
     constexpr f32 charWidth = 16.0f;
     constexpr f32 charHeight = 24.0f;
 
     std::vector<f32> vertices;
-    vertices.reserve(text.size() * 6 * 4);
+    vertices.reserve(command.text.size() * 6 * 4);
 
-    f32 currentX = x;
-    f32 currentY = y;
+    f32 currentX = command.x;
+    f32 currentY = command.y;
 
-    for (char character : text) {
+    for (char character : command.text) {
         if (character == '\n') {
-            currentX = x;
+            currentX = command.x;
             currentY += charHeight;
             continue;
         }
 
         GlyphUV uv = m_consoleFont.getGlyphUV(character);
 
-        f32 left =
-            (currentX / static_cast<f32>(m_width)) * 2.0f - 1.0f;
-
-        f32 right =
-            ((currentX + charWidth) / static_cast<f32>(m_width)) * 2.0f - 1.0f;
-
-        f32 top =
-            1.0f - (currentY / static_cast<f32>(m_height)) * 2.0f;
-
-        f32 bottom =
-            1.0f - ((currentY + charHeight) / static_cast<f32>(m_height)) * 2.0f;
+        f32 left = (currentX / static_cast<f32>(m_width)) * 2.0f - 1.0f;
+        f32 right = ((currentX + charWidth) / static_cast<f32>(m_width)) * 2.0f - 1.0f;
+        f32 top = 1.0f - (currentY / static_cast<f32>(m_height)) * 2.0f;
+        f32 bottom = 1.0f - ((currentY + charHeight) / static_cast<f32>(m_height)) * 2.0f;
 
         f32 characterVertices[] = {
             left,  top,       uv.u0, uv.v0,
@@ -180,9 +173,150 @@ void OpenGLRenderer::drawText(const std::string& text, f32 x, f32 y) {
     glEnable(GL_DEPTH_TEST);
 }
 
+void OpenGLRenderer::drawText3D(const DrawText3DCommand& command) {
+    if (command.text.empty()) return;
+
+    // Preserve your bitmap font's 16:24 aspect ratio.
+    constexpr f32 glyphAspect = 16.0f / 24.0f;
+
+    const f32 charHeight = command.size;
+    const f32 charWidth = command.size * glyphAspect;
+
+    std::vector<f32> vertices;
+
+    // 6 vertices per character
+    // 5 floats per vertex: x, y, z, u, v
+    vertices.reserve(command.text.size() * 6 * 5);
+
+    f32 currentX = 0.0f;
+    f32 currentY = 0.0f;
+
+    for (char character : command.text) {
+        if (character == '\n') {
+            currentX = 0.0f;
+            currentY -= charHeight;
+            continue;
+        }
+
+        GlyphUV uv = m_consoleFont.getGlyphUV(character);
+
+        // Bottom-left corner of this character in world space.
+        Vec3 origin = command.position + command.right * currentX + command.up * currentY;
+        Vec3 topLeft = origin + command.up * charHeight;
+        Vec3 bottomLeft = origin;
+        Vec3 bottomRight = origin + command.right * charWidth;
+        Vec3 topRight = origin + command.right * charWidth + command.up * charHeight;
+
+        f32 characterVertices[] = {
+            topLeft.x,
+            topLeft.y,
+            topLeft.z,
+            uv.u0,
+            uv.v0,
+
+            bottomLeft.x,
+            bottomLeft.y,
+            bottomLeft.z,
+            uv.u0,
+            uv.v1,
+
+            bottomRight.x,
+            bottomRight.y,
+            bottomRight.z,
+            uv.u1,
+            uv.v1,
+
+
+            topLeft.x,
+            topLeft.y,
+            topLeft.z,
+            uv.u0,
+            uv.v0,
+
+            bottomRight.x,
+            bottomRight.y,
+            bottomRight.z,
+            uv.u1,
+            uv.v1,
+
+            topRight.x,
+            topRight.y,
+            topRight.z,
+            uv.u1,
+            uv.v0
+        };
+
+        vertices.insert(
+            vertices.end(),
+            std::begin(characterVertices),
+            std::end(characterVertices)
+        );
+
+        currentX += charWidth;
+    }
+
+    glBindBuffer(
+        GL_ARRAY_BUFFER,
+        m_text3DVBO
+    );
+
+    glBufferData(
+        GL_ARRAY_BUFFER,
+        vertices.size() * sizeof(f32),
+        vertices.data(),
+        GL_DYNAMIC_DRAW
+    );
+
+    glEnable(GL_BLEND);
+    glBlendFunc(
+        GL_SRC_ALPHA,
+        GL_ONE_MINUS_SRC_ALPHA
+    );
+
+    m_text3DShader->bind();
+
+    m_text3DShader->setVec3(
+        "u_Color",
+        {1.0f, 1.0f, 1.0f}
+    );
+
+    // Use however you're currently storing your
+    // view/projection matrices.
+    m_text3DShader->setMat4(
+        "u_MVP",
+        command.mvp.m
+    );
+
+    m_text3DShader->setUInt(
+        "u_Texture",
+        0
+    );
+
+    glActiveTexture(GL_TEXTURE0);
+
+    glBindTexture(
+        GL_TEXTURE_2D,
+        m_consoleFont.getTexture()
+    );
+
+    glBindVertexArray(m_text3DVAO);
+
+    glDrawArrays(
+        GL_TRIANGLES,
+        0,
+        static_cast<GLsizei>(
+            vertices.size() / 5
+        )
+    );
+
+    glBindVertexArray(0);
+    glBindTexture(GL_TEXTURE_2D, 0);
+}
+
 void OpenGLRenderer::drawDebugLine(
     const Vec3& start,
-    const Vec3& end
+    const Vec3& end,
+    const Mat4& mvp
 ) {
     const float vertices[] = {
         start.x, start.y, start.z,
@@ -197,6 +331,18 @@ void OpenGLRenderer::drawDebugLine(
         0,
         sizeof(vertices),
         vertices
+    );
+
+    m_testShader->bind();
+
+    m_testShader->setMat4(
+        "u_MVP",
+        mvp.m
+    );
+
+    m_testShader->setVec3(
+        "u_Color",
+        {1.0f, 1.0f, 1.0f}
     );
 
     glDrawArrays(GL_LINES, 0, 2);

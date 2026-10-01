@@ -888,287 +888,99 @@ VertexHandle MeshData::splitEdge(EdgeHandle handle) {
 }
 
 bool MeshData::removeVertex(VertexHandle handle) {
-
     if (!isValidHandle(handle)) return false;
+    const Vertex& vertex = m_vertices.get(handle);
 
-    Vertex& vert = m_vertices.get(handle);
-
-    // Isolated vertex
-    if (!isValidHandle(vert.edge)) {
+    if (!isValidHandle(vertex.edge)) {
         m_vertices.remove(handle);
         return true;
     }
 
-    std::vector<EdgeHandle> deleteEdges;
-    std::vector<FaceHandle> faces;
-    std::vector<VertexHandle> neighbors;
-    std::vector<EdgeHandle> faceless;
-
-
-    // ============================================================
-    // 1. Find all outgoing edges + their pairs
-    //    Find touching faces
-    //    Find neighboring vertices
-    // ============================================================
-
-    EdgeHandle start = vert.edge;
+    const EdgeHandle start = vertex.edge;
     EdgeHandle current = start;
 
+    std::vector<EdgeHandle> deleteEdges;
     do {
+        if (!isValidHandle(current)) return false;
+        const Edge& currentEdge = m_edges.get(current);
 
-        Edge& edge = m_edges.get(current);
+        if (!isValidHandle(currentEdge.pair)) return false;
+        const Edge& pair = m_edges.get(currentEdge.pair);
 
-        if (!isValidHandle(edge.pair)) {
-            return false;
-        }
+        if (!isValidHandle(pair.next)) return false;
+        EdgeHandle next = pair.next;
 
-        EdgeHandle pairHandle = edge.pair;
-        Edge& pair = m_edges.get(pairHandle);
-
-        // Outgoing edge + incoming pair are both deleted.
+        if (isValidHandle(currentEdge.face)) removeFace(currentEdge.face);
         deleteEdges.push_back(current);
-        deleteEdges.push_back(pairHandle);
 
-        // edge.tip is the neighboring vertex.
-        if (isValidHandle(edge.tip)) {
-            neighbors.push_back(edge.tip);
-        }
+        current = next;
+    } while (current != start);
 
-        // Both sides can potentially give us incident faces.
-        if (isValidHandle(edge.face)) {
-            faces.push_back(edge.face);
-        }
-
-        if (isValidHandle(pair.face)) {
-            faces.push_back(pair.face);
-        }
-
-        // Rotate around the vertex.
-        current = pair.next;
-
-    } while (isValidHandle(current) && current != start);
-
-
-    // ============================================================
-    // 2. Find all edges bordering the faces being deleted.
-    //
-    //    These are the edges whose face will become INVALID_FACE.
-    // ============================================================
-
-    for (FaceHandle faceHandle : faces) {
-
-        if (!isValidHandle(faceHandle)) continue;
-
-        Face& face = m_faces.get(faceHandle);
-
-        if (!isValidHandle(face.edge)) continue;
-
-        EdgeHandle faceStart = face.edge;
-        EdgeHandle faceEdge = faceStart;
-
-        do {
-
-            // Don't add edges that are themselves being deleted.
-
-            bool beingDeleted = false;
-
-            for (EdgeHandle deleted : deleteEdges) {
-
-                if (faceEdge == deleted) {
-                    beingDeleted = true;
-                    break;
-                }
-            }
-
-            if (!beingDeleted) {
-                faceless.push_back(faceEdge);
-            }
-
-            faceEdge = m_edges.get(faceEdge).next;
-
-        } while (isValidHandle(faceEdge) &&
-                 faceEdge != faceStart);
+    for (EdgeHandle edge : deleteEdges) {
+        removeEdge(edge);
     }
-
-
-    // ============================================================
-    // 3. Repair neighbor Vertex::edge references BEFORE deletion.
-    //
-    //    findOutgoingEdge ignores everything we're about to delete.
-    // ============================================================
-
-    for (VertexHandle neighbor : neighbors) {
-
-        if (!isValidHandle(neighbor)) continue;
-
-        EdgeHandle outgoing =
-            findOutgoingEdge(neighbor, deleteEdges);
-
-        m_vertices.get(neighbor).edge = outgoing;
-    }
-
-
-    // ============================================================
-    // 4. Surviving edges belonging to deleted faces become
-    //    boundary edges.
-    // ============================================================
-
-    for (EdgeHandle edgeHandle : faceless) {
-
-        if (!isValidHandle(edgeHandle)) continue;
-
-        m_edges.get(edgeHandle).face = INVALID_FACE;
-    }
-
-
-    // ============================================================
-    // 5. Break next/prev references around deleted edges.
-    // ============================================================
-
-    for (EdgeHandle edgeHandle : deleteEdges) {
-
-        if (!isValidHandle(edgeHandle)) continue;
-
-        Edge& edge = m_edges.get(edgeHandle);
-
-        if (isValidHandle(edge.next)) {
-
-            Edge& next = m_edges.get(edge.next);
-
-            if (next.prev == edgeHandle) {
-                next.prev = INVALID_EDGE;
-            }
-        }
-
-        if (isValidHandle(edge.prev)) {
-
-            Edge& prev = m_edges.get(edge.prev);
-
-            if (prev.next == edgeHandle) {
-                prev.next = INVALID_EDGE;
-            }
-        }
-    }
-
-
-    // ============================================================
-    // 6. Delete faces.
-    // ============================================================
-
-    for (FaceHandle faceHandle : faces) {
-
-        if (isValidHandle(faceHandle)) {
-            m_faces.remove(faceHandle);
-        }
-    }
-
-
-    // ============================================================
-    // 7. Delete incident edges.
-    // ============================================================
-
-    for (EdgeHandle edgeHandle : deleteEdges) {
-
-        if (isValidHandle(edgeHandle)) {
-            m_edges.remove(edgeHandle);
-        }
-    }
-
-
-    // ============================================================
-    // 8. Delete vertex.
-    // ============================================================
 
     m_vertices.remove(handle);
+    
+    return true;
+}
 
+bool MeshData::removeEdge(EdgeHandle handle) {
+    if (!isValidHandle(handle)) return false;
+    const Edge& edge = m_edges.get(handle);
 
-    // ============================================================
-    // 9. Heal the newly-created boundary.
-    //
-    //    Every surviving edge from one of the deleted faces now
-    //    has face == INVALID_FACE.
-    //
-    //    Find its previous boundary edge by:
-    //
-    //        pair -> next -> pair -> next -> ...
-    //
-    //    until next no longer exists.
-    //
-    //    Find its next boundary edge by:
-    //
-    //        pair -> prev -> pair -> prev -> ...
-    //
-    //    until prev no longer exists.
-    // ============================================================
+    if (!isValidHandle(edge.pair)) return false;
+    const Edge& pair = m_edges.get(edge.pair);
 
-    for (EdgeHandle edgeHandle : faceless) {
+    if (!isValidHandle(edge.next) ||
+        !isValidHandle(edge.prev) ||
+        !isValidHandle(pair.next) ||
+        !isValidHandle(pair.prev) ||
+        !isValidHandle(edge.tip) ||
+        !isValidHandle(pair.tip)) return false;
+    
+    Edge& edgeNext = m_edges.get(edge.next);
+    Edge& edgePrev = m_edges.get(edge.prev);
+    Edge& pairNext = m_edges.get(pair.next);
+    Edge& pairPrev = m_edges.get(pair.prev);
 
-        // Some faceless handles could have disappeared as part of
-        // deletion, so only process surviving ones.
-        if (!isValidHandle(edgeHandle)) continue;
+    Vertex& edgeTip = m_vertices.get(edge.tip);
+    Vertex& pairTip = m_vertices.get(pair.tip);
 
-        Edge& boundary = m_edges.get(edgeHandle);
+    edgeTip.edge = edge.next;
+    pairTip.edge = pair.next;
 
+    edgeNext.prev = pair.prev;
+    edgePrev.next = pair.next;
+    pairNext.prev = edge.prev;
+    pairPrev.next = edge.next;
 
-        // --------------------------------------------------------
-        // Find PREV boundary edge
-        // --------------------------------------------------------
+    if (isValidHandle(edge.face)) removeFace(edge.face);
+    if (isValidHandle(pair.face)) removeFace(pair.face);
 
-        EdgeHandle walk = edgeHandle;
+    m_edges.remove(edge.pair);
+    m_edges.remove(handle);
 
-        while (true) {
+    return true;
+}
 
-            Edge& walkEdge = m_edges.get(walk);
+bool MeshData::removeFace(FaceHandle handle) {
+    if (!isValidHandle(handle)) return false;
+    const Face& face = m_faces.get(handle);
 
-            if (!isValidHandle(walkEdge.pair)) {
-                break;
-            }
+    if (!isValidHandle(face.edge)) return false;
+    const EdgeHandle start = face.edge;
+    EdgeHandle current = start;
+    
+    do {
+        if (!isValidHandle(current)) return false;
+        Edge& currentEdge = m_edges.get(current);
+        currentEdge.face = INVALID_FACE;
 
-            EdgeHandle pairHandle = walkEdge.pair;
-            Edge& pair = m_edges.get(pairHandle);
+        current = currentEdge.next;
+    } while (current != start);
 
-            if (!isValidHandle(pair.next)) {
-
-                // pair is the boundary edge immediately before us.
-                boundary.prev = pairHandle;
-                m_edges.get(pairHandle).next = edgeHandle;
-
-                break;
-            }
-
-            walk = pair.next;
-        }
-
-
-        // --------------------------------------------------------
-        // Find NEXT boundary edge
-        // --------------------------------------------------------
-
-        walk = edgeHandle;
-
-        while (true) {
-
-            Edge& walkEdge = m_edges.get(walk);
-
-            if (!isValidHandle(walkEdge.pair)) {
-                break;
-            }
-
-            EdgeHandle pairHandle = walkEdge.pair;
-            Edge& pair = m_edges.get(pairHandle);
-
-            if (!isValidHandle(pair.prev)) {
-
-                // pair is the boundary edge immediately after us.
-                boundary.next = pairHandle;
-                m_edges.get(pairHandle).prev = edgeHandle;
-
-                break;
-            }
-
-            walk = pair.prev;
-        }
-    }
+    m_faces.remove(handle);
 
     return true;
 }

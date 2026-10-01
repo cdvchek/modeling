@@ -3,6 +3,7 @@
 #include "scene/selection/scene_queries.hpp"
 
 #include <algorithm>
+#include <iostream>
 
 void checkSelectionContext(AppContext& ctx) {
     ActionMap& actions = ctx.systems.actions;
@@ -191,6 +192,18 @@ void checkSelectionContext(AppContext& ctx) {
             for (VertexHandle vert : ctx.scene.selection.getVertexHandles()) {
                 ctx.scene.objects.get(0).meshData.removeVertex(vert);
             }
+        } else if (selectionCtx == InputContext_SelectionEdge) {
+            for (EdgeHandle edge : ctx.scene.selection.getEdgeHandles()) {
+                ctx.scene.objects.get(0).meshData.removeEdge(edge);
+            }
+        } else {
+            for (FaceHandle face : ctx.scene.selection.getFaceHandles()) {
+                ctx.scene.objects.get(0).meshData.removeFace(face);
+            }
+        }
+
+        for (EdgeHandle edge : ctx.scene.objects.get(0).meshData.getEdgeHandles()) {
+            std::cout << edge.index << ":" << edge.generation << std::endl;
         }
 
         ctx.scene.objects.get(0).meshDirty = true;
