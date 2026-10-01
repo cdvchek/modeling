@@ -79,7 +79,14 @@ void Application::renderFrame(AppContext& ctx) {
         ctx.renderer->draw(cmd);
     }
 
-    if (ctx.systems.input_ctx.getContext() & InputContext_Console) {
+    if (ctx.systems.input_ctx.isActive(InputContext_Debug)) {
+        ctx.debug_renderer.render(
+            *ctx.renderer,
+            ctx.scene
+        );
+    }
+
+    if (ctx.systems.input_ctx.isActive(InputContext_Console)) {
         ctx.renderer->drawConsoleBackground();
         
         u32 width;

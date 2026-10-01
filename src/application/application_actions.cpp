@@ -29,11 +29,5 @@ void Application::registerDefaultActions(AppContext& ctx) {
     actions.subscribe(Action::CancelScale,         DefaultKeybinds::CancelScale,         InputContext_Scale);
     actions.subscribe(Action::ExtrudeSelection,    DefaultKeybinds::ExtrudeSelection,    InputContext_SelectionFace);
     actions.subscribe(Action::InsetSelection,      DefaultKeybinds::InsetSelection,      InputContext_SelectionFace);
-    // actions.subscribe(Action::DeleteSelection, DefaultKeybinds::DeleteSelection);
-    // actions.subscribe(Action::Duplicate, DefaultKeybinds::Duplicate);
-    // actions.subscribe(Action::Connect, DefaultKeybinds::Connect);
-    // actions.subscribe(Action::Disconnect, DefaultKeybinds::Disconnect);
-    // actions.subscribe(Action::Save, DefaultKeybinds::Save);
-    // actions.subscribe(Action::Undo, DefaultKeybinds::Undo);
-    // actions.subscribe(Action::Redo, DefaultKeybinds::Redo);
+    actions.subscribe(Action::DeleteSelection,     DefaultKeybinds::DeleteSelection,     InputContext_SelectionVertex | InputContext_SelectionEdge | InputContext_SelectionFace);
 }

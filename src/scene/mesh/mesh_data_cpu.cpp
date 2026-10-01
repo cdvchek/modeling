@@ -21,6 +21,27 @@ void MeshData::setMesh(PresetMesh meshType) {
     m_dirty = true;
 }
 
+const Vertex* MeshData::getVertex(VertexHandle handle) const {
+    if (!m_vertices.isValid(handle))
+        return nullptr;
+
+    return &m_vertices.get(handle);
+}
+
+const Edge* MeshData::getEdge(EdgeHandle handle) const {
+    if (!m_edges.isValid(handle))
+        return nullptr;
+
+    return &m_edges.get(handle);
+}
+
+const Face* MeshData::getFace(FaceHandle handle) const {
+    if (!m_faces.isValid(handle))
+        return nullptr;
+
+    return &m_faces.get(handle);
+}
+
 const std::vector<Vertex> MeshData::getVertices() const {
     return m_vertices.getActiveValues();
 }
@@ -45,6 +66,52 @@ Vec3 MeshData::getVertexPosition(VertexHandle handle) const {
     const Vertex* vert = m_vertices.tryGet(handle);
     if (vert) return vert->position;
     return Vec3();
+}
+
+Vec3 MeshData::getFaceNormal(FaceHandle handle) const {
+    if (!m_faces.isValid(handle)) return Vec3(0.0f);
+    const Face& face = m_faces.get(handle);
+
+    if (!m_edges.isValid(face.edge)) return Vec3(0.0f);
+
+    const EdgeHandle startEdge = face.edge;
+    EdgeHandle currentEdge = startEdge;
+
+    Vec3 normal(0.0f);
+
+    do {
+        if (!m_edges.isValid(currentEdge)) return Vec3(0.0f);
+        const Edge& edge = m_edges.get(currentEdge);
+
+        if (!m_edges.isValid(edge.next)) return Vec3(0.0f);
+        const Edge& nextEdge = m_edges.get(edge.next);
+
+        if (!m_vertices.isValid(edge.tip) || !m_vertices.isValid(nextEdge.tip)) return Vec3(0.0f);
+
+        const Vec3& current = m_vertices.get(edge.tip).position;
+        const Vec3& next = m_vertices.get(nextEdge.tip).position;
+
+        // Newell's method
+        normal.x +=
+            (current.y - next.y) *
+            (current.z + next.z);
+
+        normal.y +=
+            (current.z - next.z) *
+            (current.x + next.x);
+
+        normal.z +=
+            (current.x - next.x) *
+            (current.y + next.y);
+
+        currentEdge = edge.next;
+
+    } while (!(currentEdge == startEdge));
+
+    f32 lengthSq = Vec3::dot(normal, normal);
+    if (lengthSq < Math::EPSILON * Math::EPSILON) return Vec3(0.0f);
+
+    return normal / std::sqrt(lengthSq);
 }
 
 std::vector<VertexHandle> MeshData::getFaceVertices(FaceHandle handle) const {
@@ -380,53 +447,25 @@ std::vector<Triangle> earclipping(std::vector<EarVertex> verts) {
     
 std::vector<Triangle> MeshData::triangulateFace(FaceHandle handle) const {
     if (!m_faces.isValid(handle)) return {};
-
     const Face& face = m_faces.get(handle);
+
+    if (!m_edges.isValid(face.edge)) return {};
     const EdgeHandle startEdge = face.edge;
-    EdgeHandle currentEdge = face.edge;
+    EdgeHandle currentEdge = startEdge;
 
-    Vec3 normal = Vec3(0.0f);
-
-    do {
-        if (!m_edges.isValid(currentEdge)) return {};
-        const Edge& edge = m_edges.get(currentEdge);
-
-        if (!m_edges.isValid(edge.prev) || !m_edges.isValid(edge.next)) return {};
-        
-        const Edge& prevEdge = m_edges.get(edge.prev);
-        const Edge& nextEdge = m_edges.get(edge.next);
-
-        if (!m_vertices.isValid(edge.tip) || !m_vertices.isValid(prevEdge.tip) || !m_vertices.isValid(nextEdge.tip)) return {};
-
-        const Vertex& edgeTip = m_vertices.get(edge.tip);
-        const Vertex& prevTip = m_vertices.get(prevEdge.tip);
-        const Vertex& nextTip = m_vertices.get(nextEdge.tip);
-
-        Vec3 tipPos = edgeTip.position;
-        Vec3 prevTipPos = prevTip.position;
-        Vec3 nextTipPos = nextTip.position;
-
-        Vec3 current = tipPos - prevTipPos;
-        Vec3 next = nextTipPos - tipPos;
-
-        normal.x += (current.y - next.y) * (current.z + next.z);
-        normal.y += (current.z - next.z) * (current.x + next.x);
-        normal.z += (current.x - next.x) * (current.y + next.y);
-
-        currentEdge = edge.next;
-    } while (!(currentEdge == startEdge));
+    // Get the face normal
+    Vec3 normal = getFaceNormal(handle);
 
     f32 lengthSq = Vec3::dot(normal, normal);
     if (lengthSq < Math::EPSILON * Math::EPSILON) return {};
 
-    // then find the dominant axis from the normal and drop that axis from each vertex in the face
-    // dropping that axis from each vertex projects it into the most parallel plane (XY, XZ, or YZ)
-    // while dropping the axis, package the vertices into a vector of EarVertex's (EarVertex is shown above)
+    // Find the dominant axis from the normal and drop that axis
+    // from each vertex in the face.
     std::vector<EarVertex> projVerts;
-    currentEdge = startEdge;
 
     u8 dominant = 0;
-    Vec3 domNormal = Vec3(
+
+    Vec3 domNormal(
         std::abs(normal.x),
         std::abs(normal.y),
         std::abs(normal.z)
@@ -440,34 +479,55 @@ std::vector<Triangle> MeshData::triangulateFace(FaceHandle handle) const {
         dominant = 2;
     }
 
+    // Project all vertices onto the dominant plane.
     do {
         if (!m_edges.isValid(currentEdge)) return {};
         const Edge& edge = m_edges.get(currentEdge);
 
         if (!m_vertices.isValid(edge.tip)) return {};
-        Vertex current = m_vertices.get(edge.tip);
+        const Vertex& current = m_vertices.get(edge.tip);
 
         Vec2 earPosition;
+
         switch (dominant) {
-        case 0:
-            earPosition = Vec2(current.position.y, current.position.z);
-            break;
+            case 0:
+                // Drop X -> YZ
+                earPosition = Vec2(
+                    current.position.y,
+                    current.position.z
+                );
+                break;
 
-        case 1:
-            earPosition = Vec2(current.position.x, current.position.z);
-            break;
+            case 1:
+                // Drop Y -> XZ
+                earPosition = Vec2(
+                    current.position.x,
+                    current.position.z
+                );
+                break;
 
-        case 2:
-            earPosition = Vec2(current.position.x, current.position.y);
-            break;
+            case 2:
+                // Drop Z -> XY
+                earPosition = Vec2(
+                    current.position.x,
+                    current.position.y
+                );
+                break;
         }
-        projVerts.push_back(EarVertex{ earPosition, edge.tip });
 
+        projVerts.push_back(
+            EarVertex{
+                earPosition,
+                edge.tip
+            }
+        );
+
+        if (!m_edges.isValid(edge.next)) return {};
         currentEdge = edge.next;
+
     } while (!(currentEdge == startEdge));
 
-    // run earclipping on the vector of EarVertex's
-    // this should give you what you need to then append the generated triangle indices
+    // Run ear clipping on the projected vertices.
     return earclipping(projVerts);
 }
 

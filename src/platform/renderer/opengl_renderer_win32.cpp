@@ -187,6 +187,30 @@ bool OpenGLRenderer::initialize(void* window, void* surface, const RendererConfi
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
 
+    glGenVertexArrays(1, &m_debugLineVAO);
+    glGenBuffers(1, &m_debugLineVBO);
+
+    glBindVertexArray(m_debugLineVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, m_debugLineVBO);
+
+    glBufferData(
+        GL_ARRAY_BUFFER,
+        sizeof(float) * 6,
+        nullptr,
+        GL_DYNAMIC_DRAW
+    );
+
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(
+        0,
+        3,
+        GL_FLOAT,
+        GL_FALSE,
+        3 * sizeof(float),
+        (void*)0
+    );
+
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
 
     setVSync(config.enableVSync);

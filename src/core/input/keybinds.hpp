@@ -205,40 +205,7 @@ namespace DefaultKeybinds {
     
     inline Keybind DeleteSelection {
         {
-            key(Key::Backspace)
-        }
-    };
-    
-    inline Keybind Duplicate {
-        {
-            key(Key::D)
-        }
-    };
-    
-    inline Keybind Disconnect {
-        {
-            key(Key::X)
-        }
-    };
-    
-    inline Keybind Save {
-        {
-            key(Key::LeftCtrl),
-            key(Key::S)
-        }
-    };
-    
-    inline Keybind Undo {
-        {
-            key(Key::LeftCtrl),
-            key(Key::Z)
-        }
-    };
-    
-    inline Keybind Redo {
-        {
-            key(Key::LeftCtrl),
-            key(Key::Y)
+            key(Key::Delete)
         }
     };
 }

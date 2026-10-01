@@ -65,6 +65,22 @@ Vec3& Vec3::operator-=(const Vec3& other) {
     return *this;
 }
 
+Vec3& Vec3::operator*=(f32 scalar) {
+    x *= scalar;
+    y *= scalar;
+    z *= scalar;
+
+    return *this;
+}
+
+Vec3& Vec3::operator/=(f32 scalar) {
+    x /= scalar;
+    y /= scalar;
+    z /= scalar;
+
+    return *this;
+}
+
 f32 Vec3::length() const {
     return std::sqrt(
         x * x +

@@ -6,11 +6,13 @@
 #include "application/app_systems.hpp"
 #include "platform/window/window.hpp"
 #include "renderer/renderer.hpp"
+#include "renderer/debug_renderer.hpp"
 #include "scene/scene.hpp"
 
 struct AppContext {
     Systems systems;
     std::unique_ptr<IRenderer> renderer;
+    DebugRenderer debug_renderer;
     std::vector<std::unique_ptr<Window>> windows;
     Scene scene;
 

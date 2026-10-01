@@ -20,6 +20,9 @@ struct Vec3 {
 
     Vec3& operator+=(const Vec3& other);
     Vec3& operator-=(const Vec3& other);
+    
+    Vec3& operator*=(f32 scalar);
+    Vec3& operator/=(f32 scalar);
 
     f32 length() const;
     Vec3 normalized() const;

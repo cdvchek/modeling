@@ -183,4 +183,17 @@ void checkSelectionContext(AppContext& ctx) {
             else if (insetting) ictx.setContext(InputContext_Scale);
         }
     }
+
+    if (actions.wasActionPressedThisFrame(Action::DeleteSelection, input, ictx.getContext())) {
+        u32 selectionCtx = ctx.systems.input_ctx.getSelectionContext();
+
+        if (selectionCtx == InputContext_SelectionVertex) {
+            for (VertexHandle vert : ctx.scene.selection.getVertexHandles()) {
+                ctx.scene.objects.get(0).meshData.removeVertex(vert);
+            }
+        }
+
+        ctx.scene.objects.get(0).meshDirty = true;
+        ctx.scene.selection.clear();
+    }
 }

@@ -37,6 +37,7 @@ set(COMMON_SRC
     src/renderer/opengl/opengl_mesh.cpp
     src/renderer/opengl/opengl_renderer_common.cpp
     src/renderer/opengl/opengl_shader.cpp
+    src/renderer/debug_renderer.cpp
     src/renderer/renderer.cpp
     src/scene/mesh/presets/cube.cpp
     src/scene/mesh/mesh_data_cpu.cpp

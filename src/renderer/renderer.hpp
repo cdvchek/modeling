@@ -73,6 +73,7 @@ public:
     virtual void beginMainPass(const ClearState& clearState) = 0;
     virtual void draw(const DrawCommand& command) = 0;
     virtual void drawText(const std::string& text, f32 x, f32 y) = 0;
+    virtual void drawDebugLine(const Vec3& start, const Vec3& end) = 0;
     virtual void drawConsoleBackground() = 0;
     virtual void endMainPass() = 0;
     virtual void endFrame() = 0;

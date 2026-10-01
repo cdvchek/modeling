@@ -26,6 +26,11 @@ struct FaceData {
 class MeshData {
 public:
     void setMesh(PresetMesh meshType);
+
+    const Vertex* getVertex(VertexHandle handle) const;
+    const Edge* getEdge(EdgeHandle handle) const;
+    const Face* getFace(FaceHandle handle) const;
+
     const std::vector<Vertex> getVertices() const;
     const std::vector<Face> getFaces() const;
 
@@ -34,6 +39,7 @@ public:
     const std::vector<FaceHandle> getFaceHandles() const;
 
     Vec3 getVertexPosition(VertexHandle handle) const;
+    Vec3 getFaceNormal(FaceHandle handle) const;
 
     std::vector<VertexHandle> getFaceVertices(FaceHandle handle) const;
     // std::vector<u32> getFaceEdges(u32 face) const;

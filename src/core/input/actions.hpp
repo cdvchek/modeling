@@ -30,10 +30,5 @@ enum class Action : u8 {
     ExtrudeSelection, // Extrude the vertices selected
     InsetSelection,   // Inset the vertices selected
     DeleteSelection,  // Delete one or more selected vertices
-    Duplicate,        // Duplicate one or more selected vertices
-    Disconnect,       // Disconnect two vertices
-    Save,             // Save the project
-    Undo,             // Undo the last action
-    Redo,             // Redo the last action
     Count
 };

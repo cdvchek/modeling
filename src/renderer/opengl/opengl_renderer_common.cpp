@@ -180,6 +180,31 @@ void OpenGLRenderer::drawText(const std::string& text, f32 x, f32 y) {
     glEnable(GL_DEPTH_TEST);
 }
 
+void OpenGLRenderer::drawDebugLine(
+    const Vec3& start,
+    const Vec3& end
+) {
+    const float vertices[] = {
+        start.x, start.y, start.z,
+        end.x,   end.y,   end.z
+    };
+
+    glBindVertexArray(m_debugLineVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, m_debugLineVBO);
+
+    glBufferSubData(
+        GL_ARRAY_BUFFER,
+        0,
+        sizeof(vertices),
+        vertices
+    );
+
+    glDrawArrays(GL_LINES, 0, 2);
+
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
+}
+
 void OpenGLRenderer::drawConsoleBackground() {
     glDisable(GL_DEPTH_TEST);
     glEnable(GL_BLEND);

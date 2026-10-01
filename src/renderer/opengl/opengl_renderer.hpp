@@ -22,6 +22,7 @@ public:
     void beginMainPass(const ClearState& clearState) override;
     void draw(const DrawCommand& command) override;
     void drawText(const std::string& text, f32 x, f32 y) override;
+    void drawDebugLine(const Vec3& start, const Vec3& end) override;
     void drawConsoleBackground() override;
     void endMainPass() override;
     void endFrame() override;
@@ -49,6 +50,9 @@ private:
 
     u32 m_textVAO = 0;
     u32 m_textVBO = 0;
+
+    u32 m_debugLineVAO = 0;
+    u32 m_debugLineVBO = 0;
     
     bool m_initialized = false;
 };
