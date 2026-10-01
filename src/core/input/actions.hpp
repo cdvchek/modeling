@@ -30,5 +30,10 @@ enum class Action : u8 {
     ExtrudeSelection, // Extrude the vertices selected
     InsetSelection,   // Inset the vertices selected
     DeleteSelection,  // Delete one or more selected vertices
+    FillFaceLoop,     // Fills a half edge loop by creating a face
+    ConnectVertices,  // Connects two vertices together by creating a face
+    XAxis,
+    YAxis,
+    ZAxis,
     Count
 };

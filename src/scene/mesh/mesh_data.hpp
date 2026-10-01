@@ -62,6 +62,10 @@ public:
     bool removeEdge(EdgeHandle handle);
     bool removeFace(FaceHandle handle);
 
+    bool fillFaceLoop(EdgeHandle handle);
+
+    bool connectVertices(VertexHandle a, VertexHandle b);
+
     // GPU data access
     VertexData getVertexData() const;
     EdgeData getEdgeData(const VertexData& vertexData) const;

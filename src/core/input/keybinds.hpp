@@ -208,4 +208,34 @@ namespace DefaultKeybinds {
             key(Key::Delete)
         }
     };
+
+    inline Keybind FillFaceLoop {
+        {
+            key(Key::F)
+        }
+    };
+
+    inline Keybind ConnectVertices {
+        {
+            key(Key::C)
+        }
+    };
+
+    inline Keybind XAxis {
+        {
+            key(Key::X)
+        }
+    };
+
+    inline Keybind YAxis {
+        {
+            key(Key::Y)
+        }
+    };
+
+    inline Keybind ZAxis {
+        {
+            key(Key::Z)
+        }
+    };
 }

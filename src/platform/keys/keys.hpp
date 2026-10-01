@@ -30,6 +30,7 @@ enum class Key : u16 {
     SemiColon, Apostrophe,
     LeftBracket, RightBracket,
     Minus, Equals,
+    Tilde,
 
     Insert, Delete, Home, End,
     PageUp, PageDown,

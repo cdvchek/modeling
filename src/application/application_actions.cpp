@@ -30,4 +30,9 @@ void Application::registerDefaultActions(AppContext& ctx) {
     actions.subscribe(Action::ExtrudeSelection,    DefaultKeybinds::ExtrudeSelection,    InputContext_SelectionFace);
     actions.subscribe(Action::InsetSelection,      DefaultKeybinds::InsetSelection,      InputContext_SelectionFace);
     actions.subscribe(Action::DeleteSelection,     DefaultKeybinds::DeleteSelection,     InputContext_SelectionVertex | InputContext_SelectionEdge | InputContext_SelectionFace);
+    actions.subscribe(Action::FillFaceLoop,        DefaultKeybinds::FillFaceLoop,        InputContext_SelectionEdge);
+    actions.subscribe(Action::ConnectVertices,     DefaultKeybinds::ConnectVertices,     InputContext_SelectionVertex);
+    actions.subscribe(Action::XAxis,               DefaultKeybinds::XAxis,               InputContext_Grab | InputContext_Scale);
+    actions.subscribe(Action::YAxis,               DefaultKeybinds::YAxis,               InputContext_Grab | InputContext_Scale);
+    actions.subscribe(Action::ZAxis,               DefaultKeybinds::ZAxis,               InputContext_Grab | InputContext_Scale);
 }

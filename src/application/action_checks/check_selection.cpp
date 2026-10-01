@@ -3,7 +3,6 @@
 #include "scene/selection/scene_queries.hpp"
 
 #include <algorithm>
-#include <iostream>
 
 void checkSelectionContext(AppContext& ctx) {
     ActionMap& actions = ctx.systems.actions;
@@ -160,28 +159,49 @@ void checkSelectionContext(AppContext& ctx) {
         ictx.setContext(InputContext_Scale);
     }
 
+    if (ctx.systems.input_ctx.getSelectionContext() == InputContext_SelectionVertex) {
+        if (actions.wasActionPressedThisFrame(Action::ConnectVertices, input, ictx.getContext())) {
+            auto vertHandles = ctx.scene.selection.getVertexHandles();
+            if (vertHandles.size() == 2) {
+                ctx.scene.objects.get(0).meshData.connectVertices(vertHandles[0], vertHandles[1]);
+                ctx.scene.objects.get(0).meshDirty = true;
+            }
+        }
+    }
+
+    if (ctx.systems.input_ctx.getSelectionContext() == InputContext_SelectionEdge) {
+        if (actions.wasActionPressedThisFrame(Action::FillFaceLoop, input, ictx.getContext())) {
+            if (!ctx.scene.objects.get(0).meshData.getEdgeHandles().empty()) {
+                ctx.scene.objects.get(0).meshData.fillFaceLoop(ctx.scene.selection.getEdgeHandles()[0]);
+                ctx.scene.objects.get(0).meshDirty = true;
+            }
+        }
+    }
+
     if (ctx.systems.input_ctx.getSelectionContext() == InputContext_SelectionFace) {
         bool extruding = actions.wasActionPressedThisFrame(Action::ExtrudeSelection, input, ictx.getContext());
         bool insetting = actions.wasActionPressedThisFrame(Action::InsetSelection, input, ictx.getContext());
         if (extruding || insetting) {
-            FaceHandle newFace = ctx.scene.objects.get(0).meshData.insertFaceRing(ctx.scene.selection.getFaceHandles()[0]);
-    
-            ctx.scene.selection.clear();
-    
-            std::vector<VertexHandle> newFaceVerts = ctx.scene.objects.get(0).meshData.getFaceVertices(newFace);
-            
-            ctx.scene.selection.addFace(0, newFace);
-            for (VertexHandle vert : newFaceVerts) {
-                ctx.scene.selection.addVertex(0, vert);
+            if (!ctx.scene.objects.get(0).meshData.getFaceHandles().empty()) {
+                FaceHandle newFace = ctx.scene.objects.get(0).meshData.insertFaceRing(ctx.scene.selection.getFaceHandles()[0]);
+        
+                ctx.scene.selection.clear();
+        
+                std::vector<VertexHandle> newFaceVerts = ctx.scene.objects.get(0).meshData.getFaceVertices(newFace);
+                
+                ctx.scene.selection.addFace(0, newFace);
+                for (VertexHandle vert : newFaceVerts) {
+                    ctx.scene.selection.addVertex(0, vert);
+                }
+                
+                std::vector<Vec3> starts;
+                for (const auto handle : ctx.scene.selection.getVertexHandles()) {
+                    starts.push_back(ctx.scene.objects.get(0).meshData.getVertexPosition(handle));
+                }
+                ctx.scene.selection.setSelectionStartPositions(starts);
+                if (extruding) ictx.setContext(InputContext_Grab);
+                else if (insetting) ictx.setContext(InputContext_Scale);
             }
-            
-            std::vector<Vec3> starts;
-            for (const auto handle : ctx.scene.selection.getVertexHandles()) {
-                starts.push_back(ctx.scene.objects.get(0).meshData.getVertexPosition(handle));
-            }
-            ctx.scene.selection.setSelectionStartPositions(starts);
-            if (extruding) ictx.setContext(InputContext_Grab);
-            else if (insetting) ictx.setContext(InputContext_Scale);
         }
     }
 
@@ -200,10 +220,6 @@ void checkSelectionContext(AppContext& ctx) {
             for (FaceHandle face : ctx.scene.selection.getFaceHandles()) {
                 ctx.scene.objects.get(0).meshData.removeFace(face);
             }
-        }
-
-        for (EdgeHandle edge : ctx.scene.objects.get(0).meshData.getEdgeHandles()) {
-            std::cout << edge.index << ":" << edge.generation << std::endl;
         }
 
         ctx.scene.objects.get(0).meshDirty = true;

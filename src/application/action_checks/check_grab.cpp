@@ -3,6 +3,34 @@
 #include <algorithm>
 
 void checkGrabContext(AppContext& ctx) {
+    static bool xAxis = false;
+    static bool yAxis = false;
+    static bool zAxis = false;
+
+    if (ctx.systems.actions.wasActionPressedThisFrame(
+        Action::XAxis,
+        ctx.systems.input,
+        ctx.systems.input_ctx.getContext())) {
+        
+        xAxis = !xAxis;
+    }
+
+    if (ctx.systems.actions.wasActionPressedThisFrame(
+        Action::YAxis,
+        ctx.systems.input,
+        ctx.systems.input_ctx.getContext())) {
+        
+        yAxis = !yAxis;
+    }
+
+    if (ctx.systems.actions.wasActionPressedThisFrame(
+        Action::ZAxis,
+        ctx.systems.input,
+        ctx.systems.input_ctx.getContext())) {
+        
+        zAxis = !zAxis;
+    }
+
     i32 dx = ctx.systems.input.getMouseDeltaX();
     i32 dy = ctx.systems.input.getMouseDeltaY();
 
@@ -13,7 +41,13 @@ void checkGrabContext(AppContext& ctx) {
     const Vec3 cameraUp = Vec3::cross(right, ctx.scene.camera.getForward()).normalized();
 
     const f32 vertMoveSpeed = 0.001f * ctx.scene.camera.distance;
-    const Vec3 vertMove = (right * dx - cameraUp * dy) * vertMoveSpeed;
+    Vec3 vertMove = (right * dx - cameraUp * dy) * vertMoveSpeed;
+
+    if (xAxis || yAxis || zAxis) {
+        if (!xAxis) vertMove.x = 0;
+        if (!yAxis) vertMove.y = 0;
+        if (!zAxis) vertMove.z = 0;
+    }
 
     for (const VertexSelection& vs : ctx.scene.selection.getVertices()) {
         Object& obj = ctx.scene.objects.get(vs.objectIndex);

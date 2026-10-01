@@ -1,4 +1,5 @@
 #include "platform/keys/keys.hpp"
+#include <Windows.h>
 
 u16 translatePlatformKey(unsigned int vk) {
     if (vk >= 'A' && vk <= 'Z') {
@@ -33,6 +34,7 @@ u16 translatePlatformKey(unsigned int vk) {
             case 221: return (u16)Key::RightBracket;  // ]}  // VK_OEM_6
             case 189: return (u16)Key::Minus;         // -_  // VK_OEM_MINUS
             case 187: return (u16)Key::Equals;        // =+  // VK_OEM_PLUS
+            case 192: return (u16)Key::Tilde;         //~`   // VK_OEM_3
 
             case 45:  return (u16)Key::Insert;               // VK_INSERT
             case 46:  return (u16)Key::Delete;               // VK_DELETE

@@ -927,10 +927,11 @@ bool MeshData::removeVertex(VertexHandle handle) {
 
 bool MeshData::removeEdge(EdgeHandle handle) {
     if (!isValidHandle(handle)) return false;
-    const Edge& edge = m_edges.get(handle);
+    Edge& edge = m_edges.get(handle);
 
     if (!isValidHandle(edge.pair)) return false;
-    const Edge& pair = m_edges.get(edge.pair);
+    EdgeHandle pairHandle = edge.pair;
+    Edge& pair = m_edges.get(pairHandle);
 
     if (!isValidHandle(edge.next) ||
         !isValidHandle(edge.prev) ||
@@ -938,27 +939,47 @@ bool MeshData::removeEdge(EdgeHandle handle) {
         !isValidHandle(pair.prev) ||
         !isValidHandle(edge.tip) ||
         !isValidHandle(pair.tip)) return false;
-    
-    Edge& edgeNext = m_edges.get(edge.next);
-    Edge& edgePrev = m_edges.get(edge.prev);
-    Edge& pairNext = m_edges.get(pair.next);
-    Edge& pairPrev = m_edges.get(pair.prev);
 
-    Vertex& edgeTip = m_vertices.get(edge.tip);
-    Vertex& pairTip = m_vertices.get(pair.tip);
+    // Save everything we need before modifying topology.
+    EdgeHandle edgeNextHandle = edge.next;
+    EdgeHandle edgePrevHandle = edge.prev;
 
-    edgeTip.edge = edge.next;
-    pairTip.edge = pair.next;
+    EdgeHandle pairNextHandle = pair.next;
+    EdgeHandle pairPrevHandle = pair.prev;
 
-    edgeNext.prev = pair.prev;
-    edgePrev.next = pair.next;
-    pairNext.prev = edge.prev;
-    pairPrev.next = edge.next;
+    FaceHandle edgeFace = edge.face;
+    FaceHandle pairFace = pair.face;
 
-    if (isValidHandle(edge.face)) removeFace(edge.face);
-    if (isValidHandle(pair.face)) removeFace(pair.face);
+    VertexHandle edgeTipHandle = edge.tip;
+    VertexHandle pairTipHandle = pair.tip;
 
-    m_edges.remove(edge.pair);
+    // Remove faces while their loops are still intact.
+    if (isValidHandle(edgeFace)) removeFace(edgeFace);
+    if (isValidHandle(pairFace)) removeFace(pairFace);
+
+    // Get references after face removal.
+    Edge& edgeNext = m_edges.get(edgeNextHandle);
+    Edge& edgePrev = m_edges.get(edgePrevHandle);
+
+    Edge& pairNext = m_edges.get(pairNextHandle);
+    Edge& pairPrev = m_edges.get(pairPrevHandle);
+
+    Vertex& edgeTip = m_vertices.get(edgeTipHandle);
+    Vertex& pairTip = m_vertices.get(pairTipHandle);
+
+    // Update vertex outgoing edges.
+    edgeTip.edge = edgeNextHandle;
+    pairTip.edge = pairNextHandle;
+
+    // Splice the two loops together.
+    edgeNext.prev = pairPrevHandle;
+    pairPrev.next = edgeNextHandle;
+
+    pairNext.prev = edgePrevHandle;
+    edgePrev.next = pairNextHandle;
+
+    // Finally remove the two half-edges.
+    m_edges.remove(pairHandle);
     m_edges.remove(handle);
 
     return true;
@@ -984,3 +1005,167 @@ bool MeshData::removeFace(FaceHandle handle) {
 
     return true;
 }
+
+bool MeshData::fillFaceLoop(EdgeHandle handle) {
+    if (!isValidHandle(handle)) return false;
+    Edge& edge = m_edges.get(handle);
+
+    // If this side already has a face, try the pair.
+    if (isValidHandle(edge.face)) {
+        if (!isValidHandle(edge.pair)) return false;
+
+        handle = edge.pair;
+
+        if (!isValidHandle(handle)) return false;
+        Edge& pair = m_edges.get(handle);
+
+        // Both sides already have faces.
+        if (isValidHandle(pair.face)) return false;
+    }
+
+    const EdgeHandle start = handle;
+    EdgeHandle current = start;
+
+    // Pass 1: validate the border loop
+    do {
+        if (!isValidHandle(current)) return false;
+        const Edge& currentEdge = m_edges.get(current);
+
+        // This edge already belongs to a face.
+        if (isValidHandle(currentEdge.face)) return false;
+        
+        if (!isValidHandle(currentEdge.next)) return false;
+        current = currentEdge.next;
+    } while (current != start);
+
+    FaceHandle newFace = m_faces.insert(Face{start});
+
+    // Pass 2: assign the face
+    current = start;
+
+    do {
+        Edge& currentEdge = m_edges.get(current);
+        currentEdge.face = newFace;
+
+        current = currentEdge.next;
+    } while (current != start);
+
+    return true;
+}
+
+bool MeshData::connectVertices(VertexHandle a, VertexHandle b) {
+    // 1. Validate vertices
+    if (!isValidHandle(a) || !isValidHandle(b)) return false;
+    if (a == b) return false;
+
+    const Vertex& aVert = m_vertices.get(a);
+    if (!isValidHandle(aVert.edge)) return false;
+    
+    // 2. Find all face/boundary loops around A and check whether A and B are already connected
+    const EdgeHandle start = aVert.edge;
+    EdgeHandle current = start;
+
+    std::vector<EdgeHandle> faceLoopStarts;
+
+    do {
+        if (!isValidHandle(current)) return false;
+
+        const Edge& currentEdge = m_edges.get(current);
+
+        // Already connected.
+        if (currentEdge.tip == b) return false;
+
+        faceLoopStarts.push_back(current);
+
+        if (!isValidHandle(currentEdge.pair)) return false;
+        const Edge& pair = m_edges.get(currentEdge.pair);
+
+        if (!isValidHandle(pair.next)) return false;
+
+        current = pair.next;
+
+    } while (current != start);
+
+    // 3. Find a loop around A that also contains B
+    bool sameFaceLoop = false;
+
+    EdgeHandle aNextH = INVALID_EDGE;
+    EdgeHandle bPrevH = INVALID_EDGE;
+
+    for (const EdgeHandle loopStart : faceLoopStarts) {
+        current = loopStart;
+
+        do {
+            if (!isValidHandle(current))return false;
+            const Edge& currentEdge = m_edges.get(current);
+
+            if (currentEdge.tip == b) {
+                sameFaceLoop = true;
+                aNextH = loopStart;
+                bPrevH = current;
+
+                break;
+            }
+
+            if (!isValidHandle(currentEdge.next)) return false;
+
+            current = currentEdge.next;
+
+        } while (current != loopStart);
+
+        if (sameFaceLoop) break;
+    }
+
+    if (!sameFaceLoop) return false;
+
+    // 4. Find A-prev/A-next and B-prev/B-next
+    if (!isValidHandle(aNextH) || !isValidHandle(bPrevH)) return false;
+    const Edge& aNext = m_edges.get(aNextH);
+    const Edge& bPrev = m_edges.get(bPrevH);
+
+    if (!isValidHandle(aNext.prev) || !isValidHandle(bPrev.next)) return false;
+    const EdgeHandle aPrevH = aNext.prev;
+    const EdgeHandle bNextH = bPrev.next;
+
+    if (!isValidHandle(aPrevH) || !isValidHandle(bNextH)) return false;
+
+    // 5. Determine whether we're splitting a face
+    const FaceHandle face = aNext.face;
+    const bool splittingFace = isValidHandle(face);
+
+    // Both locations must belong to the same loop.
+    // If this is a real face, B's edge should have that same face.
+    if (splittingFace && bPrev.face != face) return false;
+
+    // 6. Everything required has now been validated.
+    // Remove the old face before changing its loop.
+
+    if (splittingFace) if (!removeFace(face)) return false;
+
+
+    // 7. Create the new paired half-edges
+    const EdgeHandle newAH = m_edges.insert(Edge{ INVALID_EDGE, aNextH, bPrevH, a, INVALID_FACE });
+    const EdgeHandle newBH = m_edges.insert(Edge{ newAH, bNextH, aPrevH, b, INVALID_FACE });
+    m_edges.get(newAH).pair = newBH;
+
+    // 8. Splice the new edges into the topology
+    Edge& aPrev = m_edges.get(aPrevH);
+    Edge& aNextRef = m_edges.get(aNextH);
+    Edge& bPrevRef = m_edges.get(bPrevH);
+    Edge& bNext = m_edges.get(bNextH);
+
+    aPrev.next = newBH;
+    aNextRef.prev = newAH;
+
+    bPrevRef.next = newAH;
+    bNext.prev = newBH;
+
+    // 9. Recreate the two faces if we split a face
+    if (splittingFace) {
+        if (!fillFaceLoop(newAH)) return false;
+        if (!fillFaceLoop(newBH)) return false;
+    }
+
+    return true;
+}
+
