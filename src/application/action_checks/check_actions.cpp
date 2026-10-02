@@ -29,5 +29,9 @@ bool Application::checkActions(AppContext& ctx) {
         checkScaleContext(ctx);
     }
 
+    if (ictx.isActive(InputContext_Rotate)) {
+        checkRotateContext(ctx);
+    }
+
     return true;
 }

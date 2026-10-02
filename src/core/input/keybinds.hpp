@@ -238,4 +238,22 @@ namespace DefaultKeybinds {
             key(Key::Z)
         }
     };
+
+    inline Keybind RotateSelection {
+        {
+            key(Key::R)
+        }
+    };
+
+    inline Keybind RotateConfirm {
+        {
+            mouse(MouseButton::Left)
+        }
+    };
+
+    inline Keybind RotateCancel {
+        {
+            mouse(MouseButton::Right)
+        }
+    };
 }

@@ -32,6 +32,9 @@ enum class Action : u8 {
     DeleteSelection,  // Delete one or more selected vertices
     FillFaceLoop,     // Fills a half edge loop by creating a face
     ConnectVertices,  // Connects two vertices together by creating a face
+    RotateSelection,  // Rotates the selection around its average position in the plane perpendicular to the camera
+    RotateConfirm,
+    RotateCancel,
     XAxis,
     YAxis,
     ZAxis,

@@ -11,5 +11,6 @@ enum InputContext : u32 {
     InputContext_SelectionEdge   = 1 << 4,
     InputContext_SelectionFace   = 1 << 5,
     InputContext_Grab            = 1 << 6,
-    InputContext_Scale           = 1 << 7
+    InputContext_Scale           = 1 << 7,
+    InputContext_Rotate          = 1 << 8
 };

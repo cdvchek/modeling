@@ -10,6 +10,7 @@ set(COMMON_SRC
     src/application/action_checks/check_actions.cpp
     src/application/action_checks/check_console.cpp
     src/application/action_checks/check_grab.cpp
+    src/application/action_checks/check_rotate.cpp
     src/application/action_checks/check_scale.cpp
     src/application/action_checks/check_selection.cpp
     src/application/application_actions.cpp

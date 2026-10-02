@@ -35,4 +35,7 @@ void Application::registerDefaultActions(AppContext& ctx) {
     actions.subscribe(Action::XAxis,               DefaultKeybinds::XAxis,               InputContext_Grab | InputContext_Scale);
     actions.subscribe(Action::YAxis,               DefaultKeybinds::YAxis,               InputContext_Grab | InputContext_Scale);
     actions.subscribe(Action::ZAxis,               DefaultKeybinds::ZAxis,               InputContext_Grab | InputContext_Scale);
+    actions.subscribe(Action::RotateSelection,     DefaultKeybinds::RotateSelection,     InputContext_SelectionVertex | InputContext_SelectionEdge | InputContext_SelectionFace);
+    actions.subscribe(Action::RotateConfirm,       DefaultKeybinds::RotateConfirm,       InputContext_Rotate);
+    actions.subscribe(Action::RotateCancel,        DefaultKeybinds::RotateCancel,        InputContext_Rotate);
 }

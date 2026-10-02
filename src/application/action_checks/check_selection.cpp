@@ -159,6 +159,15 @@ void checkSelectionContext(AppContext& ctx) {
         ictx.setContext(InputContext_Scale);
     }
 
+    if (ctx.scene.selection.getVertices().size() >= 2 && actions.wasActionPressedThisFrame(Action::RotateSelection, input, ictx.getContext())) {
+        std::vector<Vec3> starts;
+        for (const auto handle : ctx.scene.selection.getVertexHandles()) {
+            starts.push_back(ctx.scene.objects.get(0).meshData.getVertexPosition(handle));
+        }
+        ctx.scene.selection.setSelectionStartPositions(starts);
+        ictx.setContext(InputContext_Rotate);
+    }
+
     if (ctx.systems.input_ctx.getSelectionContext() == InputContext_SelectionVertex) {
         if (actions.wasActionPressedThisFrame(Action::ConnectVertices, input, ictx.getContext())) {
             auto vertHandles = ctx.scene.selection.getVertexHandles();
