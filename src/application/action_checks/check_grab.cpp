@@ -2,33 +2,68 @@
 
 #include <algorithm>
 
+#include <iostream>
+
 void checkGrabContext(AppContext& ctx) {
-    static bool xAxis = false;
-    static bool yAxis = false;
-    static bool zAxis = false;
+    bool xAxis = ctx.systems.input_ctx.isActive(InputContext_XAxis);
+    bool yAxis = ctx.systems.input_ctx.isActive(InputContext_YAxis);
+    bool zAxis = ctx.systems.input_ctx.isActive(InputContext_ZAxis);
 
-    if (ctx.systems.actions.wasActionPressedThisFrame(
-        Action::XAxis,
-        ctx.systems.input,
-        ctx.systems.input_ctx.getContext())) {
-        
-        xAxis = !xAxis;
-    }
+    static bool wasXAxis = false;
+    static bool wasYAxis = false;
+    static bool wasZAxis = false;
 
-    if (ctx.systems.actions.wasActionPressedThisFrame(
-        Action::YAxis,
-        ctx.systems.input,
-        ctx.systems.input_ctx.getContext())) {
-        
-        yAxis = !yAxis;
-    }
+    const auto& selections = ctx.scene.selection.getVertices();
 
-    if (ctx.systems.actions.wasActionPressedThisFrame(
-        Action::ZAxis,
-        ctx.systems.input,
-        ctx.systems.input_ctx.getContext())) {
-        
-        zAxis = !zAxis;
+    if (selections.empty()) return;
+
+    const auto& starts =
+        ctx.scene.selection.getSelectionStartPositions();
+
+    // Check if an axis was just activated.
+    const bool xJustActivated = xAxis && !wasXAxis;
+    const bool yJustActivated = yAxis && !wasYAxis;
+    const bool zJustActivated = zAxis && !wasZAxis;
+
+    // Snap vertices back onto the selected axis relative
+    // to where they were when the grab started.
+    if (xJustActivated || yJustActivated || zJustActivated) {
+        for (u32 i = 0; i < static_cast<u32>(selections.size()); ++i) {
+            const VertexSelection& selection = selections[i];
+            const Vec3& start = starts[i];
+
+            Object& obj =
+                ctx.scene.objects.get(selection.objectIndex);
+
+            Vec3 currPos =
+                obj.meshData.getVertexPosition(selection.vertex);
+
+            Vec3 newPos = currPos;
+
+            if (xJustActivated) {
+                newPos.y = start.y;
+                newPos.z = start.z;
+            }
+            else if (yJustActivated) {
+                newPos.x = start.x;
+                newPos.z = start.z;
+            }
+            else if (zJustActivated) {
+                newPos.x = start.x;
+                newPos.y = start.y;
+            }
+
+            obj.meshData.positionVertex(
+                selection.vertex,
+                newPos
+            );
+
+            obj.meshDirty = true;
+
+            obj.meshData.setFacesDirtyByVertex(
+                selection.vertex
+            );
+        }
     }
 
     i32 dx = ctx.systems.input.getMouseDeltaX();
@@ -38,19 +73,30 @@ void checkGrabContext(AppContext& ctx) {
     dy = std::clamp(dy, -500, 500);
 
     const Vec3 right = ctx.scene.camera.getRight();
-    const Vec3 cameraUp = Vec3::cross(right, ctx.scene.camera.getForward()).normalized();
 
-    const f32 vertMoveSpeed = 0.001f * ctx.scene.camera.distance;
-    Vec3 vertMove = (right * dx - cameraUp * dy) * vertMoveSpeed;
+    const Vec3 cameraUp =
+        Vec3::cross(
+            right,
+            ctx.scene.camera.getForward()
+        ).normalized();
 
+    const f32 vertMoveSpeed =
+        0.001f * ctx.scene.camera.distance;
+
+    Vec3 vertMove =
+        (right * dx - cameraUp * dy) * vertMoveSpeed;
+
+    // Restrict movement to the selected axis.
     if (xAxis || yAxis || zAxis) {
-        if (!xAxis) vertMove.x = 0;
-        if (!yAxis) vertMove.y = 0;
-        if (!zAxis) vertMove.z = 0;
+        if (!xAxis) vertMove.x = 0.0f;
+        if (!yAxis) vertMove.y = 0.0f;
+        if (!zAxis) vertMove.z = 0.0f;
     }
 
-    for (const VertexSelection& vs : ctx.scene.selection.getVertices()) {
-        Object& obj = ctx.scene.objects.get(vs.objectIndex);
+    // Move selected vertices.
+    for (const VertexSelection& vs : selections) {
+        Object& obj =
+            ctx.scene.objects.get(vs.objectIndex);
 
         obj.meshData.translateVertex(
             vs.vertex,
@@ -64,15 +110,7 @@ void checkGrabContext(AppContext& ctx) {
         );
     }
 
-    const auto& selections = ctx.scene.selection.getVertices();
-
-    if (selections.empty()) return;
-
-    const VertexSelection& firstSelection = selections.front();
-    const VertexHandle firstVertex = firstSelection.vertex;
-    const u32 firstObject = firstSelection.objectIndex;
-    const Vec3 firstPos = ctx.scene.objects.get(firstObject).meshData.getVertexPosition(firstVertex);
-
+    // Confirm grab.
     if (ctx.systems.actions.wasActionPressedThisFrame(
             Action::ConfirmGrab,
             ctx.systems.input,
@@ -83,18 +121,21 @@ void checkGrabContext(AppContext& ctx) {
         );
     }
 
+    // Cancel grab.
     if (ctx.systems.actions.wasActionPressedThisFrame(
             Action::CancelGrab,
             ctx.systems.input,
             ctx.systems.input_ctx.getContext())) {
 
-        const auto& starts = ctx.scene.selection.getSelectionStartPositions();
+        for (u32 i = 0;
+             i < static_cast<u32>(selections.size());
+             ++i) {
 
-        for (u32 i = 0; i < static_cast<u32>(selections.size()); ++i) {
             const VertexSelection& selection = selections[i];
             const Vec3& start = starts[i];
 
-            Object& obj = ctx.scene.objects.get(selection.objectIndex);
+            Object& obj =
+                ctx.scene.objects.get(selection.objectIndex);
 
             obj.meshData.positionVertex(
                 selection.vertex,
@@ -112,4 +153,8 @@ void checkGrabContext(AppContext& ctx) {
             ctx.systems.input_ctx.getSelectionContext()
         );
     }
+
+    wasXAxis = xAxis;
+    wasYAxis = yAxis;
+    wasZAxis = zAxis;
 }

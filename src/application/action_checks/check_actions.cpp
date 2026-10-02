@@ -21,6 +21,20 @@ bool Application::checkActions(AppContext& ctx) {
         checkSelectionContext(ctx);
     }
 
+    if (ictx.isActive(InputContext_Grab | InputContext_Scale | InputContext_Rotate)) {
+        if (ctx.systems.actions.wasActionPressedThisFrame(Action::XAxis, ctx.systems.input, ictx.getContext())) {
+            ictx.toggleContext(InputContext_XAxis);
+        }
+
+        if (ctx.systems.actions.wasActionPressedThisFrame(Action::YAxis, ctx.systems.input, ictx.getContext())) {
+            ictx.toggleContext(InputContext_YAxis);
+        }
+
+        if (ctx.systems.actions.wasActionPressedThisFrame(Action::ZAxis, ctx.systems.input, ictx.getContext())) {
+            ictx.toggleContext(InputContext_ZAxis);
+        }
+    }
+
     if (ictx.isActive(InputContext_Grab)) {
         checkGrabContext(ctx);
     }

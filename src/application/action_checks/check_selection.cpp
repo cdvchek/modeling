@@ -142,6 +142,7 @@ void checkSelectionContext(AppContext& ctx) {
     }
 
     if (ctx.scene.selection.hasVertices() && actions.wasActionPressedThisFrame(Action::GrabSelection, input, ictx.getContext())) {
+        ictx.removeContext(InputContext_XAxis | InputContext_YAxis | InputContext_ZAxis);
         std::vector<Vec3> starts;
         for (const auto handle : ctx.scene.selection.getVertexHandles()) {
             starts.push_back(ctx.scene.objects.get(0).meshData.getVertexPosition(handle));
@@ -151,6 +152,7 @@ void checkSelectionContext(AppContext& ctx) {
     }
 
     if (ctx.scene.selection.getVertices().size() >= 2 && actions.wasActionPressedThisFrame(Action::ScaleSelection, input, ictx.getContext())) {
+        ictx.removeContext(InputContext_XAxis | InputContext_YAxis | InputContext_ZAxis);
         std::vector<Vec3> starts;
         for (const auto handle : ctx.scene.selection.getVertexHandles()) {
             starts.push_back(ctx.scene.objects.get(0).meshData.getVertexPosition(handle));
@@ -160,6 +162,7 @@ void checkSelectionContext(AppContext& ctx) {
     }
 
     if (ctx.scene.selection.getVertices().size() >= 2 && actions.wasActionPressedThisFrame(Action::RotateSelection, input, ictx.getContext())) {
+        ictx.removeContext(InputContext_XAxis | InputContext_YAxis | InputContext_ZAxis);
         std::vector<Vec3> starts;
         for (const auto handle : ctx.scene.selection.getVertexHandles()) {
             starts.push_back(ctx.scene.objects.get(0).meshData.getVertexPosition(handle));

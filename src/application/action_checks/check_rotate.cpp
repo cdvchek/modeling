@@ -1,66 +1,154 @@
 #include "application/action_checks/action_checks.hpp"
 
-void checkRotateContext(AppContext& ctx) {
-    const auto& selections = ctx.scene.selection.getVertices();
-    if (selections.empty()) return;
+#include <cmath>
 
-    // Find center of all selected vertices.
+void checkRotateContext(AppContext& ctx) {
+    bool xAxis = ctx.systems.input_ctx.isActive(InputContext_XAxis);
+    bool yAxis = ctx.systems.input_ctx.isActive(InputContext_YAxis);
+    bool zAxis = ctx.systems.input_ctx.isActive(InputContext_ZAxis);
+
+    static bool wasXAxis = false;
+    static bool wasYAxis = false;
+    static bool wasZAxis = false;
+
+    const auto& selections = ctx.scene.selection.getVertices();
+
+    if (selections.empty())
+        return;
+
+    const auto& starts =
+        ctx.scene.selection.getSelectionStartPositions();
+
+    // Find center of the ORIGINAL selection.
     Vec3 center(0.0f);
 
-    for (const VertexSelection& selection : selections) {
-        const Object& object = ctx.scene.objects.get(selection.objectIndex);
-        const Vec3 vertexPos = object.meshData.getVertexPosition(selection.vertex);
-
-        center += vertexPos;
+    for (const Vec3& start : starts) {
+        center += start;
     }
 
-    center = center / static_cast<f32>(selections.size());
+    center =
+        center / static_cast<f32>(starts.size());
+
+    const bool xJustActivated = xAxis && !wasXAxis;
+    const bool yJustActivated = yAxis && !wasYAxis;
+    const bool zJustActivated = zAxis && !wasZAxis;
+
+    // If an axis was just selected, restore all vertices
+    // to their original positions.
+    //
+    // Rotation around X/Y/Z should begin from the position
+    // the vertices had when the rotate operation started.
+    if (xJustActivated || yJustActivated || zJustActivated) {
+        for (u32 i = 0;
+             i < static_cast<u32>(selections.size());
+             ++i) {
+
+            const VertexSelection& selection =
+                selections[i];
+
+            const Vec3& start =
+                starts[i];
+
+            Object& object =
+                ctx.scene.objects.get(
+                    selection.objectIndex
+                );
+
+            object.meshData.positionVertex(
+                selection.vertex,
+                start
+            );
+
+            object.meshData.setFacesDirtyByVertex(
+                selection.vertex
+            );
+
+            object.meshDirty = true;
+        }
+    }
 
     // Mouse movement left/right determines rotation.
-    const i32 mouseDeltaX = ctx.systems.input.getMouseDeltaX();
+    const i32 mouseDeltaX =
+        ctx.systems.input.getMouseDeltaX();
 
     if (mouseDeltaX != 0) {
         constexpr f32 ROTATION_SPEED = 0.002f;
 
-        // Mouse right = clockwise.
-        // Remove the negative if this feels backwards.
-        const f32 angle = static_cast<f32>(mouseDeltaX) * ROTATION_SPEED;
+        const f32 angle =
+            static_cast<f32>(mouseDeltaX) *
+            ROTATION_SPEED;
 
-        // Rotation axis is parallel to the camera direction,
-        // so the rotation plane is perpendicular to the camera.
-        const Vec3 axis = ctx.scene.camera.getForward().normalized();
+        Vec3 axis;
 
-        const f32 cosAngle = std::cos(angle);
-        const f32 sinAngle = std::sin(angle);
+        // If an axis is selected, rotate around that
+        // world-space axis.
+        if (xAxis) {
+            axis = Vec3(1.0f, 0.0f, 0.0f);
+        }
+        else if (yAxis) {
+            axis = Vec3(0.0f, 1.0f, 0.0f);
+        }
+        else if (zAxis) {
+            axis = Vec3(0.0f, 0.0f, 1.0f);
+        }
+        else {
+            // Normal rotation:
+            // rotate in the plane perpendicular to the camera.
+            axis =
+                ctx.scene.camera.getForward().normalized();
+        }
+
+        const f32 cosAngle =
+            std::cos(angle);
+
+        const f32 sinAngle =
+            std::sin(angle);
 
         for (const VertexSelection& selection : selections) {
-            Object& object = ctx.scene.objects.get(selection.objectIndex);
-            const Vec3 vertexPos = object.meshData.getVertexPosition(selection.vertex);
+            Object& object =
+                ctx.scene.objects.get(
+                    selection.objectIndex
+                );
 
-            // Move vertex relative to the selection center.
-            const Vec3 relative = vertexPos - center;
+            const Vec3 vertexPos =
+                object.meshData.getVertexPosition(
+                    selection.vertex
+                );
 
-            // Rotate around camera direction using
+            const Vec3 relative =
+                vertexPos - center;
+
             // Rodrigues' rotation formula.
             const Vec3 rotated =
-                relative * cosAngle + Vec3::cross(axis, relative) * sinAngle +
-                axis * Vec3::dot(axis, relative) * (1.0f - cosAngle);
+                relative * cosAngle +
+                Vec3::cross(axis, relative) * sinAngle +
+                axis *
+                    Vec3::dot(axis, relative) *
+                    (1.0f - cosAngle);
 
-            // Move back from pivot-relative coordinates.
-            const Vec3 newPos = center + rotated;
+            const Vec3 newPos =
+                center + rotated;
 
-            object.meshData.positionVertex(selection.vertex, newPos);
-            object.meshData.setFacesDirtyByVertex(selection.vertex);
+            object.meshData.positionVertex(
+                selection.vertex,
+                newPos
+            );
+
+            object.meshData.setFacesDirtyByVertex(
+                selection.vertex
+            );
+
             object.meshDirty = true;
         }
     }
 
     // Confirm rotation.
     if (ctx.systems.actions.wasActionPressedThisFrame(
-        Action::RotateConfirm,
-        ctx.systems.input,
-        ctx.systems.input_ctx.getContext()
-    )) {
+            Action::RotateConfirm,
+            ctx.systems.input,
+            ctx.systems.input_ctx.getContext()
+        )) {
+
         ctx.systems.input_ctx.setContext(
             ctx.systems.input_ctx.getSelectionContext()
         );
@@ -68,20 +156,35 @@ void checkRotateContext(AppContext& ctx) {
 
     // Cancel rotation and restore original positions.
     if (ctx.systems.actions.wasActionPressedThisFrame(
-        Action::RotateCancel,
-        ctx.systems.input,
-        ctx.systems.input_ctx.getContext()
-    )) {
-        const auto& starts = ctx.scene.selection.getSelectionStartPositions();
+            Action::RotateCancel,
+            ctx.systems.input,
+            ctx.systems.input_ctx.getContext()
+        )) {
 
-        for (u32 i = 0; i < static_cast<u32>(selections.size()); ++i) {
-            const VertexSelection& selection = selections[i];
-            const Vec3& start = starts[i];
+        for (u32 i = 0;
+             i < static_cast<u32>(selections.size());
+             ++i) {
 
-            Object& object = ctx.scene.objects.get(selection.objectIndex);
+            const VertexSelection& selection =
+                selections[i];
 
-            object.meshData.positionVertex(selection.vertex, start);
-            object.meshData.setFacesDirtyByVertex(selection.vertex);
+            const Vec3& start =
+                starts[i];
+
+            Object& object =
+                ctx.scene.objects.get(
+                    selection.objectIndex
+                );
+
+            object.meshData.positionVertex(
+                selection.vertex,
+                start
+            );
+
+            object.meshData.setFacesDirtyByVertex(
+                selection.vertex
+            );
+
             object.meshDirty = true;
         }
 
@@ -89,4 +192,8 @@ void checkRotateContext(AppContext& ctx) {
             ctx.systems.input_ctx.getSelectionContext()
         );
     }
+
+    wasXAxis = xAxis;
+    wasYAxis = yAxis;
+    wasZAxis = zAxis;
 }
