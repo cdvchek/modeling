@@ -2,7 +2,116 @@
 #include "scene/selection/ray.hpp"
 #include "scene/selection/scene_queries.hpp"
 
+#include "core/math/vec4.hpp"
+
 #include <algorithm>
+
+namespace {
+    Vec3 toWorld(const Object& object, Vec3 point) {
+        const Vec4 world = object.transform.getMatrix() * Vec4(point.x, point.y, point.z, 1.0f);
+        return Vec3(world.x, world.y, world.z);
+    }
+
+    f32 distanceToSegment(Vec3 point, Vec3 a, Vec3 b) {
+        const Vec3 ab = b - a;
+        const f32 lengthSq = Vec3::dot(ab, ab);
+        const f32 t = lengthSq > 0.0f ? std::clamp(Vec3::dot(point - a, ab) / lengthSq, 0.0f, 1.0f) : 0.0f;
+        return (point - (a + ab * t)).length();
+    }
+
+    bool isEdgeSelected(const Selection& selection, u32 object, const MeshData& mesh, EdgeHandle edge) {
+        return selection.hasEdge(object, edge) || selection.hasEdge(object, mesh.getEdge(edge)->pair);
+    }
+
+    void selectEdge(Selection& selection, u32 object, const MeshData& mesh, EdgeHandle edge) {
+        if (isEdgeSelected(selection, object, mesh, edge)) return;
+
+        selection.addEdge(object, edge);
+        selection.addVertex(object, mesh.getEdgeOrigin(edge));
+        selection.addVertex(object, mesh.getEdgeTip(edge));
+    }
+
+    void selectFace(Selection& selection, u32 object, const MeshData& mesh, FaceHandle face) {
+        selection.addFace(object, face);
+
+        for (VertexHandle vertex : mesh.getFaceVertices(face)) {
+            selection.addVertex(object, vertex);
+        }
+    }
+
+    // Deselect the vertices that no remaining selected edge or face uses.
+    void deselectUnusedVertices(Selection& selection, u32 object, const MeshData& mesh, const std::vector<VertexHandle>& vertices) {
+        for (VertexHandle vertex : vertices) {
+            bool used = false;
+
+            for (EdgeHandle edge : selection.getEdgeHandles()) {
+                if (mesh.getEdgeOrigin(edge) == vertex || mesh.getEdgeTip(edge) == vertex) used = true;
+            }
+
+            for (FaceHandle face : selection.getFaceHandles()) {
+                const std::vector<VertexHandle> corners = mesh.getFaceVertices(face);
+                if (std::find(corners.begin(), corners.end(), vertex) != corners.end()) used = true;
+            }
+
+            if (!used) selection.removeVertex(object, vertex);
+        }
+    }
+
+    void deselectEdge(Selection& selection, u32 object, const MeshData& mesh, EdgeHandle edge) {
+        selection.removeEdge(object, edge);
+        selection.removeEdge(object, mesh.getEdge(edge)->pair);
+        deselectUnusedVertices(selection, object, mesh, { mesh.getEdgeOrigin(edge), mesh.getEdgeTip(edge) });
+    }
+
+    void deselectFace(Selection& selection, u32 object, const MeshData& mesh, FaceHandle face) {
+        selection.removeFace(object, face);
+        deselectUnusedVertices(selection, object, mesh, mesh.getFaceVertices(face));
+    }
+
+    void selectLoop(AppContext& ctx, const Ray& ray, bool ring) {
+        Selection& selection = ctx.scene.selection;
+
+        if (ctx.systems.input_ctx.getSelectionContext() == InputContext_SelectionEdge) {
+            EdgeHit hit = pickEdge(ctx.scene, ray, 0.03f);
+            if (!hit.hit) return;
+
+            const MeshData& mesh = ctx.scene.objects.get(hit.objectIndex).meshData;
+
+            for (EdgeHandle edge : ring ? mesh.getEdgeRing(hit.edge) : mesh.getEdgeLoop(hit.edge)) {
+                selectEdge(selection, hit.objectIndex, mesh, edge);
+            }
+        } else if (ctx.systems.input_ctx.getSelectionContext() == InputContext_SelectionFace) {
+            FaceHit hit = pickFace(ctx.scene, ray);
+            if (!hit.hit) return;
+
+            const Object& object = ctx.scene.objects.get(hit.objectIndex);
+            const MeshData& mesh = object.meshData;
+
+            // The loop runs across the clicked face's edge nearest the click.
+            const Vec3 point = ray.origin + ray.direction * hit.distance;
+
+            EdgeHandle nearest = INVALID_EDGE;
+            f32 nearestDistance = 0.0f;
+
+            for (EdgeHandle edge : mesh.getLoopEdges(mesh.getFace(hit.face)->edge)) {
+                const f32 distance = distanceToSegment(
+                    point,
+                    toWorld(object, mesh.getVertexPosition(mesh.getEdgeOrigin(edge))),
+                    toWorld(object, mesh.getVertexPosition(mesh.getEdgeTip(edge)))
+                );
+
+                if (nearest.isNull() || distance < nearestDistance) {
+                    nearest = edge;
+                    nearestDistance = distance;
+                }
+            }
+
+            for (FaceHandle face : mesh.getFaceLoop(nearest)) {
+                selectFace(selection, hit.objectIndex, mesh, face);
+            }
+        }
+    }
+}
 
 void checkSelectionContext(AppContext& ctx) {
     ActionMap& actions = ctx.systems.actions;
@@ -58,7 +167,18 @@ void checkSelectionContext(AppContext& ctx) {
         camera.updatePositionFromOrbit();
     }
 
-    if (actions.wasActionPressedThisFrame(Action::Select, input, ictx.getContext())) {
+    const bool selectingLoop = actions.wasActionPressedThisFrame(Action::SelectLoop, input, ictx.getContext());
+    const bool selectingRing = actions.wasActionPressedThisFrame(Action::SelectRing, input, ictx.getContext());
+
+    if (selectingLoop || selectingRing) {
+        u32 width = 0;
+        u32 height = 0;
+
+        ctx.windows[0]->getDimensions(width, height);
+
+        Ray ray = makeRayFromScreenPosition(input.getMouseX(), input.getMouseY(), width, height, camera);
+        selectLoop(ctx, ray, selectingRing);
+    } else if (actions.wasActionPressedThisFrame(Action::Select, input, ictx.getContext())) {
         u32 width = 0;
         u32 height = 0;
 
@@ -72,27 +192,19 @@ void checkSelectionContext(AppContext& ctx) {
             camera
         );
 
-        bool addDown = actions.isActionDown(Action::AddSelection, input, ictx.getContext());
-        bool removeDown = actions.isActionDown(Action::RemoveSelection, input, ictx.getContext());
+        Selection& selection = ctx.scene.selection;
+        const bool toggling = actions.isActionDown(Action::ToggleSelection, input, ictx.getContext());
 
-        if (!addDown && !removeDown) {
-            ctx.scene.selection.clear();
-        }
+        if (!toggling) selection.clear();
 
         if (ictx.getSelectionContext() & InputContext_SelectionVertex) {
             VertexHit hit = pickVertex(ctx.scene, ray, 0.03f);
-    
+
             if (hit.hit) {
-                if (removeDown) {
-                    ctx.scene.selection.removeVertex(
-                        hit.objectIndex,
-                        hit.vertex
-                    );
+                if (toggling && selection.hasVertex(hit.objectIndex, hit.vertex)) {
+                    selection.removeVertex(hit.objectIndex, hit.vertex);
                 } else {
-                    ctx.scene.selection.addVertex(
-                        hit.objectIndex,
-                        hit.vertex
-                    );
+                    selection.addVertex(hit.objectIndex, hit.vertex);
                 }
             }
         } else if (ictx.getSelectionContext() & InputContext_SelectionEdge) {
@@ -100,20 +212,11 @@ void checkSelectionContext(AppContext& ctx) {
 
             if (hit.hit) {
                 const MeshData& mesh = ctx.scene.objects.get(hit.objectIndex).meshData;
-                std::vector<VertexHandle> selectedVerts;
-                selectedVerts.push_back(mesh.getEdgeOrigin(hit.edge));
-                selectedVerts.push_back(mesh.getEdgeTip(hit.edge));
 
-                if (removeDown) {
-                    for (VertexHandle handle: selectedVerts) {
-                        ctx.scene.selection.removeVertex(hit.objectIndex, handle);
-                    }
-                    ctx.scene.selection.removeEdge(hit.objectIndex, hit.edge);
+                if (toggling && isEdgeSelected(selection, hit.objectIndex, mesh, hit.edge)) {
+                    deselectEdge(selection, hit.objectIndex, mesh, hit.edge);
                 } else {
-                    for (VertexHandle handle : selectedVerts) {
-                        ctx.scene.selection.addVertex(hit.objectIndex, handle);
-                    }
-                    ctx.scene.selection.addEdge(hit.objectIndex, hit.edge);
+                    selectEdge(selection, hit.objectIndex, mesh, hit.edge);
                 }
             }
         } else if (ictx.getSelectionContext() & InputContext_SelectionFace) {
@@ -121,18 +224,11 @@ void checkSelectionContext(AppContext& ctx) {
 
             if (hit.hit) {
                 const MeshData& mesh = ctx.scene.objects.get(hit.objectIndex).meshData;
-                std::vector<VertexHandle> selectedVerts = mesh.getFaceVertices(hit.face);
-                if (removeDown) {
-                    // TODO: removing a face also deselects vertices shared with other selected faces (same for edges).
-                    for (VertexHandle handle : selectedVerts) {
-                        ctx.scene.selection.removeVertex(hit.objectIndex, handle);
-                    }
-                    ctx.scene.selection.removeFace(hit.objectIndex, hit.face);
+
+                if (toggling && selection.hasFace(hit.objectIndex, hit.face)) {
+                    deselectFace(selection, hit.objectIndex, mesh, hit.face);
                 } else {
-                    for (VertexHandle handle : selectedVerts) {
-                        ctx.scene.selection.addVertex(hit.objectIndex, handle);
-                    }
-                    ctx.scene.selection.addFace(hit.objectIndex, hit.face);
+                    selectFace(selection, hit.objectIndex, mesh, hit.face);
                 }
             }
         }

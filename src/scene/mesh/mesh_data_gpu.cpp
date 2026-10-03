@@ -83,6 +83,7 @@ EdgeData MeshData::getEdgeData(const VertexData& vertexData) const {
         data.indices.push_back(endVertex);
 
         data.indexMap.emplace(edgeHandle.index, renderedIndex);
+        if (!edge.pair.isNull()) data.indexMap.emplace(edge.pair.index, renderedIndex);
 
         renderedIndex += 2;
     }

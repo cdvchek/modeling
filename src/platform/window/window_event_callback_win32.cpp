@@ -16,7 +16,7 @@ unsigned int handleLeftRightKeys(unsigned int vk, LPARAM l_param) {
         vk = extended ? VK_RCONTROL : VK_LCONTROL;
     }
 
-    if (vk == 12) {
+    if (vk == VK_MENU) {
         vk = extended ? VK_RMENU : VK_LMENU;
     }
 

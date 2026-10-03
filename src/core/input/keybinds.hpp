@@ -141,17 +141,24 @@ namespace DefaultKeybinds {
         }
     };
 
-    inline Keybind AddSelection {
+    inline Keybind ToggleSelection {
         {
             mouse(MouseButton::Left),
             key(Key::LeftShift)
         }
     };
 
-    inline Keybind RemoveSelection {
+    inline Keybind SelectLoop {
         {
             mouse(MouseButton::Left),
             key(Key::LeftCtrl)
+        }
+    };
+
+    inline Keybind SelectRing {
+        {
+            mouse(MouseButton::Left),
+            key(Key::LeftAlt)
         }
     };
 

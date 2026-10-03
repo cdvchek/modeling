@@ -70,6 +70,10 @@ public:
     bool isBorder(EdgeHandle handle) const;
     bool isBorderVertex(VertexHandle handle) const;
 
+    std::vector<EdgeHandle> getEdgeLoop(EdgeHandle start) const;
+    std::vector<EdgeHandle> getEdgeRing(EdgeHandle start) const;
+    std::vector<FaceHandle> getFaceLoop(EdgeHandle start) const;
+
     bool validate() const;
 
     // ---- Geometry (mesh_data_geometry.cpp) ----
@@ -123,6 +127,7 @@ private:
     std::vector<EdgeHandle> getFaceEdges(FaceHandle handle) const;
     std::vector<VertexHandle> getVertexNeighbors(VertexHandle handle) const;
     EdgeHandle findEdge(VertexHandle origin, VertexHandle tip) const;
+    void walkRing(EdgeHandle start, std::vector<EdgeHandle>& edges, std::vector<FaceHandle>& faces) const;
 
     // ---- Geometry (mesh_data_geometry.cpp) ----
 

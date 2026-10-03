@@ -19,8 +19,9 @@ void Application::registerDefaultActions(AppContext& ctx) {
     actions.subscribe(Action::EdgeMode,            DefaultKeybinds::EdgeMode,            InputContext_SelectionVertex | InputContext_SelectionEdge | InputContext_SelectionFace);
     actions.subscribe(Action::FaceMode,            DefaultKeybinds::FaceMode,            InputContext_SelectionVertex | InputContext_SelectionEdge | InputContext_SelectionFace);
     actions.subscribe(Action::Select,              DefaultKeybinds::Select,              InputContext_SelectionVertex | InputContext_SelectionEdge | InputContext_SelectionFace);
-    actions.subscribe(Action::AddSelection,        DefaultKeybinds::AddSelection,        InputContext_SelectionVertex | InputContext_SelectionEdge | InputContext_SelectionFace);
-    actions.subscribe(Action::RemoveSelection,     DefaultKeybinds::RemoveSelection,     InputContext_SelectionVertex | InputContext_SelectionEdge | InputContext_SelectionFace);
+    actions.subscribe(Action::ToggleSelection,     DefaultKeybinds::ToggleSelection,     InputContext_SelectionVertex | InputContext_SelectionEdge | InputContext_SelectionFace);
+    actions.subscribe(Action::SelectLoop,          DefaultKeybinds::SelectLoop,          InputContext_SelectionEdge | InputContext_SelectionFace);
+    actions.subscribe(Action::SelectRing,          DefaultKeybinds::SelectRing,          InputContext_SelectionEdge);
     actions.subscribe(Action::GrabSelection,       DefaultKeybinds::GrabSelection,       InputContext_SelectionVertex | InputContext_SelectionEdge | InputContext_SelectionFace);
     actions.subscribe(Action::ConfirmGrab,         DefaultKeybinds::ConfirmGrab,         InputContext_Grab);
     actions.subscribe(Action::CancelGrab,          DefaultKeybinds::CancelGrab,          InputContext_Grab);

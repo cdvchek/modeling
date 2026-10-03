@@ -27,6 +27,13 @@
             "problemMatcher": []
         },
         {
+            "label": "Test",
+            "type": "shell",
+            "command": "${workspaceFolder}\\build\\tests.exe",
+            "dependsOn": ["Build"],
+            "problemMatcher": []
+        },
+        {
             "label": "Configure-debug",
             "type": "shell",
             "command": "cmake",

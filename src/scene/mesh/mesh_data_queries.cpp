@@ -1,4 +1,5 @@
 #include "scene/mesh/mesh_data.hpp"
+#include <algorithm>
 
 std::vector<VertexHandle> MeshData::getFaceVertices(FaceHandle handle) const {
     const Face* face = m_faces.tryGet(handle);
@@ -137,4 +138,79 @@ std::vector<VertexHandle> MeshData::getVertexNeighbors(VertexHandle handle) cons
     }
 
     return neighbors;
+}
+
+std::vector<EdgeHandle> MeshData::getEdgeLoop(EdgeHandle start) const {
+    if (!m_edges.isValid(start)) return {};
+
+    const EdgeHandle startPair = m_edges.get(start).pair;
+
+    if (isBorder(start)) return getLoopEdges(start);
+    if (isBorder(startPair)) return getLoopEdges(startPair);
+
+    std::vector<EdgeHandle> edges = { start };
+
+    auto inLoop = [&](EdgeHandle edge) {
+        const EdgeHandle pair = m_edges.get(edge).pair;
+        return std::find(edges.begin(), edges.end(), edge) != edges.end() ||
+               std::find(edges.begin(), edges.end(), pair) != edges.end();
+    };
+
+    // Go straight through each vertex with exactly 4 edges, in both directions.
+    for (EdgeHandle current : { start, startPair }) {
+        while (true) {
+            const VertexHandle vertex = getEdgeTip(current);
+            if (getOutgoingEdges(vertex).size() != 4 || isBorderVertex(vertex)) break;
+
+            current = m_edges.get(m_edges.get(m_edges.get(current).next).pair).next;
+            if (inLoop(current)) break;
+
+            edges.push_back(current);
+        }
+    }
+
+    return edges;
+}
+
+std::vector<EdgeHandle> MeshData::getEdgeRing(EdgeHandle start) const {
+    std::vector<EdgeHandle> edges;
+    std::vector<FaceHandle> faces;
+    walkRing(start, edges, faces);
+    return edges;
+}
+
+std::vector<FaceHandle> MeshData::getFaceLoop(EdgeHandle start) const {
+    std::vector<EdgeHandle> edges;
+    std::vector<FaceHandle> faces;
+    walkRing(start, edges, faces);
+    return faces;
+}
+
+void MeshData::walkRing(EdgeHandle start, std::vector<EdgeHandle>& edges, std::vector<FaceHandle>& faces) const {
+    if (!m_edges.isValid(start)) return;
+
+    edges.push_back(start);
+
+    auto inRing = [&](EdgeHandle edge) {
+        const EdgeHandle pair = m_edges.get(edge).pair;
+        return std::find(edges.begin(), edges.end(), edge) != edges.end() ||
+               std::find(edges.begin(), edges.end(), pair) != edges.end();
+    };
+
+    // Cross each quad to its opposite edge, in both directions.
+    for (EdgeHandle current : { start, m_edges.get(start).pair }) {
+        while (true) {
+            const FaceHandle face = m_edges.get(current).face;
+            if (!m_faces.isValid(face) || getFaceEdges(face).size() != 4) break;
+            if (std::find(faces.begin(), faces.end(), face) != faces.end()) break;
+
+            faces.push_back(face);
+
+            const EdgeHandle opposite = m_edges.get(m_edges.get(current).next).next;
+            if (inRing(opposite)) break;
+
+            edges.push_back(opposite);
+            current = m_edges.get(opposite).pair;
+        }
+    }
 }
