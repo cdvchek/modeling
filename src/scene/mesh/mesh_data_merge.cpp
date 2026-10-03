@@ -1,247 +1,139 @@
 #include "scene/mesh/mesh_data.hpp"
 
+#include <algorithm>
+
 bool MeshData::mergeVertices(VertexHandle a, VertexHandle b, u8 mergeType) {
     if (!isValidHandle(a) || !isValidHandle(b) || a == b) return false;
+
+    // Only vertices joined by an edge can be merged.
+    const EdgeHandle ab = findEdge(a, b);
+    if (!isValidHandle(ab)) return false;
+
+    if (!canCollapseEdge(ab)) return false;
 
     const Vec3 aPos = m_vertices.get(a).position;
     const Vec3 bPos = m_vertices.get(b).position;
 
-    // 1. Collect topology
-    EdgeHandle ab;
-    EdgeHandle ba;
-    EdgeHandle aSurvivingEdge;
-    bool foundBetween = false;
-    bool foundASurvivingEdge = false;
+    Vec3 position = (aPos + bPos) / 2.0f;
+    if (mergeType == 1) position = aPos;
+    else if (mergeType == 2) position = bPos;
 
-    {
-        const Vertex& aVert = m_vertices.get(a);
-        if (!isValidHandle(aVert.edge)) return false;
+    collapseEdge(ab, position);
 
-        const EdgeHandle start = aVert.edge;
-        EdgeHandle current = start;
+    return true;
+}
 
-        do {
-            if (!isValidHandle(current)) return false;
-            const Edge& edge = m_edges.get(current);
+bool MeshData::canCollapseEdge(EdgeHandle ab) const {
+    const EdgeHandle ba = m_edges.get(ab).pair;
+    const VertexHandle a = getEdgeOrigin(ab);
+    const VertexHandle b = getEdgeTip(ab);
 
-            if (edge.tip == b) {
-                ab = current;
+    // 1. Find the apex of each side that is a triangle (face or border hole).
+    std::vector<VertexHandle> apexes;
 
-                if (!isValidHandle(edge.pair)) return false;
-                ba = edge.pair;
+    for (EdgeHandle side : { ab, ba }) {
+        const std::vector<EdgeHandle> loop = getLoopEdges(side);
+        if (loop.size() != 3) continue;
 
-                foundBetween = true;
-            }
-            else if (!foundASurvivingEdge) {
-                aSurvivingEdge = current;
-                foundASurvivingEdge = true;
-            }
+        // a -> b -> a -> ... is a wire edge, not a triangle.
+        if (std::find(loop.begin(), loop.end(), m_edges.get(side).pair) != loop.end()) continue;
 
-            if (!isValidHandle(edge.pair)) return false;
-            const Edge& pair = m_edges.get(edge.pair);
-
-            if (!isValidHandle(pair.next)) return false;
-            current = pair.next;
-
-        } while (current != start);
+        apexes.push_back(getEdgeTip(m_edges.get(side).next));
     }
 
-    if (!foundBetween) return false;
+    // Two triangles sharing an apex would fold into a single edge.
+    if (apexes.size() == 2 && apexes[0] == apexes[1]) return false;
 
+    // 2. Every vertex connected to both a and b must be a triangle apex.
+    //    Otherwise the merged vertex would end up with two edges to it.
     const std::vector<VertexHandle> aNeighbors = getVertexNeighbors(a);
     const std::vector<VertexHandle> bNeighbors = getVertexNeighbors(b);
 
-    std::vector<VertexHandle> intersection;
+    for (VertexHandle neighbor : aNeighbors) {
+        if (neighbor == b) continue;
+        if (std::find(bNeighbors.begin(), bNeighbors.end(), neighbor) == bNeighbors.end()) continue;
+        if (std::find(apexes.begin(), apexes.end(), neighbor) == apexes.end()) return false;
+    }
 
-    for (VertexHandle aNeighbor : aNeighbors) {
-        if (aNeighbor == b) continue;
+    // 3. A face or border loop that holds both a and b, but not along ab,
+    //    would visit the merged vertex twice.
+    for (EdgeHandle outgoing : getOutgoingEdges(a)) {
+        const std::vector<EdgeHandle> loop = getLoopEdges(outgoing);
 
-        for (VertexHandle bNeighbor : bNeighbors) {
-            if (bNeighbor == a) continue;
+        if (std::find(loop.begin(), loop.end(), ab) != loop.end()) continue;
+        if (std::find(loop.begin(), loop.end(), ba) != loop.end()) continue;
 
-            if (aNeighbor == bNeighbor) {
-                intersection.push_back(aNeighbor);
-                break;
-            }
+        for (EdgeHandle edge : loop) {
+            if (m_edges.get(edge).tip == b) return false;
         }
     }
 
-    // 2. Remove collapsing faces
-    for (VertexHandle neighbor : intersection) {
-        EdgeHandle bNeighborEdge;
-        EdgeHandle aNeighborEdge;
-
-        bool foundBNeighbor = false;
-        bool foundANeighbor = false;
-
-        {
-            const Vertex& bVert = m_vertices.get(b);
-            if (!isValidHandle(bVert.edge)) return false;
-
-            const EdgeHandle start = bVert.edge;
-            EdgeHandle current = start;
-
-            do {
-                if (!isValidHandle(current)) return false;
-                const Edge& edge = m_edges.get(current);
-
-                if (edge.tip == neighbor) {
-                    bNeighborEdge = current;
-                    foundBNeighbor = true;
-                    break;
-                }
-
-                if (!isValidHandle(edge.pair)) return false;
-                const Edge& pair = m_edges.get(edge.pair);
-
-                if (!isValidHandle(pair.next)) return false;
-                current = pair.next;
-
-            } while (current != start);
-        }
-
-        {
-            const Vertex& aVert = m_vertices.get(a);
-            if (!isValidHandle(aVert.edge)) return false;
-
-            const EdgeHandle start = aVert.edge;
-            EdgeHandle current = start;
-
-            do {
-                if (!isValidHandle(current)) return false;
-                const Edge& edge = m_edges.get(current);
-
-                if (edge.tip == neighbor) {
-                    aNeighborEdge = current;
-                    foundANeighbor = true;
-                    break;
-                }
-
-                if (!isValidHandle(edge.pair)) return false;
-                const Edge& pair = m_edges.get(edge.pair);
-
-                if (!isValidHandle(pair.next)) return false;
-                current = pair.next;
-
-            } while (current != start);
-        }
-
-        if (!foundBNeighbor || !foundANeighbor) return false;
-
-        if (!removeEdge(bNeighborEdge)) return false;
-
-        if (!isValidHandle(aNeighborEdge)) return false;
-        if (!fillFaceLoop(aNeighborEdge)) return false;
-    }
-
-    // 3. Redirect surviving B incoming edges to A
-    {
-        const Vertex& bVert = m_vertices.get(b);
-        if (!isValidHandle(bVert.edge)) return false;
-
-        const EdgeHandle start = bVert.edge;
-        EdgeHandle current = start;
-
-        std::vector<EdgeHandle> incoming;
-
-        do {
-            if (!isValidHandle(current)) return false;
-            const Edge& edge = m_edges.get(current);
-
-            if (!isValidHandle(edge.pair)) return false;
-
-            if (edge.pair != ab) {
-                incoming.push_back(edge.pair);
-
-                if (!foundASurvivingEdge) {
-                    aSurvivingEdge = current;
-                    foundASurvivingEdge = true;
-                }
-            }
-
-            const Edge& pair = m_edges.get(edge.pair);
-
-            if (!isValidHandle(pair.next)) return false;
-            current = pair.next;
-
-        } while (current != start);
-
-        for (EdgeHandle incomingHandle : incoming) {
-            if (!isValidHandle(incomingHandle)) return false;
-
-            Edge& edge = m_edges.get(incomingHandle);
-
-            if (edge.tip == b)
-                edge.tip = a;
-        }
-    }
-
-    // 4. Remove AB / BA
-    if (!isValidHandle(ab) || !isValidHandle(ba)) return false;
-
-    const Edge& abEdge = m_edges.get(ab);
-    const Edge& baEdge = m_edges.get(ba);
-
-    if (!isValidHandle(abEdge.prev) ||
-        !isValidHandle(abEdge.next) ||
-        !isValidHandle(baEdge.prev) ||
-        !isValidHandle(baEdge.next)) {
-        return false;
-    }
-
-    const EdgeHandle abPrev = abEdge.prev;
-    const EdgeHandle abNext = abEdge.next;
-    const EdgeHandle baPrev = baEdge.prev;
-    const EdgeHandle baNext = baEdge.next;
-
-    const FaceHandle abFace = abEdge.face;
-    const FaceHandle baFace = baEdge.face;
-
-    m_edges.get(abPrev).next = abNext;
-    m_edges.get(abNext).prev = abPrev;
-
-    m_edges.get(baPrev).next = baNext;
-    m_edges.get(baNext).prev = baPrev;
-
-    if (isValidHandle(abFace)) {
-        Face& face = m_faces.get(abFace);
-        if (face.edge == ab)
-            face.edge = abNext;
-    }
-
-    if (isValidHandle(baFace)) {
-        Face& face = m_faces.get(baFace);
-        if (face.edge == ba)
-            face.edge = baNext;
-    }
-
-    m_edges.remove(ab);
-    m_edges.remove(ba);
-
-    // 5. Remove B
-    m_vertices.remove(b);
-
-    // 6. Repair A.edge
-    Vertex& aVert = m_vertices.get(a);
-
-    if (foundASurvivingEdge && isValidHandle(aSurvivingEdge))
-        aVert.edge = aSurvivingEdge;
-    else
-        aVert.edge = EdgeHandle{};
-
-    // 7. Set A position
-    if (mergeType == 0)
-        aVert.position = (aPos + bPos) / 2.0f;
-    else if (mergeType == 1)
-        aVert.position = aPos;
-    else if (mergeType == 2)
-        aVert.position = bPos;
-    else
-        aVert.position = (aPos + bPos) / 2.0f;
-
-    // Faces around A now include B's old faces and A may have moved,
-    // so their cached triangulations are stale.
-    setFacesDirtyByVertex(a);
+    // 4. Two border vertices joined through the interior would pinch the
+    //    surface into a single vertex where two borders touch.
+    const bool borderEdge = isBorder(ab) || isBorder(ba);
+    if (!borderEdge && isBorderVertex(a) && isBorderVertex(b)) return false;
 
     return true;
+}
+
+void MeshData::collapseEdge(EdgeHandle ab, Vec3 position) {
+    const EdgeHandle ba = m_edges.get(ab).pair;
+    const VertexHandle a = getEdgeOrigin(ab);
+    const VertexHandle b = getEdgeTip(ab);
+
+    // 1. Remove ab and ba from their loops, collapsing triangles entirely.
+    std::vector<VertexHandle> apexes;
+
+    collapseSide(ab, apexes);
+    collapseSide(ba, apexes);
+
+    deleteEdgePair(ab);
+
+    // 2. Everything that pointed at b points at a, and b is gone.
+    retargetIncoming(b, a);
+    m_vertices.remove(b);
+
+    // 3. Fix outgoing edges that may have been deleted.
+    repairVertexEdge(a);
+
+    for (VertexHandle apex : apexes) {
+        repairVertexEdge(apex);
+    }
+
+    m_vertices.get(a).position = position;
+    setFacesDirtyByVertex(a);
+}
+
+void MeshData::collapseSide(EdgeHandle side, std::vector<VertexHandle>& apexes) {
+    const std::vector<EdgeHandle> loop = getLoopEdges(side);
+    const EdgeHandle pair = m_edges.get(side).pair;
+    const bool wire = std::find(loop.begin(), loop.end(), pair) != loop.end();
+
+    // A larger face (or border) just loses this side.
+    if (loop.size() != 3 || wire) {
+        spliceOut(side);
+        return;
+    }
+
+    // A triangle x -> y -> c -> x collapses to a single edge between c and the
+    // merged vertex. Its two other sides are deleted and their outer pairs
+    // are paired with each other:
+    //   outerNext (c -> y) and outerPrev (x -> c) become one edge.
+    const Edge& sideEdge = m_edges.get(side);
+    const EdgeHandle next = sideEdge.next;
+    const EdgeHandle prev = sideEdge.prev;
+    const FaceHandle face = sideEdge.face;
+
+    const EdgeHandle outerNext = m_edges.get(next).pair;
+    const EdgeHandle outerPrev = m_edges.get(prev).pair;
+
+    apexes.push_back(m_edges.get(next).tip);
+
+    m_edges.get(outerNext).pair = outerPrev;
+    m_edges.get(outerPrev).pair = outerNext;
+
+    m_edges.remove(next);
+    m_edges.remove(prev);
+
+    if (isValidHandle(face)) m_faces.remove(face);
 }

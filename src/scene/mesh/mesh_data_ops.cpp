@@ -1,278 +1,157 @@
 #include "scene/mesh/mesh_data.hpp"
-#include "core/math/math_utils.hpp"
-
-#include <cmath>
-#include <algorithm>
 
 FaceHandle MeshData::insertFaceRing(FaceHandle handle) {
-    // 1. Get the face's vertices in order.
-    std::vector<VertexHandle> oldVerts = getFaceVertices(handle);
+    // The original face keeps its handle and becomes the top face.
+    // Its half-edges stay where they are and become the bottom edges
+    // of the new side quads, so the neighboring faces are untouched.
 
-    if (oldVerts.size() < 3) {
-        return INVALID_FACE;
+    // 1. Get the face's loop. bottom[i] runs oldVerts[i] -> oldVerts[i + 1].
+    const std::vector<EdgeHandle> bottom = getFaceEdges(handle);
+    const u32 count = static_cast<u32>(bottom.size());
+
+    if (count < 3) return INVALID_FACE;
+
+    std::vector<VertexHandle> oldVerts(count);
+
+    for (u32 i = 0; i < count; ++i) {
+        oldVerts[i] = getEdgeOrigin(bottom[i]);
+        if (!isValidHandle(oldVerts[i])) return INVALID_FACE;
     }
 
-    // 2. Delete face with half-edge loop.
-    deleteFaceWithHalfEdgeLoop(handle);
+    // 2. Duplicate the vertices.
+    std::vector<VertexHandle> newVerts(count);
 
-    // 3. Duplicate those vertices.
-    std::vector<VertexHandle> newVerts;
-
-    newVerts.reserve(oldVerts.size());
-
-    for (VertexHandle vertHandle : oldVerts) {
-        VertexHandle newVert = duplicateVertex(vertHandle);
-
-        if (!m_vertices.isValid(newVert)) {
-            return INVALID_FACE;
-        }
-
-        newVerts.push_back(newVert);
+    for (u32 i = 0; i < count; ++i) {
+        newVerts[i] = addVertex(m_vertices.get(oldVerts[i]).position);
     }
 
-    // 4. Create side faces connecting old vertices to new vertices.
-    std::vector<FaceHandle> newFaces;
+    // 3. Create the vertical edges (up[i]: oldVerts[i] -> newVerts[i])
+    //    and the top edges (top[i]: newVerts[i] -> newVerts[i + 1]).
+    std::vector<EdgeHandle> up(count);
+    std::vector<EdgeHandle> top(count);
 
-    newFaces.reserve(oldVerts.size());
+    for (u32 i = 0; i < count; ++i) {
+        u32 next = (i + 1) % count;
 
-    for (u32 i = 0; i < static_cast<u32>(oldVerts.size()); ++i) {
-        u32 next = (i + 1) % static_cast<u32>(oldVerts.size());
-
-        VertexHandle firstBottom = oldVerts[i];
-        VertexHandle secondBottom = oldVerts[next];
-
-        VertexHandle firstTop = newVerts[i];
-        VertexHandle secondTop = newVerts[next];
-
-        newFaces.push_back(
-            addQuad(
-                firstBottom,
-                secondBottom,
-                secondTop,
-                firstTop
-            )
-        );
+        up[i] = addEdgePair(oldVerts[i], newVerts[i]);
+        top[i] = addEdgePair(newVerts[i], newVerts[next]);
     }
 
-    // 5. Pair neighboring side faces along their vertical edges.
-    for (u32 i = 0; i < static_cast<u32>(newFaces.size()); ++i) {
-        u32 next = (i + 1) % static_cast<u32>(newFaces.size());
+    // 4. Build each side quad:
+    //    oldVerts[i] -> oldVerts[i + 1] -> newVerts[i + 1] -> newVerts[i] -> oldVerts[i]
+    for (u32 i = 0; i < count; ++i) {
+        u32 next = (i + 1) % count;
 
-        EdgeHandle a = findEdgeInFace(
-            newFaces[i],
-            oldVerts[next],
-            newVerts[next]
-        );
+        const EdgeHandle down = m_edges.get(up[i]).pair;
+        const EdgeHandle topTwin = m_edges.get(top[i]).pair;
 
-        EdgeHandle b = findEdgeInFace(
-            newFaces[next],
-            newVerts[next],
-            oldVerts[next]
-        );
+        link(bottom[i], up[next]);
+        link(up[next], topTwin);
+        link(topTwin, down);
+        link(down, bottom[i]);
 
-        pairEdges(a, b);
+        const FaceHandle side = m_faces.insert(Face{});
+        assignFace(bottom[i], side);
     }
 
-    // 6. Pair the bottom edges back into the existing mesh.
-    for (u32 i = 0; i < static_cast<u32>(oldVerts.size()); ++i) {
-        u32 next = (i + 1) % static_cast<u32>(oldVerts.size());
-
-        VertexHandle origin = oldVerts[i];
-        VertexHandle tip = oldVerts[next];
-
-        EdgeHandle existing = findEdge(tip, origin);
-
-        EdgeHandle side = findEdgeInFace(
-            newFaces[i],
-            origin,
-            tip
-        );
-
-        pairEdges(existing, side);
+    // 5. Link the top loop and give it the original face.
+    for (u32 i = 0; i < count; ++i) {
+        link(top[i], top[(i + 1) % count]);
     }
 
-    // 7. Create the top face.
-    FaceHandle top = addFace(newVerts);
+    assignFace(top[0], handle);
 
-    if (!m_faces.isValid(top)) {
-        return INVALID_FACE;
+    // 6. Give each new vertex an outgoing edge.
+    for (u32 i = 0; i < count; ++i) {
+        m_vertices.get(newVerts[i]).edge = top[i];
     }
 
-    // 8. Pair top face to side faces.
-    for (u32 i = 0; i < static_cast<u32>(newVerts.size()); ++i) {
-        u32 next = (i + 1) % static_cast<u32>(newVerts.size());
-
-        EdgeHandle topEdge = findEdgeInFace(
-            top,
-            newVerts[i],
-            newVerts[next]
-        );
-
-        EdgeHandle sideEdge = findEdgeInFace(
-            newFaces[i],
-            newVerts[next],
-            newVerts[i]
-        );
-
-        pairEdges(topEdge, sideEdge);
-    }
-
-    return top;
+    return handle;
 }
 
 VertexHandle MeshData::splitEdge(EdgeHandle handle) {
     if (!isValidHandle(handle)) return INVALID_VERTEX;
 
-    Edge& edge = m_edges.get(handle);
-    if (!isValidHandle(edge.pair)) return INVALID_VERTEX;
+    const EdgeHandle pairHandle = m_edges.get(handle).pair;
+    if (!isValidHandle(pairHandle)) return INVALID_VERTEX;
 
-    Edge& pair = m_edges.get(edge.pair);
+    const VertexHandle origin = getEdgeOrigin(handle);
+    const VertexHandle tip = m_edges.get(handle).tip;
+    if (!isValidHandle(origin) || !isValidHandle(tip)) return INVALID_VERTEX;
 
-    if (!isValidHandle(edge.tip)) return INVALID_VERTEX;
-    if (!isValidHandle(pair.tip)) return INVALID_VERTEX;
+    const EdgeHandle edgeNext = m_edges.get(handle).next;
+    const EdgeHandle pairPrev = m_edges.get(pairHandle).prev;
 
-    Edge* oldNextEdge = m_edges.tryGet(edge.next);
-    Edge* oldPrevPair = m_edges.tryGet(pair.prev);
+    // 1. Create the midpoint and the second half of the edge (mid -> tip, tip -> mid).
+    const VertexHandle mid = addVertex((getVertexPosition(origin) + getVertexPosition(tip)) / 2);
+    const EdgeHandle second = addEdgePair(mid, tip);
+    const EdgeHandle secondPair = m_edges.get(second).pair;
 
-    if (!oldNextEdge || !oldPrevPair) return INVALID_VERTEX;
+    m_edges.get(second).face = m_edges.get(handle).face;
+    m_edges.get(secondPair).face = m_edges.get(pairHandle).face;
 
-    Vertex& edgeTip = m_vertices.get(edge.tip);
-    Vertex& pairTip = m_vertices.get(pair.tip);
-    Vec3 firstPos = edgeTip.position;
-    Vec3 secondPos = pairTip.position;
-    
-    Vec3 newVertPos = (firstPos + secondPos) / 2;
-    
-    VertexHandle newVert = m_vertices.insert({ newVertPos });
-    EdgeHandle prevPairH = m_edges.insert({});
-    EdgeHandle nextEdgeH = m_edges.insert({});
+    // 2. The original pair becomes origin -> mid / mid -> origin.
+    m_edges.get(handle).tip = mid;
 
-    // Make sure references and pointers are valid after inserting.
-    Edge& prevPair = m_edges.get(prevPairH);
-    Edge& nextEdge = m_edges.get(nextEdgeH);
-    edge = m_edges.get(handle);
-    pair = m_edges.get(edge.pair);
-    oldNextEdge = m_edges.tryGet(edge.next);
-    oldPrevPair = m_edges.tryGet(pair.prev);
+    // 3. Splice the new half-edges in. If tip had no other edges,
+    //    the loop turns around at tip: second -> secondPair.
+    const EdgeHandle after = edgeNext == pairHandle ? secondPair : edgeNext;
+    const EdgeHandle before = pairPrev == handle ? second : pairPrev;
 
-    oldNextEdge->prev = nextEdgeH;
-    oldPrevPair->next = prevPairH;
+    link(handle, second);
+    link(second, after);
+    link(before, secondPair);
+    link(secondPair, pairHandle);
 
-    nextEdge.pair = prevPairH;
-    nextEdge.next = edge.next;
-    nextEdge.prev = handle;
-    nextEdge.tip = edge.tip;
-    nextEdge.face = edge.face;
+    // 4. pairHandle now starts at mid, so tip may need a new outgoing edge.
+    m_vertices.get(mid).edge = pairHandle;
+    if (m_vertices.get(tip).edge == pairHandle) m_vertices.get(tip).edge = secondPair;
 
-    prevPair.pair = nextEdgeH;
-    prevPair.next = edge.pair;
-    prevPair.prev = pair.prev;
-    prevPair.tip = newVert;
-    prevPair.face = pair.face;
+    setFacesDirtyByVertex(mid);
 
-    pair.prev = prevPairH;
-    edge.tip = newVert;
-    edge.next = nextEdgeH;
-
-    m_vertices.get(newVert).edge = edge.pair;
-
-    return newVert;
+    return mid;
 }
 
 bool MeshData::removeVertex(VertexHandle handle) {
     if (!isValidHandle(handle)) return false;
-    const Vertex& vertex = m_vertices.get(handle);
 
-    if (!isValidHandle(vertex.edge)) {
-        m_vertices.remove(handle);
-        return true;
-    }
-
-    const EdgeHandle start = vertex.edge;
-    EdgeHandle current = start;
-
-    std::vector<EdgeHandle> deleteEdges;
-    do {
-        if (!isValidHandle(current)) return false;
-        const Edge& currentEdge = m_edges.get(current);
-
-        if (!isValidHandle(currentEdge.pair)) return false;
-        const Edge& pair = m_edges.get(currentEdge.pair);
-
-        if (!isValidHandle(pair.next)) return false;
-        EdgeHandle next = pair.next;
-
-        if (isValidHandle(currentEdge.face)) removeFace(currentEdge.face);
-        deleteEdges.push_back(current);
-
-        current = next;
-    } while (current != start);
-
-    for (EdgeHandle edge : deleteEdges) {
-        removeEdge(edge);
+    // removeEdge also removes the faces on both sides of each edge.
+    for (EdgeHandle edge : getOutgoingEdges(handle)) {
+        if (!removeEdge(edge)) return false;
     }
 
     m_vertices.remove(handle);
-    
+
     return true;
 }
 
 bool MeshData::removeEdge(EdgeHandle handle) {
     if (!isValidHandle(handle)) return false;
-    Edge& edge = m_edges.get(handle);
 
+    // Copy both half-edges; their storage is removed below.
+    const Edge edge = m_edges.get(handle);
     if (!isValidHandle(edge.pair)) return false;
-    EdgeHandle pairHandle = edge.pair;
-    Edge& pair = m_edges.get(pairHandle);
 
-    if (!isValidHandle(edge.next) ||
-        !isValidHandle(edge.prev) ||
-        !isValidHandle(pair.next) ||
-        !isValidHandle(pair.prev) ||
-        !isValidHandle(edge.tip) ||
-        !isValidHandle(pair.tip)) return false;
+    const EdgeHandle pairHandle = edge.pair;
+    const Edge pair = m_edges.get(pairHandle);
 
-    // Save everything we need before modifying topology.
-    EdgeHandle edgeNextHandle = edge.next;
-    EdgeHandle edgePrevHandle = edge.prev;
+    const VertexHandle origin = pair.tip;
+    const VertexHandle tip = edge.tip;
 
-    EdgeHandle pairNextHandle = pair.next;
-    EdgeHandle pairPrevHandle = pair.prev;
+    // 1. Remove adjacent faces while their loops are still intact.
+    if (isValidHandle(edge.face)) removeFace(edge.face);
+    if (isValidHandle(pair.face)) removeFace(pair.face);
 
-    FaceHandle edgeFace = edge.face;
-    FaceHandle pairFace = pair.face;
+    // 2. Splice both half-edges out, joining the two loops into one.
+    //    If this is the last edge at a vertex, that side has nothing to join.
+    if (edge.next != pairHandle) link(pair.prev, edge.next);
+    if (pair.next != handle) link(edge.prev, pair.next);
 
-    VertexHandle edgeTipHandle = edge.tip;
-    VertexHandle pairTipHandle = pair.tip;
+    // 3. Delete the half-edges and give both endpoints a surviving outgoing edge.
+    deleteEdgePair(handle);
 
-    // Remove faces while their loops are still intact.
-    if (isValidHandle(edgeFace)) removeFace(edgeFace);
-    if (isValidHandle(pairFace)) removeFace(pairFace);
-
-    // Get references after face removal.
-    Edge& edgeNext = m_edges.get(edgeNextHandle);
-    Edge& edgePrev = m_edges.get(edgePrevHandle);
-
-    Edge& pairNext = m_edges.get(pairNextHandle);
-    Edge& pairPrev = m_edges.get(pairPrevHandle);
-
-    Vertex& edgeTip = m_vertices.get(edgeTipHandle);
-    Vertex& pairTip = m_vertices.get(pairTipHandle);
-
-    // Update vertex outgoing edges.
-    edgeTip.edge = edgeNextHandle;
-    pairTip.edge = pairNextHandle;
-
-    // Splice the two loops together.
-    edgeNext.prev = pairPrevHandle;
-    pairPrev.next = edgeNextHandle;
-
-    pairNext.prev = edgePrevHandle;
-    edgePrev.next = pairNextHandle;
-
-    // Finally remove the two half-edges.
-    m_edges.remove(pairHandle);
-    m_edges.remove(handle);
+    repairVertexEdge(origin);
+    repairVertexEdge(tip);
 
     return true;
 }
@@ -282,17 +161,9 @@ bool MeshData::removeFace(FaceHandle handle) {
     const Face& face = m_faces.get(handle);
 
     if (!isValidHandle(face.edge)) return false;
-    const EdgeHandle start = face.edge;
-    EdgeHandle current = start;
-    
-    do {
-        if (!isValidHandle(current)) return false;
-        Edge& currentEdge = m_edges.get(current);
-        currentEdge.face = INVALID_FACE;
 
-        current = currentEdge.next;
-    } while (current != start);
-
+    // The loop stays behind as a border.
+    assignFace(face.edge, INVALID_FACE);
     m_faces.remove(handle);
 
     return true;
@@ -331,16 +202,7 @@ bool MeshData::fillFaceLoop(EdgeHandle handle) {
     } while (current != start);
 
     FaceHandle newFace = m_faces.insert(Face{start});
-
-    // Pass 2: assign the face
-    current = start;
-
-    do {
-        Edge& currentEdge = m_edges.get(current);
-        currentEdge.face = newFace;
-
-        current = currentEdge.next;
-    } while (current != start);
+    assignFace(start, newFace);
 
     return true;
 }

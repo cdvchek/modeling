@@ -1,138 +1,103 @@
 #include "scene/mesh/mesh_data.hpp"
 
-void MeshData::deleteFaceWithHalfEdgeLoop(FaceHandle handle) {
-    if (!m_faces.isValid(handle)) return;
-
-    std::vector<EdgeHandle> edges = getFaceEdges(handle);
-
-    if (edges.empty()) return;
-
-    for (EdgeHandle edgeHandle : edges) {
-        VertexHandle originHandle = getEdgeOrigin(edgeHandle);
-        Vertex* origin = m_vertices.tryGet(originHandle);
-
-        if (!origin) continue;
-
-        if (origin->edge == edgeHandle) {
-            origin->edge = findOutgoingEdge(
-                originHandle,
-                edges
-            );
-        }
-    }
-
-    for (EdgeHandle edgeHandle : edges) {
-        deleteHalfEdge(edgeHandle);
-    }
-
-    deleteFace(handle);
+VertexHandle MeshData::addVertex(Vec3 position) {
+    return m_vertices.insert(Vertex{ position });
 }
 
-void MeshData::deleteHalfEdge(EdgeHandle handle) {
-    Edge* edge = m_edges.tryGet(handle);
+EdgeHandle MeshData::addEdgePair(VertexHandle origin, VertexHandle tip) {
+    // Insert both before taking references; inserting can reallocate.
+    const EdgeHandle forward = m_edges.insert(Edge{});
+    const EdgeHandle backward = m_edges.insert(Edge{});
 
-    if (!edge) {
-        return;
-    }
+    Edge& forwardEdge = m_edges.get(forward);
+    forwardEdge.pair = backward;
+    forwardEdge.tip = tip;
 
-    EdgeHandle pairHandle = edge->pair;
+    Edge& backwardEdge = m_edges.get(backward);
+    backwardEdge.pair = forward;
+    backwardEdge.tip = origin;
 
-    if (m_edges.isValid(pairHandle)) {
-        Edge* pair = m_edges.tryGet(pairHandle);
+    return forward;
+}
 
-        if (pair && pair->pair == handle) {
-            pair->pair = INVALID_EDGE;
-        }
-    }
+void MeshData::deleteEdgePair(EdgeHandle handle) {
+    const Edge* edge = m_edges.tryGet(handle);
+    if (!edge) return;
+
+    const EdgeHandle pair = edge->pair;
 
     m_edges.remove(handle);
+    m_edges.remove(pair);
 }
 
-void MeshData::deleteFace(FaceHandle handle) {
-    m_faces.remove(handle);
+void MeshData::link(EdgeHandle a, EdgeHandle b) {
+    m_edges.get(a).next = b;
+    m_edges.get(b).prev = a;
 }
 
-VertexHandle MeshData::duplicateVertex(VertexHandle handle) {
-    Vertex* oldVert = m_vertices.tryGet(handle);
-    if (!oldVert) return INVALID_VERTEX;
+void MeshData::spliceOut(EdgeHandle handle) {
+    const Edge& edge = m_edges.get(handle);
+    const EdgeHandle prev = edge.prev;
+    const EdgeHandle next = edge.next;
+    const FaceHandle face = edge.face;
 
-    Vertex vertex;
-    vertex.position = oldVert->position;
+    link(prev, next);
 
-    return m_vertices.insert(vertex);
+    Face* faceData = m_faces.tryGet(face);
+    if (faceData && faceData->edge == handle) faceData->edge = next;
 }
 
-FaceHandle MeshData::addQuad(VertexHandle v0, VertexHandle v1, VertexHandle v2, VertexHandle v3) {
-    return addFace({ v0, v1, v2, v3 });
-}
-
-FaceHandle MeshData::addFace(const std::vector<VertexHandle>& verts) {
-    if (verts.size() < 3) return INVALID_FACE;
-
-    for (VertexHandle vert : verts) {
-        if (!m_vertices.isValid(vert)) return INVALID_FACE;
+void MeshData::assignFace(EdgeHandle start, FaceHandle face) {
+    for (EdgeHandle handle : getLoopEdges(start)) {
+        m_edges.get(handle).face = face;
     }
 
-    Face face;
-    face.edge = INVALID_EDGE;
-
-    FaceHandle faceHandle = m_faces.insert(face);
-
-    std::vector<EdgeHandle> edges;
-    edges.reserve(verts.size());
-
-    // Create one half-edge for each side of the face.
-    for (std::size_t i = 0; i < verts.size(); ++i) {
-        std::size_t next = (i + 1) % verts.size();
-
-        Edge edge;
-        edge.tip = verts[next];
-        edge.pair = INVALID_EDGE;
-        edge.next = INVALID_EDGE;
-        edge.prev = INVALID_EDGE;
-        edge.face = faceHandle;
-
-        edges.push_back(m_edges.insert(edge));
+    Face* faceData = m_faces.tryGet(face);
+    if (faceData) {
+        faceData->edge = start;
+        faceData->triangulationDirty = true;
     }
-
-    // Link the half-edges into a closed loop.
-    for (std::size_t i = 0; i < edges.size(); ++i) {
-        std::size_t next = (i + 1) % edges.size();
-        std::size_t prev = (i + edges.size() - 1) % edges.size();
-
-        Edge* edge = m_edges.tryGet(edges[i]);
-        if (!edge) continue;
-
-        edge->next = edges[next];
-        edge->prev = edges[prev];
-    }
-
-    // Set the face's representative edge.
-    Face* newFace = m_faces.tryGet(faceHandle);
-    if (newFace) newFace->edge = edges[0];
-
-    // Give each vertex a representative outgoing edge if it doesn't already have one.
-    for (std::size_t i = 0; i < verts.size(); ++i) {
-        Vertex* vertex = m_vertices.tryGet(verts[i]);
-        if (vertex && !m_edges.isValid(vertex->edge)) vertex->edge = edges[i];
-    }
-
-    return faceHandle;
 }
 
-void MeshData::pairEdges(EdgeHandle a, EdgeHandle b) {
-    Edge* edgeA = m_edges.tryGet(a);
-    Edge* edgeB = m_edges.tryGet(b);
+void MeshData::repairVertexEdge(VertexHandle handle) {
+    Vertex* vertex = m_vertices.tryGet(handle);
+    if (!vertex) return;
 
-    if (!edgeA || !edgeB) return;
-    if (a == b) return;
+    if (getEdgeOrigin(vertex->edge) == handle) return;
 
-    VertexHandle originA = getEdgeOrigin(a);
-    VertexHandle originB = getEdgeOrigin(b);
+    // The stored edge is gone or no longer starts here; find any edge that does.
+    vertex->edge = INVALID_EDGE;
 
-    if (!m_vertices.isValid(originA) || !m_vertices.isValid(originB)) return;
-    if (!(originA == edgeB->tip) || !(originB == edgeA->tip)) return;
+    for (EdgeHandle edgeHandle : m_edges.getActiveHandles()) {
+        if (getEdgeOrigin(edgeHandle) == handle) {
+            vertex->edge = edgeHandle;
+            return;
+        }
+    }
+}
 
-    edgeA->pair = b;
-    edgeB->pair = a;
+void MeshData::repairFaceEdge(FaceHandle handle) {
+    Face* face = m_faces.tryGet(handle);
+    if (!face) return;
+
+    const Edge* current = m_edges.tryGet(face->edge);
+    if (current && current->face == handle) return;
+
+    face->edge = INVALID_EDGE;
+
+    for (EdgeHandle edgeHandle : m_edges.getActiveHandles()) {
+        if (m_edges.get(edgeHandle).face == handle) {
+            face->edge = edgeHandle;
+            return;
+        }
+    }
+}
+
+void MeshData::retargetIncoming(VertexHandle from, VertexHandle to) {
+    // Scans every edge instead of walking from's fan, so it still works
+    // while an operator has the fan half-rewired.
+    for (EdgeHandle handle : m_edges.getActiveHandles()) {
+        Edge& edge = m_edges.get(handle);
+        if (edge.tip == from) edge.tip = to;
+    }
 }

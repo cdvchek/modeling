@@ -55,8 +55,6 @@ EdgeData MeshData::getEdgeData(const VertexData& vertexData) const {
         /*
          * Paired half-edges represent the same physical edge.
          * Only render one of them.
-         *
-         * Unpaired half-edges are boundary edges and are still rendered.
          */
         if (!edge.pair.isNull()) {
             if (!m_edges.isValid(edge.pair)) {

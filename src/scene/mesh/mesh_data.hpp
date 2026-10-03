@@ -53,6 +53,17 @@ public:
 
     std::vector<VertexHandle> getFaceVertices(FaceHandle handle) const;
 
+    std::vector<EdgeHandle> getOutgoingEdges(VertexHandle handle) const;
+    std::vector<EdgeHandle> getIncomingEdges(VertexHandle handle) const;
+    std::vector<EdgeHandle> getLoopEdges(EdgeHandle start) const;
+
+    bool isBorder(EdgeHandle handle) const;
+    bool isBorderVertex(VertexHandle handle) const;
+
+    // Checks every half-edge invariant and prints the first violation.
+    // Every half-edge has a pair; border half-edges have no face.
+    bool validate() const;
+
     // ---- Geometry (mesh_data_geometry.cpp) ----
     // Positions and anything derived from them. Never change connectivity.
 
@@ -94,8 +105,6 @@ private:
     std::vector<EdgeHandle> getFaceEdges(FaceHandle handle) const;
     std::vector<VertexHandle> getVertexNeighbors(VertexHandle handle) const;
     EdgeHandle findEdge(VertexHandle origin, VertexHandle tip) const;
-    EdgeHandle findEdgeInFace(FaceHandle face, VertexHandle origin, VertexHandle tip) const;
-    EdgeHandle findOutgoingEdge(VertexHandle handle, const std::vector<EdgeHandle>& excluded) const;
 
     // ---- Geometry (mesh_data_geometry.cpp) ----
 
@@ -105,14 +114,44 @@ private:
     // Low-level pointer edits. The mesh may be left temporarily invalid;
     // operators are responsible for restoring it.
 
-    FaceHandle addFace(const std::vector<VertexHandle>& verts);
-    FaceHandle addQuad(VertexHandle v0, VertexHandle v1, VertexHandle v2, VertexHandle v3);
-    VertexHandle duplicateVertex(VertexHandle handle);
-    void pairEdges(EdgeHandle a, EdgeHandle b);
+    VertexHandle addVertex(Vec3 position);
 
-    void deleteHalfEdge(EdgeHandle handle);
-    void deleteFace(FaceHandle handle);
-    void deleteFaceWithHalfEdgeLoop(FaceHandle handle);
+    // Creates origin -> tip and its pair, unlinked and with no face.
+    // Returns the origin -> tip half-edge.
+    EdgeHandle addEdgePair(VertexHandle origin, VertexHandle tip);
+
+    // Removes both half-edges from storage without relinking anything.
+    void deleteEdgePair(EdgeHandle handle);
+
+    // a.next = b and b.prev = a.
+    void link(EdgeHandle a, EdgeHandle b);
+
+    // Links handle.prev to handle.next and moves face.edge off handle.
+    // Does not touch the pair or delete anything.
+    void spliceOut(EdgeHandle handle);
+
+    // Sets .face on every edge in start's loop. A valid face gets start as its edge.
+    void assignFace(EdgeHandle start, FaceHandle face);
+
+    // Point a vertex or face at a valid edge again after edits.
+    void repairVertexEdge(VertexHandle handle);
+    void repairFaceEdge(FaceHandle handle);
+
+    // Every edge pointing at `from` points at `to` instead.
+    void retargetIncoming(VertexHandle from, VertexHandle to);
+
+    // ---- Edge collapse (mesh_data_merge.cpp) ----
+
+    // False if collapsing would leave duplicate edges or pinch two borders together.
+    bool canCollapseEdge(EdgeHandle ab) const;
+
+    // Merges ab's tip into its origin and moves the result to position.
+    // Call canCollapseEdge first.
+    void collapseEdge(EdgeHandle ab, Vec3 position);
+
+    // Removes one half of the collapsing edge from its loop. A triangle on that
+    // side is deleted and its apex is added to apexes.
+    void collapseSide(EdgeHandle side, std::vector<VertexHandle>& apexes);
 
     MeshArray<Vertex, VertexHandle> m_vertices;
     MeshArray<Edge, EdgeHandle> m_edges;

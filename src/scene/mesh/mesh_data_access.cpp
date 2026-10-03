@@ -59,17 +59,14 @@ const std::vector<FaceHandle> MeshData::getFaceHandles() const {
 }
 
 VertexHandle MeshData::getEdgeOrigin(EdgeHandle handle) const {
-    if (!m_edges.isValid(handle)) return INVALID_VERTEX;
+    const Edge* edge = m_edges.tryGet(handle);
+    if (!edge) return INVALID_VERTEX;
 
-    const Edge& edge = m_edges.get(handle);
-    if (!m_edges.isValid(edge.prev)) return INVALID_VERTEX;
+    // Every half-edge has a pair, and the pair points back at this edge's origin.
+    const Edge* pair = m_edges.tryGet(edge->pair);
+    if (!pair || !m_vertices.isValid(pair->tip)) return INVALID_VERTEX;
 
-    const Edge& prev = m_edges.get(edge.prev);
-
-    if (!(edge.face == prev.face)) return INVALID_VERTEX;
-    if (!m_vertices.isValid(prev.tip)) return INVALID_VERTEX;
-
-    return prev.tip;
+    return pair->tip;
 }
 
 VertexHandle MeshData::getEdgeTip(EdgeHandle handle) const {

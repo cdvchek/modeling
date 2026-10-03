@@ -31,6 +31,16 @@ void Application::registerCommands(AppContext& ctx) {
     );
 
     ctx.systems.commands.registerCommand(
+        "validate",
+        "Checks the mesh's half-edge structure and reports the first problem.",
+        [&ctx](const CommandArgs& args) {
+            if (ctx.scene.objects.get(0).meshData.validate()) {
+                std::cout << "[mesh validate] ok" << std::endl;
+            }
+        }
+    );
+
+    ctx.systems.commands.registerCommand(
         "merge",
         "Merges selected vertices into one vertex.",
         [&ctx](const CommandArgs& args) {

@@ -1,7 +1,5 @@
 #include "scene/mesh/mesh_data.hpp"
 
-#include <algorithm>
-
 std::vector<VertexHandle> MeshData::getFaceVertices(FaceHandle handle) const {
     const Face* face = m_faces.tryGet(handle);
     if (!face) return {};
@@ -53,128 +51,92 @@ std::vector<EdgeHandle> MeshData::getFaceEdges(FaceHandle handle) const {
     return edges;
 }
 
-EdgeHandle MeshData::findOutgoingEdge(VertexHandle handle, const std::vector<EdgeHandle>& excluded) const {
+std::vector<EdgeHandle> MeshData::getOutgoingEdges(VertexHandle handle) const {
     const Vertex* vertex = m_vertices.tryGet(handle);
-    if (!vertex) return INVALID_EDGE;
+    if (!vertex || !m_edges.isValid(vertex->edge)) return {};
 
-    // First try local half-edge traversal.
-    if (m_edges.isValid(vertex->edge)) {
-        EdgeHandle first = vertex->edge;
-        EdgeHandle current = first;
-
-        do {
-            if (std::find(excluded.begin(), excluded.end(), current) == excluded.end()) return current;
-
-            const Edge* edge = m_edges.tryGet(current);
-            if (!edge || !m_edges.isValid(edge->pair)) break;
-
-            const Edge* pair = m_edges.tryGet(edge->pair);
-            if (!pair || !m_edges.isValid(pair->next)) break;
-
-            current = pair->next;
-
-        } while (!(current == first));
-    }
-
-    // Fallback: scan all edges.
-    for (EdgeHandle edgeHandle : m_edges.getActiveHandles()) {
-        if (std::find(excluded.begin(), excluded.end(), edgeHandle) != excluded.end()) continue;
-        if (getEdgeOrigin(edgeHandle) == handle) return edgeHandle;
-    }
-
-    return INVALID_EDGE;
-}
-
-EdgeHandle MeshData::findEdge(VertexHandle origin, VertexHandle tip) const {
-    const Vertex* vertex = m_vertices.tryGet(origin);
-    if (!vertex || !m_vertices.isValid(tip)) return INVALID_EDGE;
-
-    // First try local topology traversal.
-    if (m_edges.isValid(vertex->edge)) {
-        EdgeHandle first = vertex->edge;
-        EdgeHandle current = first;
-
-        do {
-            const Edge* edge = m_edges.tryGet(current);
-            if (!edge) break;
-
-            if (edge->tip == tip) return current;
-
-            if (!m_edges.isValid(edge->pair)) break;
-
-            const Edge* pair = m_edges.tryGet(edge->pair);
-            if (!pair || !m_edges.isValid(pair->next)) break;
-
-            current = pair->next;
-
-        } while (!(current == first));
-    }
-
-    // Fallback in case the local traversal was interrupted
-    // by a boundary or incomplete topology.
-    for (EdgeHandle edgeHandle : m_edges.getActiveHandles()) {
-        const Edge* edge = m_edges.tryGet(edgeHandle);
-
-        if (!edge || !(edge->tip == tip)) continue;
-        if (getEdgeOrigin(edgeHandle) == origin) return edgeHandle;
-    }
-
-    return INVALID_EDGE;
-}
-
-EdgeHandle MeshData::findEdgeInFace(FaceHandle face, VertexHandle origin, VertexHandle tip) const {
-    if (!m_faces.isValid(face) ||
-        !m_vertices.isValid(origin) ||
-        !m_vertices.isValid(tip)) {
-        return INVALID_EDGE;
-    }
-
-    const Face* faceData = m_faces.tryGet(face);
-
-    if (!faceData || !m_edges.isValid(faceData->edge)) return INVALID_EDGE;
-
-    EdgeHandle first = faceData->edge;
-    EdgeHandle current = first;
+    std::vector<EdgeHandle> edges;
+    const EdgeHandle start = vertex->edge;
+    EdgeHandle current = start;
 
     do {
         const Edge* edge = m_edges.tryGet(current);
+        if (!edge) return {};
 
-        if (!edge) return INVALID_EDGE;
+        edges.push_back(current);
 
-        if (edge->tip == tip &&
-            getEdgeOrigin(current) == origin) {
-            return current;
-        }
+        const Edge* pair = m_edges.tryGet(edge->pair);
+        if (!pair) return {};
 
-        if (!m_edges.isValid(edge->next)) return INVALID_EDGE;
+        current = pair->next;
 
+        // A broken fan might never return to the start.
+        if (edges.size() > m_edges.activeSize()) return {};
+    } while (current != start);
+
+    return edges;
+}
+
+std::vector<EdgeHandle> MeshData::getIncomingEdges(VertexHandle handle) const {
+    std::vector<EdgeHandle> edges = getOutgoingEdges(handle);
+
+    for (EdgeHandle& edge : edges) {
+        edge = m_edges.get(edge).pair;
+    }
+
+    return edges;
+}
+
+std::vector<EdgeHandle> MeshData::getLoopEdges(EdgeHandle start) const {
+    if (!m_edges.isValid(start)) return {};
+
+    std::vector<EdgeHandle> edges;
+    EdgeHandle current = start;
+
+    do {
+        const Edge* edge = m_edges.tryGet(current);
+        if (!edge) return {};
+
+        edges.push_back(current);
         current = edge->next;
 
-    } while (!(current == first));
+        if (edges.size() > m_edges.activeSize()) return {};
+    } while (current != start);
+
+    return edges;
+}
+
+bool MeshData::isBorder(EdgeHandle handle) const {
+    const Edge* edge = m_edges.tryGet(handle);
+    return edge && !m_faces.isValid(edge->face);
+}
+
+bool MeshData::isBorderVertex(VertexHandle handle) const {
+    // Every border loop passing through a vertex leaves it along an
+    // outgoing border half-edge, so checking outgoing edges is enough.
+    for (EdgeHandle edge : getOutgoingEdges(handle)) {
+        if (isBorder(edge)) return true;
+    }
+
+    return false;
+}
+
+EdgeHandle MeshData::findEdge(VertexHandle origin, VertexHandle tip) const {
+    if (!m_vertices.isValid(tip)) return INVALID_EDGE;
+
+    for (EdgeHandle handle : getOutgoingEdges(origin)) {
+        if (m_edges.get(handle).tip == tip) return handle;
+    }
 
     return INVALID_EDGE;
 }
 
 std::vector<VertexHandle> MeshData::getVertexNeighbors(VertexHandle handle) const {
-    if (!isValidHandle(handle)) return {};
-    const Vertex& vert = m_vertices.get(handle);
-    
-    if (!isValidHandle(vert.edge)) return {};
-    const EdgeHandle start = vert.edge;
-    EdgeHandle current = start;
-    
     std::vector<VertexHandle> neighbors;
-    do {
-        if (!isValidHandle(current)) return {};
-        const Edge& edge = m_edges.get(current);
 
-        if (isValidHandle(edge.tip)) neighbors.push_back(edge.tip);
-
-        if (!isValidHandle(edge.pair)) return {};
-        const Edge& pair = m_edges.get(edge.pair);
-
-        current = pair.next;
-    } while (current != start);
+    for (EdgeHandle edge : getOutgoingEdges(handle)) {
+        neighbors.push_back(m_edges.get(edge).tip);
+    }
 
     return neighbors;
 }
