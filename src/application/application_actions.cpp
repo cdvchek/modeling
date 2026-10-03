@@ -38,4 +38,7 @@ void Application::registerDefaultActions(AppContext& ctx) {
     actions.subscribe(Action::RotateSelection,     DefaultKeybinds::RotateSelection,     InputContext_SelectionVertex | InputContext_SelectionEdge | InputContext_SelectionFace);
     actions.subscribe(Action::RotateConfirm,       DefaultKeybinds::RotateConfirm,       InputContext_Rotate);
     actions.subscribe(Action::RotateCancel,        DefaultKeybinds::RotateCancel,        InputContext_Rotate);
+    actions.subscribe(Action::BevelSelection,      DefaultKeybinds::BevelSelection,      InputContext_SelectionVertex | InputContext_SelectionEdge | InputContext_SelectionFace);
+    actions.subscribe(Action::ConfirmBevel,        DefaultKeybinds::ConfirmBevel,        InputContext_Bevel);
+    actions.subscribe(Action::CancelBevel,         DefaultKeybinds::CancelBevel,         InputContext_Bevel);
 }

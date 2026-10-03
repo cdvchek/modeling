@@ -46,16 +46,12 @@ EdgeData MeshData::getEdgeData(const VertexData& vertexData) const {
 
         const Edge& edge = m_edges.get(edgeHandle);
 
-        // Need a valid previous edge and tip vertex.
         if (!m_edges.isValid(edge.prev) ||
             !m_vertices.isValid(edge.tip)) {
             continue;
         }
 
-        /*
-         * Paired half-edges represent the same physical edge.
-         * Only render one of them.
-         */
+        // Paired half-edges are the same edge; only render one.
         if (!edge.pair.isNull()) {
             if (!m_edges.isValid(edge.pair)) {
                 continue;

@@ -12,9 +12,6 @@ namespace {
 bool MeshData::validate() const {
     const u32 edgeCount = m_edges.activeSize();
 
-    // How many half-edges start at each vertex and belong to each face.
-    // Compared against the fan and loop walks below to catch split fans
-    // and faces with more than one loop.
     std::vector<u32> outgoingCounts(m_vertices.size(), 0);
     std::vector<u32> faceEdgeCounts(m_faces.size(), 0);
 

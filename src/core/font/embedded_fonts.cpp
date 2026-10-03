@@ -1,7 +1,6 @@
 #include "core/font/embedded_fonts.hpp"
 
-// #embed paths are relative to assets/ (--embed-dir in CMakeLists.txt).
-// Editing the font file triggers a rebuild of this file.
+// #embed paths are relative to assets/ (see --embed-dir in CMakeLists.txt).
 
 namespace EmbeddedFonts {
     const unsigned char console[] = {

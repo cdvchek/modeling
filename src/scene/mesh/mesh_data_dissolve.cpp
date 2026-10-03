@@ -25,7 +25,6 @@ VertexHandle MeshData::dissolveFace(FaceHandle handle) {
     const MeshArray<Face, FaceHandle> savedFaces = m_faces;
 
     // Merge each corner into the first one, walking around the face.
-    // After merging corner i, the next corner is adjacent to the survivor.
     const VertexHandle survivor = corners[0];
     const Vec3 survivorPos = getVertexPosition(survivor);
 

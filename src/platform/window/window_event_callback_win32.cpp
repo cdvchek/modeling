@@ -5,19 +5,19 @@
 #include "core/events/events.hpp"
 
 unsigned int handleLeftRightKeys(unsigned int vk, LPARAM l_param) {
-    if (vk == 16) { // VK_SHIFT
+    if (vk == VK_SHIFT) {
         UINT scan_code = (l_param >> 16) & 0xFF;
         vk = MapVirtualKey(scan_code, MAPVK_VSC_TO_VK_EX);
     }
 
     bool extended = (l_param & (1 << 24)) != 0;
 
-    if (vk == 17) { // VK_CONTROL
-        vk = extended ? 0xA3 /*Right control*/ : 0xA2; // Left control
+    if (vk == VK_CONTROL) {
+        vk = extended ? VK_RCONTROL : VK_LCONTROL;
     }
 
-    if (vk == 12) { // Alt
-        vk = extended ? 0xA5 /*Right alt*/ : 0xA4; // Left alt
+    if (vk == 12) {
+        vk = extended ? VK_RMENU : VK_LMENU;
     }
 
     return vk;

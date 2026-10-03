@@ -55,7 +55,6 @@ namespace Event {
         i32 delta;
     };
 
-    // Client area size in pixels. Both are 0 while the window is minimized.
     struct WindowResize { EVENT_TYPE(WindowResize);
         u32 width;
         u32 height;

@@ -8,16 +8,12 @@
 
 class Console {
 public:
-    // enter a command
     void enterCurrentCommand(CommandSystem& commands);
-    // get current command
     const std::string& getCurrentCommand();
     const std::vector<std::string>& getHistory();
     void viewNewerCommand();
     void viewOlderCommand();
-    // add to current command
     void insertToCurrentCommand(char character);
-    // subtract from current command
     void removeFromCurrentCommandBack();
     void removeFromCurrentCommandForward();
     void moveCursorLeft();

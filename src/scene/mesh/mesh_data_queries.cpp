@@ -112,8 +112,6 @@ bool MeshData::isBorder(EdgeHandle handle) const {
 }
 
 bool MeshData::isBorderVertex(VertexHandle handle) const {
-    // Every border loop passing through a vertex leaves it along an
-    // outgoing border half-edge, so checking outgoing edges is enough.
     for (EdgeHandle edge : getOutgoingEdges(handle)) {
         if (isBorder(edge)) return true;
     }

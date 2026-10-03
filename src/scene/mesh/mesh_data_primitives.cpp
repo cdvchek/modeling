@@ -65,7 +65,6 @@ void MeshData::repairVertexEdge(VertexHandle handle) {
 
     if (getEdgeOrigin(vertex->edge) == handle) return;
 
-    // The stored edge is gone or no longer starts here; find any edge that does.
     vertex->edge = INVALID_EDGE;
 
     for (EdgeHandle edgeHandle : m_edges.getActiveHandles()) {
@@ -94,8 +93,7 @@ void MeshData::repairFaceEdge(FaceHandle handle) {
 }
 
 void MeshData::retargetIncoming(VertexHandle from, VertexHandle to) {
-    // Scans every edge instead of walking from's fan, so it still works
-    // while an operator has the fan half-rewired.
+    // Scans every edge so it works while a fan is half-rewired.
     for (EdgeHandle handle : m_edges.getActiveHandles()) {
         Edge& edge = m_edges.get(handle);
         if (edge.tip == from) edge.tip = to;

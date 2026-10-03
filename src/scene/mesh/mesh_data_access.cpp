@@ -62,7 +62,6 @@ VertexHandle MeshData::getEdgeOrigin(EdgeHandle handle) const {
     const Edge* edge = m_edges.tryGet(handle);
     if (!edge) return INVALID_VERTEX;
 
-    // Every half-edge has a pair, and the pair points back at this edge's origin.
     const Edge* pair = m_edges.tryGet(edge->pair);
     if (!pair || !m_vertices.isValid(pair->tip)) return INVALID_VERTEX;
 

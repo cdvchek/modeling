@@ -8,6 +8,7 @@ set(CMAKE_C_STANDARD 17)
 set(COMMON_SRC
     src/main.cpp
     src/application/action_checks/check_actions.cpp
+    src/application/action_checks/check_bevel.cpp
     src/application/action_checks/check_console.cpp
     src/application/action_checks/check_grab.cpp
     src/application/action_checks/check_rotate.cpp
@@ -49,6 +50,7 @@ set(COMMON_SRC
     src/scene/mesh/mesh_data_ops.cpp
     src/scene/mesh/mesh_data_merge.cpp
     src/scene/mesh/mesh_data_dissolve.cpp
+    src/scene/mesh/mesh_data_bevel.cpp
     src/scene/mesh/mesh_data_validate.cpp
     src/scene/mesh/mesh_data_gpu.cpp
     src/scene/selection/ray.cpp

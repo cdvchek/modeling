@@ -34,8 +34,13 @@ void Application::registerCommands(AppContext& ctx) {
         "validate",
         "Checks the mesh's half-edge structure and reports the first problem.",
         [&ctx](const CommandArgs& args) {
-            if (ctx.scene.objects.get(0).meshData.validate()) {
-                std::cout << "[mesh validate] ok" << std::endl;
+            const MeshData& mesh = ctx.scene.objects.get(0).meshData;
+
+            if (mesh.validate()) {
+                std::cout << "[mesh validate] ok ("
+                          << mesh.getVertexHandles().size() << " vertices, "
+                          << mesh.getEdgeHandles().size() / 2 << " edges, "
+                          << mesh.getFaceHandles().size() << " faces)" << std::endl;
             }
         }
     );
@@ -62,7 +67,6 @@ void Application::registerCommands(AppContext& ctx) {
                     const VertexHandle a = selectedVerts[0];
                     const VertexHandle b = selectedVerts[1];
 
-                    // mergeVertices keeps a and deletes b.
                     if (ctx.scene.objects.get(0).meshData.mergeVertices(a, b, mergeType)) {
                         ctx.scene.selection.removeVertex(0, b);
                     }
@@ -101,7 +105,6 @@ void Application::registerCommands(AppContext& ctx) {
                 return;
             }
 
-            // The selected edge or face no longer exists.
             ctx.scene.selection.clear();
             ctx.scene.objects.get(0).meshDirty = true;
         }

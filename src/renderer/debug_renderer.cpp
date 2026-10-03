@@ -7,7 +7,6 @@ void DebugRenderer::render(
     const Scene& scene,
     const Mat4& vp
 ) {
-    // Adjust this loop to however your ObjectCollection is currently exposed.
     for (const Object& object : scene.objects.all()) {
         drawHalfEdges(renderer, object, vp);
     }
@@ -21,7 +20,6 @@ void DebugRenderer::drawHalfEdges(
 ) {
     const MeshData& mesh = object.meshData;
 
-    // Use your existing active-handle getter here.
     const std::vector<EdgeHandle> edges = mesh.getEdgeHandles();
 
     const Mat4 mvp = vp * object.transform.getMatrix();
@@ -47,8 +45,7 @@ void DebugRenderer::drawHalfEdge(
     const bool isBoundary =
         !mesh.isValidHandle(edge->face);
 
-    // For normal edges, use their own face.
-    // For boundary edges, use their pair's face.
+    // Boundary edges use their pair's face.
     FaceHandle referenceFace;
 
     if (!isBoundary) {
@@ -213,6 +210,5 @@ void DebugRenderer::drawHoveredElement(
     IRenderer& renderer,
     const MeshData& mesh
 ) {
-    // We'll implement this after basic half-edge
-    // visualization is working.
+    // TODO: implement once half-edge visualization is working.
 }

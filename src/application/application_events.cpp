@@ -55,13 +55,11 @@ void Application::registerInputEvents(AppContext& ctx) {
 
     ctx.systems.events.subscribe<Event::WindowResize>(
         [&ctx](const Event::WindowResize& event) -> bool {
-            // Minimized: nothing to draw into.
             if (event.width == 0 || event.height == 0) return false;
 
             ctx.renderer->resize(event.width, event.height);
 
-            // While an edge is being dragged, Windows runs its own message loop
-            // and the main loop is paused, so draw here to keep the view live.
+            // Windows pauses the main loop while resizing, so draw here.
             if (ctx.is_running) renderFrame(ctx);
 
             return false;

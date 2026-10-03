@@ -2,7 +2,7 @@
 #include "application/action_checks/action_checks.hpp"
 
 bool Application::checkActions(AppContext& ctx) {
-    ContextManager& ictx = ctx.systems.input_ctx; //input context
+    ContextManager& ictx = ctx.systems.input_ctx;
 
     if (ctx.systems.actions.isActionDown(Action::Quit, ctx.systems.input, ictx.getContext())) {
         ctx.systems.events.trigger(Event::Quit{});
@@ -45,6 +45,10 @@ bool Application::checkActions(AppContext& ctx) {
 
     if (ictx.isActive(InputContext_Rotate)) {
         checkRotateContext(ctx);
+    }
+
+    if (ictx.isActive(InputContext_Bevel)) {
+        checkBevelContext(ctx);
     }
 
     return true;

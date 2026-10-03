@@ -39,7 +39,6 @@ void Application::renderFrame(AppContext& ctx) {
     u32 height = 0;
     ctx.windows[0]->getDimensions(width, height);
 
-    // Minimized windows have no area to draw into.
     if (width == 0 || height == 0) return;
 
     ctx.renderer->beginFrame();

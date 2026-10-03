@@ -176,7 +176,6 @@ void OpenGLRenderer::drawText(const DrawTextCommand& command) {
 void OpenGLRenderer::drawText3D(const DrawText3DCommand& command) {
     if (command.text.empty()) return;
 
-    // Preserve your bitmap font's 16:24 aspect ratio.
     constexpr f32 glyphAspect = 16.0f / 24.0f;
 
     const f32 charHeight = command.size;
@@ -184,8 +183,7 @@ void OpenGLRenderer::drawText3D(const DrawText3DCommand& command) {
 
     std::vector<f32> vertices;
 
-    // 6 vertices per character
-    // 5 floats per vertex: x, y, z, u, v
+    // 6 vertices per character, 5 floats per vertex.
     vertices.reserve(command.text.size() * 6 * 5);
 
     f32 currentX = 0.0f;
@@ -200,7 +198,6 @@ void OpenGLRenderer::drawText3D(const DrawText3DCommand& command) {
 
         GlyphUV uv = m_consoleFont.getGlyphUV(character);
 
-        // Bottom-left corner of this character in world space.
         Vec3 origin = command.position + command.right * currentX + command.up * currentY;
         Vec3 topLeft = origin + command.up * charHeight;
         Vec3 bottomLeft = origin;
@@ -280,8 +277,6 @@ void OpenGLRenderer::drawText3D(const DrawText3DCommand& command) {
         {1.0f, 1.0f, 1.0f}
     );
 
-    // Use however you're currently storing your
-    // view/projection matrices.
     m_text3DShader->setMat4(
         "u_MVP",
         command.mvp.m

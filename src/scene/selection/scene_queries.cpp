@@ -126,8 +126,7 @@ bool rayHitsEdge(
         rayT = 0.0f;
     }
 
-    // Once edgeT has been clamped, recompute the nearest
-    // point on the ray to that selected point on the edge.
+    // Recompute the nearest point on the ray to the clamped edge point.
     const Vec3 edgePoint = a + edgeDir * edgeT;
 
     rayT = Vec3::dot(edgePoint - ray.origin, ray.direction)

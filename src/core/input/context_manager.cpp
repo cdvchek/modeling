@@ -3,8 +3,7 @@
 void ContextManager::setContext(u32 ctx) {
     u32 selection = ctx & SelectionMask;
 
-    // Only one selection context can be active.
-    // Priority: Vertex > Edge > Face.
+    // Only one selection context can be active: Vertex > Edge > Face.
     if (selection & InputContext_SelectionVertex) {
         selection = InputContext_SelectionVertex;
     } else if (selection & InputContext_SelectionEdge) {
@@ -29,8 +28,7 @@ void ContextManager::setContext(u32 ctx) {
 void ContextManager::setSelectionContext(u32 selectionCtx) {
     selectionCtx &= SelectionMask;
 
-    // Enforce exactly one selection context.
-    // Priority: Vertex > Edge > Face.
+    // Enforce exactly one selection context: Vertex > Edge > Face.
     if (selectionCtx & InputContext_SelectionVertex) {
         selectionCtx = InputContext_SelectionVertex;
     } else if (selectionCtx & InputContext_SelectionEdge) {
@@ -57,16 +55,14 @@ void ContextManager::addContext(u32 ctx) {
 }
 
 void ContextManager::removeContext(u32 ctx) {
-    // Global cannot be removed.
-    // Selection contexts must be changed through setSelectionContext().
+    // Global and selection contexts can't be removed here.
     ctx &= ~(InputContext_Global | SelectionMask);
 
     m_context &= ~ctx;
 }
 
 void ContextManager::toggleContext(u32 ctx) {
-    // Global cannot be toggled.
-    // Selection contexts must be changed through setSelectionContext().
+    // Global and selection contexts can't be toggled here.
     ctx &= ~(InputContext_Global | SelectionMask);
 
     m_context ^= ctx;

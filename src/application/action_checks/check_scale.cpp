@@ -54,7 +54,6 @@ void checkScaleContext(AppContext& ctx) {
         ctx.scene.selection.getSelectionStartPositions();
 
     // Find center of the ORIGINAL selection.
-    // This stays constant throughout the scale operation.
     Vec3 center(0.0f);
 
     for (const Vec3& start : starts) {
@@ -68,8 +67,7 @@ void checkScaleContext(AppContext& ctx) {
     const bool yJustActivated = yAxis && !wasYAxis;
     const bool zJustActivated = zAxis && !wasZAxis;
 
-    // If an axis was just selected, restore the other
-    // axes to their original positions.
+    // If an axis was just selected, restore the other axes.
     if (xJustActivated || yJustActivated || zJustActivated) {
         for (u32 i = 0;
              i < static_cast<u32>(selections.size());
@@ -131,9 +129,6 @@ void checkScaleContext(AppContext& ctx) {
             vertexPos - center;
 
         // Restrict scaling to the selected axis.
-        //
-        // Setting an axis component to 0 means that component
-        // of the vertex will remain unchanged.
         if (xAxis || yAxis || zAxis) {
             if (!xAxis)
                 scaleDir.x = 0.0f;

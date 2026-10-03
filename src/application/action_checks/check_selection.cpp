@@ -122,11 +122,8 @@ void checkSelectionContext(AppContext& ctx) {
             if (hit.hit) {
                 const MeshData& mesh = ctx.scene.objects.get(hit.objectIndex).meshData;
                 std::vector<VertexHandle> selectedVerts = mesh.getFaceVertices(hit.face);
-                //std::vector<u32> selectedEdges = mesh.getFaceEdges(hit.faceIndex);
                 if (removeDown) {
-                    // TODO: current bug, if you remove a face from the selection, all of the adjacent selected faces will only be partially selected.
-                    // the vertices that the adjacent faces share with the deselected face will be deselected and they shouldn't.
-                    // This also occurrs with the edges
+                    // TODO: removing a face also deselects vertices shared with other selected faces (same for edges).
                     for (VertexHandle handle : selectedVerts) {
                         ctx.scene.selection.removeVertex(hit.objectIndex, handle);
                     }
@@ -169,6 +166,10 @@ void checkSelectionContext(AppContext& ctx) {
         }
         ctx.scene.selection.setSelectionStartPositions(starts);
         ictx.setContext(InputContext_Rotate);
+    }
+
+    if (actions.wasActionPressedThisFrame(Action::BevelSelection, input, ictx.getContext())) {
+        beginBevel(ctx);
     }
 
     if (ctx.systems.input_ctx.getSelectionContext() == InputContext_SelectionVertex) {

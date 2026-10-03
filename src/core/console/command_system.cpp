@@ -33,7 +33,6 @@ void CommandSystem::execute(const std::string& command) {
     auto it = commands.find(commandName);
 
     if (it == commands.end()) {
-        // print "unknown command"
         return;
     }
 

@@ -5,7 +5,6 @@
 bool MeshData::mergeVertices(VertexHandle a, VertexHandle b, u8 mergeType) {
     if (!isValidHandle(a) || !isValidHandle(b) || a == b) return false;
 
-    // Only vertices joined by an edge can be merged.
     const EdgeHandle ab = findEdge(a, b);
     if (!isValidHandle(ab)) return false;
 
@@ -35,17 +34,14 @@ bool MeshData::canCollapseEdge(EdgeHandle ab) const {
         const std::vector<EdgeHandle> loop = getLoopEdges(side);
         if (loop.size() != 3) continue;
 
-        // a -> b -> a -> ... is a wire edge, not a triangle.
         if (std::find(loop.begin(), loop.end(), m_edges.get(side).pair) != loop.end()) continue;
 
         apexes.push_back(getEdgeTip(m_edges.get(side).next));
     }
 
-    // Two triangles sharing an apex would fold into a single edge.
     if (apexes.size() == 2 && apexes[0] == apexes[1]) return false;
 
     // 2. Every vertex connected to both a and b must be a triangle apex.
-    //    Otherwise the merged vertex would end up with two edges to it.
     const std::vector<VertexHandle> aNeighbors = getVertexNeighbors(a);
     const std::vector<VertexHandle> bNeighbors = getVertexNeighbors(b);
 
@@ -55,8 +51,7 @@ bool MeshData::canCollapseEdge(EdgeHandle ab) const {
         if (std::find(apexes.begin(), apexes.end(), neighbor) == apexes.end()) return false;
     }
 
-    // 3. A face or border loop that holds both a and b, but not along ab,
-    //    would visit the merged vertex twice.
+    // 3. A loop holding both a and b must do so along ab.
     for (EdgeHandle outgoing : getOutgoingEdges(a)) {
         const std::vector<EdgeHandle> loop = getLoopEdges(outgoing);
 
@@ -68,8 +63,7 @@ bool MeshData::canCollapseEdge(EdgeHandle ab) const {
         }
     }
 
-    // 4. Two border vertices joined through the interior would pinch the
-    //    surface into a single vertex where two borders touch.
+    // 4. Don't pinch two borders together through the interior.
     const bool borderEdge = isBorder(ab) || isBorder(ba);
     if (!borderEdge && isBorderVertex(a) && isBorderVertex(b)) return false;
 
@@ -109,16 +103,12 @@ void MeshData::collapseSide(EdgeHandle side, std::vector<VertexHandle>& apexes) 
     const EdgeHandle pair = m_edges.get(side).pair;
     const bool wire = std::find(loop.begin(), loop.end(), pair) != loop.end();
 
-    // A larger face (or border) just loses this side.
     if (loop.size() != 3 || wire) {
         spliceOut(side);
         return;
     }
 
-    // A triangle x -> y -> c -> x collapses to a single edge between c and the
-    // merged vertex. Its two other sides are deleted and their outer pairs
-    // are paired with each other:
-    //   outerNext (c -> y) and outerPrev (x -> c) become one edge.
+    // A triangle collapses to one edge: its two outer half-edges become a pair.
     const Edge& sideEdge = m_edges.get(side);
     const EdgeHandle next = sideEdge.next;
     const EdgeHandle prev = sideEdge.prev;

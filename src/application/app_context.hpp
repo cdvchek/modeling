@@ -4,6 +4,7 @@
 #include <memory>
 
 #include "application/app_systems.hpp"
+#include "application/bevel_tool.hpp"
 #include "platform/window/window.hpp"
 #include "renderer/renderer.hpp"
 #include "renderer/debug_renderer.hpp"
@@ -15,6 +16,7 @@ struct AppContext {
     DebugRenderer debug_renderer;
     std::vector<std::unique_ptr<Window>> windows;
     Scene scene;
+    BevelTool bevel;
 
     bool is_running = false;
 };

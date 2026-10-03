@@ -80,7 +80,6 @@ void MeshData::setFacesDirtyByVertex(VertexHandle handle) const {
         if (!m_edges.isValid(currEdge)) return;
         const Edge& edge = m_edges.get(currEdge);
 
-        // Border edges have no face; skip them but keep circulating.
         if (m_faces.isValid(edge.face)) {
             const Face& face = m_faces.get(edge.face);
             face.triangulationDirty = true;
@@ -180,10 +179,6 @@ bool isPointInTriangle(Vec2 tri1, Vec2 tri2, Vec2 tri3, Vec2 point) {
 }
 
 std::vector<Triangle> earclipping(std::vector<EarVertex> verts) {
-    // this will probably be a nested loop
-    // outer loop will just keep running until every vertex has been triangled sort of?
-    // inner loop will run over each vertex, test if the vertex is convex and if so, make a triangle
-    // and remove that vertex, if the vertex is concave, try the next vertex.
 
     bool counterClockwise = computeSignedArea(verts) > 0.0f;
 
@@ -205,7 +200,7 @@ std::vector<Triangle> earclipping(std::vector<EarVertex> verts) {
 
             bool isConvex = counterClockwise ? (cross > Math::EPSILON) : (cross < -Math::EPSILON);
             
-            if (isConvex) { // convex
+            if (isConvex) {
                 bool hasInsideVert = false;
                 for (u32 j = 0; j < static_cast<u32>(verts.size()); ++j) {
                     if (j == prevIndex || j == i || j == nextIndex) continue;
@@ -261,8 +256,7 @@ std::vector<Triangle> MeshData::triangulateFace(FaceHandle handle) const {
     f32 lengthSq = Vec3::dot(normal, normal);
     if (lengthSq < Math::EPSILON * Math::EPSILON) return {};
 
-    // Find the dominant axis from the normal and drop that axis
-    // from each vertex in the face.
+    // Find the dominant axis from the normal.
     std::vector<EarVertex> projVerts;
 
     u8 dominant = 0;
@@ -293,7 +287,6 @@ std::vector<Triangle> MeshData::triangulateFace(FaceHandle handle) const {
 
         switch (dominant) {
             case 0:
-                // Drop X -> YZ
                 earPosition = Vec2(
                     current.position.y,
                     current.position.z
@@ -301,7 +294,6 @@ std::vector<Triangle> MeshData::triangulateFace(FaceHandle handle) const {
                 break;
 
             case 1:
-                // Drop Y -> XZ
                 earPosition = Vec2(
                     current.position.x,
                     current.position.z
@@ -309,7 +301,6 @@ std::vector<Triangle> MeshData::triangulateFace(FaceHandle handle) const {
                 break;
 
             case 2:
-                // Drop Z -> XY
                 earPosition = Vec2(
                     current.position.x,
                     current.position.y
@@ -329,6 +320,22 @@ std::vector<Triangle> MeshData::triangulateFace(FaceHandle handle) const {
 
     } while (!(currentEdge == startEdge));
 
+    // Skip points on top of their neighbor; ear clipping can't find ears around them.
+    auto samePoint = [](const EarVertex& a, const EarVertex& b) {
+        const Vec2 d = a.position - b.position;
+        return d.x * d.x + d.y * d.y < Math::EPSILON * Math::EPSILON;
+    };
+
+    std::vector<EarVertex> distinct;
+
+    for (const EarVertex& vert : projVerts) {
+        if (distinct.empty() || !samePoint(distinct.back(), vert)) distinct.push_back(vert);
+    }
+
+    while (distinct.size() > 1 && samePoint(distinct.front(), distinct.back())) distinct.pop_back();
+
+    if (distinct.size() < 3) return {};
+
     // Run ear clipping on the projected vertices.
-    return earclipping(projVerts);
+    return earclipping(distinct);
 }

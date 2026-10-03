@@ -53,9 +53,7 @@ bool BitmapFont::loadFromMemory(const unsigned char* data, std::size_t size) {
 bool BitmapFont::parse(std::istream& file) {
 
 
-    // --------------------------------
     // Header
-    // --------------------------------
 
     std::string magic;
 
@@ -88,9 +86,7 @@ bool BitmapFont::parse(std::istream& file) {
     }
 
 
-    // --------------------------------
     // Glyphs
-    // --------------------------------
 
     u32 character;
 

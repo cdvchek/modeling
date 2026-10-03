@@ -256,4 +256,22 @@ namespace DefaultKeybinds {
             mouse(MouseButton::Right)
         }
     };
+
+    inline Keybind BevelSelection {
+        {
+            key(Key::B)
+        }
+    };
+
+    inline Keybind ConfirmBevel {
+        {
+            mouse(MouseButton::Left)
+        }
+    };
+
+    inline Keybind CancelBevel {
+        {
+            mouse(MouseButton::Right)
+        }
+    };
 }

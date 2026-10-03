@@ -8,74 +8,74 @@ u16 translatePlatformKey(unsigned int vk) {
         return ((u16)vk - (u16)'0') + (u16)Key::Num0;
     } else {
         switch(vk) {
-            case 27:  return (u16)Key::Escape;               // VK_ESCAPE
-            case 13:  return (u16)Key::Enter;                // VK_RETURN
-            case 9:   return (u16)Key::Tab;                  // VK_TAB
-            case 8:   return (u16)Key::Backspace;            // VK_BACK
-            case 32:  return (u16)Key::Space;                // VK_SPACE
-            case 20:  return (u16)Key::CapsLock;             // VK_CAPITAL
+            case VK_ESCAPE:      return (u16)Key::Escape;
+            case VK_RETURN:      return (u16)Key::Enter;
+            case VK_TAB:         return (u16)Key::Tab;
+            case VK_BACK:        return (u16)Key::Backspace;
+            case VK_SPACE:       return (u16)Key::Space;
+            case VK_CAPITAL:     return (u16)Key::CapsLock;
 
-            case 160: return (u16)Key::LeftShift;            // VK_LSHIFT
-            case 161: return (u16)Key::RightShift;           // VK_RSHIFT
-            case 162: return (u16)Key::LeftCtrl;             // VK_LCONTROL
-            case 163: return (u16)Key::RightCtrl;            // VK_RCONTROL
-            case 164: return (u16)Key::LeftAlt;              // VK_LMENU
-            case 165: return (u16)Key::RightAlt;             // VK_RMENU
-            case 91:  return (u16)Key::LeftSuper;            // VK_LWIN
-            case 92:  return (u16)Key::RightSuper;           // VK_RWIN
+            case VK_LSHIFT:      return (u16)Key::LeftShift;
+            case VK_RSHIFT:      return (u16)Key::RightShift;
+            case VK_LCONTROL:    return (u16)Key::LeftCtrl;
+            case VK_RCONTROL:    return (u16)Key::RightCtrl;
+            case VK_LMENU:       return (u16)Key::LeftAlt;
+            case VK_RMENU:       return (u16)Key::RightAlt;
+            case VK_LWIN:        return (u16)Key::LeftSuper;
+            case VK_RWIN:        return (u16)Key::RightSuper;
 
-            case 188: return (u16)Key::Comma;                // VK_OEM_COMMA
-            case 190: return (u16)Key::Period;               // VK_OEM_PERIOD
-            case 191: return (u16)Key::Forwardslash;  // /?  // VK_OEM_2
-            case 220: return (u16)Key::Backslash;     // \|  // VK_OEM_5
-            case 186: return (u16)Key::SemiColon;     // ;:  // VK_OEM_1
-            case 222: return (u16)Key::Apostrophe;    // '"  // VK_OEM_7
-            case 219: return (u16)Key::LeftBracket;   // [{  // VK_OEM_4
-            case 221: return (u16)Key::RightBracket;  // ]}  // VK_OEM_6
-            case 189: return (u16)Key::Minus;         // -_  // VK_OEM_MINUS
-            case 187: return (u16)Key::Equals;        // =+  // VK_OEM_PLUS
-            case 192: return (u16)Key::Tilde;         //~`   // VK_OEM_3
+            case VK_OEM_COMMA:   return (u16)Key::Comma;
+            case VK_OEM_PERIOD:  return (u16)Key::Period;
+            case VK_OEM_2:       return (u16)Key::Forwardslash;
+            case VK_OEM_5:       return (u16)Key::Backslash;
+            case VK_OEM_1:       return (u16)Key::SemiColon;
+            case VK_OEM_7:       return (u16)Key::Apostrophe;
+            case VK_OEM_4:       return (u16)Key::LeftBracket;
+            case VK_OEM_6:       return (u16)Key::RightBracket;
+            case VK_OEM_MINUS:   return (u16)Key::Minus;
+            case VK_OEM_PLUS:    return (u16)Key::Equals;
+            case VK_OEM_3:       return (u16)Key::Tilde;
 
-            case 45:  return (u16)Key::Insert;               // VK_INSERT
-            case 46:  return (u16)Key::Delete;               // VK_DELETE
-            case 36:  return (u16)Key::Home;                 // VK_HOME
-            case 35:  return (u16)Key::End;                  // VK_END
-            case 33:  return (u16)Key::PageUp;               // VK_PRIOR
-            case 34:  return (u16)Key::PageDown;             // VK_NEXT
+            case VK_INSERT:      return (u16)Key::Insert;
+            case VK_DELETE:      return (u16)Key::Delete;
+            case VK_HOME:        return (u16)Key::Home;
+            case VK_END:         return (u16)Key::End;
+            case VK_PRIOR:       return (u16)Key::PageUp;
+            case VK_NEXT:        return (u16)Key::PageDown;
 
-            case 38:  return (u16)Key::ArrowUp;              // VK_UP
-            case 40:  return (u16)Key::ArrowDown;            // VK_DOWN
-            case 37:  return (u16)Key::ArrowLeft;            // VK_LEFT
-            case 39:  return (u16)Key::ArrowRight;           // VK_RIGHT
+            case VK_UP:          return (u16)Key::ArrowUp;
+            case VK_DOWN:        return (u16)Key::ArrowDown;
+            case VK_LEFT:        return (u16)Key::ArrowLeft;
+            case VK_RIGHT:       return (u16)Key::ArrowRight;
 
-            case 112: return (u16)Key::F1;                   // VK_F1
-            case 113: return (u16)Key::F2;                   // VK_F2
-            case 114: return (u16)Key::F3;                   // VK_F3
-            case 115: return (u16)Key::F4;                   // VK_F4
-            case 116: return (u16)Key::F5;                   // VK_F5
-            case 117: return (u16)Key::F6;                   // VK_F6
-            case 118: return (u16)Key::F7;                   // VK_F7
-            case 119: return (u16)Key::F8;                   // VK_F8
-            case 120: return (u16)Key::F9;                   // VK_F9
-            case 121: return (u16)Key::F10;                  // VK_F10
-            case 122: return (u16)Key::F11;                  // VK_F11
-            case 123: return (u16)Key::F12;                  // VK_F12
+            case VK_F1:          return (u16)Key::F1;
+            case VK_F2:          return (u16)Key::F2;
+            case VK_F3:          return (u16)Key::F3;
+            case VK_F4:          return (u16)Key::F4;
+            case VK_F5:          return (u16)Key::F5;
+            case VK_F6:          return (u16)Key::F6;
+            case VK_F7:          return (u16)Key::F7;
+            case VK_F8:          return (u16)Key::F8;
+            case VK_F9:          return (u16)Key::F9;
+            case VK_F10:         return (u16)Key::F10;
+            case VK_F11:         return (u16)Key::F11;
+            case VK_F12:         return (u16)Key::F12;
 
-            case 96:  return (u16)Key::KeyPad0;              // VK_NUMPAD0
-            case 97:  return (u16)Key::KeyPad1;              // VK_NUMPAD1
-            case 98:  return (u16)Key::KeyPad2;              // VK_NUMPAD2
-            case 99:  return (u16)Key::KeyPad3;              // VK_NUMPAD3
-            case 100: return (u16)Key::KeyPad4;              // VK_NUMPAD4
-            case 101: return (u16)Key::KeyPad5;              // VK_NUMPAD5
-            case 102: return (u16)Key::KeyPad6;              // VK_NUMPAD6
-            case 103: return (u16)Key::KeyPad7;              // VK_NUMPAD7
-            case 104: return (u16)Key::KeyPad8;              // VK_NUMPAD8
-            case 105: return (u16)Key::KeyPad9;              // VK_NUMPAD9
+            case VK_NUMPAD0:     return (u16)Key::KeyPad0;
+            case VK_NUMPAD1:     return (u16)Key::KeyPad1;
+            case VK_NUMPAD2:     return (u16)Key::KeyPad2;
+            case VK_NUMPAD3:     return (u16)Key::KeyPad3;
+            case VK_NUMPAD4:     return (u16)Key::KeyPad4;
+            case VK_NUMPAD5:     return (u16)Key::KeyPad5;
+            case VK_NUMPAD6:     return (u16)Key::KeyPad6;
+            case VK_NUMPAD7:     return (u16)Key::KeyPad7;
+            case VK_NUMPAD8:     return (u16)Key::KeyPad8;
+            case VK_NUMPAD9:     return (u16)Key::KeyPad9;
 
-            case 107: return (u16)Key::KeyPadAdd;            // VK_ADD
-            case 109: return (u16)Key::KeyPadSub;            // VK_SUBTRACT
-            case 106: return (u16)Key::KeyPadMult;           // VK_MULTIPLY
-            case 111: return (u16)Key::KeyPadDivide;         // VK_DIVIDE
+            case VK_ADD:         return (u16)Key::KeyPadAdd;
+            case VK_SUBTRACT:    return (u16)Key::KeyPadSub;
+            case VK_MULTIPLY:    return (u16)Key::KeyPadMult;
+            case VK_DIVIDE:      return (u16)Key::KeyPadDivide;
 
             default:  return (u16)Key::Unknown;
         }

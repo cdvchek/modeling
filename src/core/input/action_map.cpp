@@ -18,8 +18,7 @@ bool ActionMap::isActionDown(Action action, const InputState& input, u32 input_c
     bool contextMatch = input_ctx & key_context;
     if (!contextMatch) return false;
 
-    // we want to stop if the current context is console but the keycontext is not console.
-    // regardless of whether the contextMatch boolean is true or not.
+    // Only console bindings work while the console is open.
     if (input_ctx & InputContext_Console && !(key_context & InputContext_Console)) return false;
 
     for (const Input& bindingInput : keybind.inputs) {

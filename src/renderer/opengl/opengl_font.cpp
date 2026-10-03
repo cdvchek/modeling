@@ -21,9 +21,7 @@ bool OpenGLFont::create(const BitmapFont& font) {
     );
 
 
-    // --------------------------------
     // Copy glyphs into atlas
-    // --------------------------------
 
     for (u32 code = BitmapFont::FIRST_CHAR;
          code <= BitmapFont::LAST_CHAR;
@@ -73,9 +71,7 @@ bool OpenGLFont::create(const BitmapFont& font) {
     }
 
 
-    // --------------------------------
     // Create OpenGL texture
-    // --------------------------------
 
     glGenTextures(1, &m_texture);
 

@@ -23,10 +23,21 @@ struct FaceData {
     std::vector<u32> indices;
 };
 
+struct BevelSession {
+    MeshArray<Vertex, VertexHandle> savedVertices;
+    MeshArray<Edge, EdgeHandle> savedEdges;
+    MeshArray<Face, FaceHandle> savedFaces;
+
+    std::vector<VertexHandle> vertices;
+    std::vector<Vec3> starts;
+    std::vector<Vec3> directions;
+
+    f32 maxWidth = 0.0f;
+};
+
 class MeshData {
 public:
     // ---- Access (mesh_data_access.cpp) ----
-    // Look up a single element by handle.
 
     void setMesh(PresetMesh meshType);
 
@@ -49,7 +60,6 @@ public:
     bool isValidHandle(FaceHandle handle) const;
 
     // ---- Topology queries (mesh_data_queries.cpp) ----
-    // Read connectivity. Never modify the mesh.
 
     std::vector<VertexHandle> getFaceVertices(FaceHandle handle) const;
 
@@ -60,12 +70,9 @@ public:
     bool isBorder(EdgeHandle handle) const;
     bool isBorderVertex(VertexHandle handle) const;
 
-    // Checks every half-edge invariant and prints the first violation.
-    // Every half-edge has a pair; border half-edges have no face.
     bool validate() const;
 
     // ---- Geometry (mesh_data_geometry.cpp) ----
-    // Positions and anything derived from them. Never change connectivity.
 
     Vec3 getVertexPosition(VertexHandle handle) const;
     Vec3 getFaceNormal(FaceHandle handle) const;
@@ -79,7 +86,6 @@ public:
     void setFacesDirtyByFace(FaceHandle handle) const;
 
     // ---- Operators (mesh_data_ops.cpp, mesh_data_merge.cpp, mesh_data_dissolve.cpp) ----
-    // Complete edits. The mesh must be valid before and after each call.
 
     FaceHandle insertFaceRing(FaceHandle handle);
     VertexHandle splitEdge(EdgeHandle handle);
@@ -95,9 +101,17 @@ public:
     VertexHandle dissolveEdge(EdgeHandle handle);
     VertexHandle dissolveFace(FaceHandle handle);
 
+    // ---- Bevel (mesh_data_bevel.cpp) ----
+
+    bool bevelVertex(VertexHandle handle, BevelSession& session);
+    bool bevelEdge(EdgeHandle handle, BevelSession& session);
+    bool bevelFace(FaceHandle handle, BevelSession& session);
+
+    void setBevelWidth(const BevelSession& session, f32 width);
+    void cancelBevel(const BevelSession& session);
+
 
     // ---- GPU export (mesh_data_gpu.cpp) ----
-    // Flatten the mesh into buffers for rendering.
 
     VertexData getVertexData() const;
     EdgeData getEdgeData(const VertexData& vertexData) const;
@@ -115,51 +129,48 @@ private:
     std::vector<Triangle> triangulateFace(FaceHandle handle) const;
 
     // ---- Primitives (mesh_data_primitives.cpp) ----
-    // Low-level pointer edits. The mesh may be left temporarily invalid;
-    // operators are responsible for restoring it.
 
     VertexHandle addVertex(Vec3 position);
 
-    // Creates origin -> tip and its pair, unlinked and with no face.
-    // Returns the origin -> tip half-edge.
     EdgeHandle addEdgePair(VertexHandle origin, VertexHandle tip);
 
-    // Removes both half-edges from storage without relinking anything.
     void deleteEdgePair(EdgeHandle handle);
 
-    // a.next = b and b.prev = a.
     void link(EdgeHandle a, EdgeHandle b);
 
-    // Links handle.prev to handle.next and moves face.edge off handle.
-    // Does not touch the pair or delete anything.
     void spliceOut(EdgeHandle handle);
 
-    // Sets .face on every edge in start's loop. A valid face gets start as its edge.
     void assignFace(EdgeHandle start, FaceHandle face);
 
-    // Point a vertex or face at a valid edge again after edits.
     void repairVertexEdge(VertexHandle handle);
     void repairFaceEdge(FaceHandle handle);
 
-    // Every edge pointing at `from` points at `to` instead.
     void retargetIncoming(VertexHandle from, VertexHandle to);
 
     // ---- Edge collapse (mesh_data_merge.cpp) ----
 
-    // False if collapsing would leave duplicate edges or pinch two borders together.
     bool canCollapseEdge(EdgeHandle ab) const;
 
-    // Merges ab's tip into its origin and moves the result to position.
-    // Call canCollapseEdge first.
     void collapseEdge(EdgeHandle ab, Vec3 position);
 
-    // Removes one half of the collapsing edge from its loop. A triangle on that
-    // side is deleted and its apex is added to apexes.
     void collapseSide(EdgeHandle side, std::vector<VertexHandle>& apexes);
+
+    // ---- Bevel helpers (mesh_data_bevel.cpp) ----
+
+    bool bevel(
+        const std::vector<VertexHandle>& corners,
+        const std::vector<EdgeHandle>& edges,
+        bool vertexOnly,
+        BevelSession& session
+    );
+
+    bool replaceFaces(
+        const std::vector<FaceHandle>& oldFaces,
+        const std::vector<std::vector<VertexHandle>>& newFaces
+    );
 
     // ---- Dissolve helpers (mesh_data_dissolve.cpp) ----
 
-    // Removes an edge between two different faces and merges them into one.
     bool joinFaces(EdgeHandle handle);
 
 

@@ -33,11 +33,7 @@ void checkRotateContext(AppContext& ctx) {
     const bool yJustActivated = yAxis && !wasYAxis;
     const bool zJustActivated = zAxis && !wasZAxis;
 
-    // If an axis was just selected, restore all vertices
-    // to their original positions.
-    //
-    // Rotation around X/Y/Z should begin from the position
-    // the vertices had when the rotate operation started.
+    // Restore the original positions when an axis is first selected.
     if (xJustActivated || yJustActivated || zJustActivated) {
         for (u32 i = 0;
              i < static_cast<u32>(selections.size());
@@ -80,8 +76,7 @@ void checkRotateContext(AppContext& ctx) {
 
         Vec3 axis;
 
-        // If an axis is selected, rotate around that
-        // world-space axis.
+        // Rotate around the selected world axis.
         if (xAxis) {
             axis = Vec3(1.0f, 0.0f, 0.0f);
         }
@@ -92,8 +87,7 @@ void checkRotateContext(AppContext& ctx) {
             axis = Vec3(0.0f, 0.0f, 1.0f);
         }
         else {
-            // Normal rotation:
-            // rotate in the plane perpendicular to the camera.
+            // Rotate in the plane perpendicular to the camera.
             axis =
                 ctx.scene.camera.getForward().normalized();
         }

@@ -8,8 +8,7 @@ class EventDispatcher;
 
 class Window {
 
-// All public methods return false or nullptr to indicate an error occurred.
-// Use printWindowError to see what the last error was.
+// Public methods return false or nullptr on error; see printWindowError.
 public:
     struct Impl;
     Window() = delete;

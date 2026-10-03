@@ -25,8 +25,7 @@ void checkGrabContext(AppContext& ctx) {
     const bool yJustActivated = yAxis && !wasYAxis;
     const bool zJustActivated = zAxis && !wasZAxis;
 
-    // Snap vertices back onto the selected axis relative
-    // to where they were when the grab started.
+    // Snap vertices back onto the selected axis.
     if (xJustActivated || yJustActivated || zJustActivated) {
         for (u32 i = 0; i < static_cast<u32>(selections.size()); ++i) {
             const VertexSelection& selection = selections[i];

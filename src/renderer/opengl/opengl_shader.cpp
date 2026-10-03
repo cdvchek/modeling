@@ -20,9 +20,6 @@ bool OpenGLShader::create(const char* vertex_source, const char* fragment_source
         char info_log[512];
         glGetShaderInfoLog(vertex_shader, 512, nullptr, info_log);
 
-        // std::cout << "Vertex shader compilation failed:\n"
-        //           << info_log << '\n';
-
         glDeleteShader(vertex_shader);
         return false;
     }
@@ -36,9 +33,6 @@ bool OpenGLShader::create(const char* vertex_source, const char* fragment_source
     if (!success) {
         char info_log[512];
         glGetShaderInfoLog(fragment_shader, 512, nullptr, info_log);
-
-        // std::cout << "Fragment shader compilation failed:\n"
-        //           << info_log << '\n';
 
         glDeleteShader(vertex_shader);
         glDeleteShader(fragment_shader);
@@ -58,9 +52,6 @@ bool OpenGLShader::create(const char* vertex_source, const char* fragment_source
     if (!success) {
         char info_log[512];
         glGetProgramInfoLog(m_program, 512, nullptr, info_log);
-
-        // std::cout << "Shader program linking failed:\n"
-        //           << info_log << '\n';
 
         glDeleteShader(vertex_shader);
         glDeleteShader(fragment_shader);

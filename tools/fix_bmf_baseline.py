@@ -1,36 +1,26 @@
-"""Shift every glyph in a .bmf font onto a shared baseline.
-
-Glyph shapes are left untouched; each glyph only moves vertically. Running it
-on an already-aligned font changes nothing, so it's safe to rerun after
-editing or adding glyphs.
-
-Usage: python tools/fix_bmf_baseline.py [path]   (default: assets/fonts/console.bmf)
-"""
+# Usage: python tools/fix_bmf_baseline.py [path]   (default: assets/fonts/console.bmf)
 
 import sys
 
 WIDTH, HEIGHT = 16, 24
 
-# Rows in the 24-row cell, measured from the console font:
-# capitals are 14 rows, lowercase x-height is 10, descenders are 4.
 CAP_TOP = 3
 X_TOP = 7
-BASELINE = 16          # last ink row of anything sitting on the baseline
+BASELINE = 16
 DESC_BOTTOM = 20
 X_MIDDLE = (X_TOP + BASELINE) / 2
 TALL_MIDDLE = (CAP_TOP + DESC_BOTTOM) / 2
 
 
 def target_top(char, height):
-    """Row the glyph's top ink row should move to."""
     if char in "gpqyj":
         return DESC_BOTTOM - height + 1
     if char == "Q":
         return CAP_TOP
     if char == ",":
-        return BASELINE - 2            # head level with '.', tail 2 rows below
+        return BASELINE - 2
     if char == ";":
-        return X_TOP                   # dot at x-height, tail 2 rows below
+        return X_TOP
     if char in "'\"^`*":
         return CAP_TOP
     if char in "-+=<>~":
