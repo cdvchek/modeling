@@ -41,7 +41,12 @@ set(COMMON_SRC
     src/renderer/debug_renderer.cpp
     src/renderer/renderer.cpp
     src/scene/mesh/presets/cube.cpp
-    src/scene/mesh/mesh_data_cpu.cpp
+    src/scene/mesh/mesh_data_access.cpp
+    src/scene/mesh/mesh_data_queries.cpp
+    src/scene/mesh/mesh_data_geometry.cpp
+    src/scene/mesh/mesh_data_primitives.cpp
+    src/scene/mesh/mesh_data_ops.cpp
+    src/scene/mesh/mesh_data_merge.cpp
     src/scene/mesh/mesh_data_gpu.cpp
     src/scene/selection/ray.cpp
     src/scene/selection/scene_queries.cpp
