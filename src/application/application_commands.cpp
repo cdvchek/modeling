@@ -29,4 +29,30 @@ void Application::registerCommands(AppContext& ctx) {
             }
         }
     );
+
+    ctx.systems.commands.registerCommand(
+        "merge",
+        "Merges selected vertices into one vertex.",
+        [&ctx](const CommandArgs& args) {
+            if (ctx.systems.input_ctx.isActive(InputContext_SelectionVertex)) {
+                const std::vector<VertexHandle>& selectedVerts = ctx.scene.selection.getVertexHandles();
+                if (selectedVerts.size() == 2) {
+                    u8 mergeType = 0;
+                    if (!args.empty()) {
+                        if (args[0] == "center") {
+                            mergeType = 0;
+                        }
+                        else if (args[0] == "first") {
+                            mergeType = 1;
+                        } else if (args[0] == "last") {
+                            mergeType = 2;
+                        }
+                    }
+                    
+                    ctx.scene.objects.get(0).meshData.mergeVertices(selectedVerts[0], selectedVerts[1], mergeType);
+                    ctx.scene.objects.get(0).meshDirty = true;
+                }
+            }
+        }
+    );
 }

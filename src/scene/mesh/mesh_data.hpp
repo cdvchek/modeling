@@ -53,7 +53,6 @@ public:
 
     void positionVertex(VertexHandle handle, Vec3 position);
     void translateVertex(VertexHandle handle, Vec3 delta);
-    void scaleVertices(std::vector<VertexHandle> handles, f32 delta);
 
     FaceHandle insertFaceRing(FaceHandle handle);
     VertexHandle splitEdge(EdgeHandle handle);
@@ -65,6 +64,8 @@ public:
     bool fillFaceLoop(EdgeHandle handle);
 
     bool connectVertices(VertexHandle a, VertexHandle b);
+
+    bool mergeVertices(VertexHandle a, VertexHandle b, u8 mergeType);
 
     // GPU data access
     VertexData getVertexData() const;
@@ -78,6 +79,7 @@ public:
     bool isValidHandle(EdgeHandle handle) const;
     bool isValidHandle(FaceHandle handle) const;
 private:
+    std::vector<VertexHandle> getVertexNeighbors(VertexHandle handle) const;
     std::vector<Triangle> triangulateFace(FaceHandle handle) const;
 
     void deleteFaceWithHalfEdgeLoop(FaceHandle handle);
