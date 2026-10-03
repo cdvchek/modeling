@@ -1,4 +1,5 @@
 #include "renderer/opengl/opengl_renderer.hpp"
+#include "core/font/embedded_fonts.hpp"
 
 #include <stdexcept>
 #include <windows.h>
@@ -299,7 +300,7 @@ bool OpenGLRenderer::initialize(void* window, void* surface, const RendererConfi
     m_text3DShader->create(text_3d_vert_source, text_3d_frag_source);
 
     BitmapFont font;
-    if (!font.load("./console.bmf")) return false;
+    if (!font.loadFromMemory(EmbeddedFonts::console, EmbeddedFonts::consoleSize)) return false;
     m_consoleFont.create(font);
 
     m_initialized = true;

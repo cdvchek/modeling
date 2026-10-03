@@ -35,12 +35,15 @@ void Application::run(AppContext& ctx) {
 }
 
 void Application::renderFrame(AppContext& ctx) {
-    ctx.renderer->beginFrame();
-    ctx.renderer->beginMainPass(ctx.renderer->m_clearState);
-
     u32 width = 0;
     u32 height = 0;
     ctx.windows[0]->getDimensions(width, height);
+
+    // Minimized windows have no area to draw into.
+    if (width == 0 || height == 0) return;
+
+    ctx.renderer->beginFrame();
+    ctx.renderer->beginMainPass(ctx.renderer->m_clearState);
 
     f32 aspectRatio = static_cast<f32>(width) / static_cast<f32>(height);
 

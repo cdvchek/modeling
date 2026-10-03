@@ -59,10 +59,51 @@ void Application::registerCommands(AppContext& ctx) {
                         }
                     }
                     
-                    ctx.scene.objects.get(0).meshData.mergeVertices(selectedVerts[0], selectedVerts[1], mergeType);
+                    const VertexHandle a = selectedVerts[0];
+                    const VertexHandle b = selectedVerts[1];
+
+                    // mergeVertices keeps a and deletes b.
+                    if (ctx.scene.objects.get(0).meshData.mergeVertices(a, b, mergeType)) {
+                        ctx.scene.selection.removeVertex(0, b);
+                    }
+
                     ctx.scene.objects.get(0).meshDirty = true;
                 }
             }
+        }
+    );
+
+    ctx.systems.commands.registerCommand(
+        "dissolve",
+        "Collapses the selected edge or face into a single vertex.",
+        [&ctx](const CommandArgs& args) {
+            MeshData& mesh = ctx.scene.objects.get(0).meshData;
+            const u32 selectionContext = ctx.systems.input_ctx.getSelectionContext();
+
+            bool dissolved = false;
+
+            if (selectionContext == InputContext_SelectionEdge) {
+                const std::vector<EdgeHandle> edges = ctx.scene.selection.getEdgeHandles();
+                if (edges.size() != 1) return;
+
+                dissolved = mesh.isValidHandle(mesh.dissolveEdge(edges[0]));
+            } else if (selectionContext == InputContext_SelectionFace) {
+                const std::vector<FaceHandle> faces = ctx.scene.selection.getFaceHandles();
+                if (faces.size() != 1) return;
+
+                dissolved = mesh.isValidHandle(mesh.dissolveFace(faces[0]));
+            } else {
+                return;
+            }
+
+            if (!dissolved) {
+                std::cout << "dissolve: can't collapse this without breaking the mesh" << std::endl;
+                return;
+            }
+
+            // The selected edge or face no longer exists.
+            ctx.scene.selection.clear();
+            ctx.scene.objects.get(0).meshDirty = true;
         }
     );
 }

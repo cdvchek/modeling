@@ -170,6 +170,19 @@ LRESULT WindowCallback::handleMouseWheel(Window::Impl* impl, WPARAM w_param, LPA
     return 0;
 }
 
+LRESULT WindowCallback::handleSize(Window::Impl* impl, WPARAM w_param, LPARAM l_param) {
+    if (!impl) return 0;
+
+    impl->width = LOWORD(l_param);
+    impl->height = HIWORD(l_param);
+
+    if (impl->events) {
+        impl->events->trigger(Event::WindowResize{ impl->width, impl->height });
+    }
+
+    return 0;
+}
+
 LRESULT WindowCallback::handleClose(Window::Impl* impl, WPARAM w_param, LPARAM l_param) {
     if (impl && impl->events) {
         impl->events->trigger(Event::Quit{});

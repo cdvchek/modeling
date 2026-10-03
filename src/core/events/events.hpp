@@ -14,6 +14,7 @@ enum class EventType : u8 {
     MouseButtonDown,
     MouseButtonUp,
     MouseWheel,
+    WindowResize,
     Quit,
 
     Count
@@ -52,6 +53,12 @@ namespace Event {
 
     struct MouseWheel { EVENT_TYPE(MouseWheel);
         i32 delta;
+    };
+
+    // Client area size in pixels. Both are 0 while the window is minimized.
+    struct WindowResize { EVENT_TYPE(WindowResize);
+        u32 width;
+        u32 height;
     };
 
     struct Quit { EVENT_TYPE(Quit); };

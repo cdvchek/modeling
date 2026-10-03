@@ -78,7 +78,7 @@ public:
     void setFacesDirtyByEdge(EdgeHandle handle) const;
     void setFacesDirtyByFace(FaceHandle handle) const;
 
-    // ---- Operators (mesh_data_ops.cpp, mesh_data_merge.cpp) ----
+    // ---- Operators (mesh_data_ops.cpp, mesh_data_merge.cpp, mesh_data_dissolve.cpp) ----
     // Complete edits. The mesh must be valid before and after each call.
 
     FaceHandle insertFaceRing(FaceHandle handle);
@@ -91,6 +91,10 @@ public:
     bool fillFaceLoop(EdgeHandle handle);
     bool connectVertices(VertexHandle a, VertexHandle b);
     bool mergeVertices(VertexHandle a, VertexHandle b, u8 mergeType);
+
+    VertexHandle dissolveEdge(EdgeHandle handle);
+    VertexHandle dissolveFace(FaceHandle handle);
+
 
     // ---- GPU export (mesh_data_gpu.cpp) ----
     // Flatten the mesh into buffers for rendering.
@@ -152,6 +156,12 @@ private:
     // Removes one half of the collapsing edge from its loop. A triangle on that
     // side is deleted and its apex is added to apexes.
     void collapseSide(EdgeHandle side, std::vector<VertexHandle>& apexes);
+
+    // ---- Dissolve helpers (mesh_data_dissolve.cpp) ----
+
+    // Removes an edge between two different faces and merges them into one.
+    bool joinFaces(EdgeHandle handle);
+
 
     MeshArray<Vertex, VertexHandle> m_vertices;
     MeshArray<Edge, EdgeHandle> m_edges;

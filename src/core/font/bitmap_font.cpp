@@ -1,6 +1,7 @@
 #include "core/font/bitmap_font.hpp"
 
 #include <fstream>
+#include <sstream>
 
 
 static bool hexToAlpha(char c, u8& alpha) {
@@ -34,6 +35,22 @@ bool BitmapFont::load(const std::string& path) {
     if (!file.is_open()) {
         return false;
     }
+
+    return parse(file);
+}
+
+
+bool BitmapFont::loadFromMemory(const unsigned char* data, std::size_t size) {
+
+    std::istringstream stream(
+        std::string(reinterpret_cast<const char*>(data), size)
+    );
+
+    return parse(stream);
+}
+
+
+bool BitmapFont::parse(std::istream& file) {
 
 
     // --------------------------------

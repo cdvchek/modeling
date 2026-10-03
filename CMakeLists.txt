@@ -22,6 +22,7 @@ set(COMMON_SRC
     src/core/console/command_system.cpp
     src/core/console/console.cpp
     src/core/font/bitmap_font.cpp
+    src/core/font/embedded_fonts.cpp
     src/core/input/input_state.cpp
     src/core/input/action_map.cpp
     src/core/input/context_manager.cpp
@@ -47,6 +48,7 @@ set(COMMON_SRC
     src/scene/mesh/mesh_data_primitives.cpp
     src/scene/mesh/mesh_data_ops.cpp
     src/scene/mesh/mesh_data_merge.cpp
+    src/scene/mesh/mesh_data_dissolve.cpp
     src/scene/mesh/mesh_data_validate.cpp
     src/scene/mesh/mesh_data_gpu.cpp
     src/scene/selection/ray.cpp
@@ -67,6 +69,9 @@ target_include_directories(modeling PRIVATE
     ${CMAKE_SOURCE_DIR}/src
     ${CMAKE_SOURCE_DIR}/include
 )
+
+# Lets #embed <...> find files under assets/ (see embedded_fonts.cpp).
+target_compile_options(modeling PRIVATE --embed-dir=${CMAKE_SOURCE_DIR}/assets)
 
 target_link_libraries(modeling PRIVATE
     opengl32

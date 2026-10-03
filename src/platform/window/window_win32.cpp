@@ -35,6 +35,7 @@ bool Window::initialize(EventDispatcher* event_dispatcher) {
     wc.lpfnWndProc = windowProc;
     wc.hInstance = h_instance;
     wc.lpszClassName = class_name;
+    wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
 
     RegisterClassW(&wc);
 
@@ -161,6 +162,8 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
             return WindowCallback::handleMouseXButtonUp(impl, wParam, lParam);
         case WM_MOUSEWHEEL:
             return WindowCallback::handleMouseWheel(impl, wParam, lParam);
+        case WM_SIZE:
+            return WindowCallback::handleSize(impl, wParam, lParam);
         case WM_CLOSE:
             return WindowCallback::handleClose(impl, wParam, lParam);
     }
