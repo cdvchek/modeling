@@ -9,6 +9,7 @@
 #include "renderer/renderer.hpp"
 #include "renderer/debug_renderer.hpp"
 #include "scene/scene.hpp"
+#include "scene/history.hpp"
 
 struct AppContext {
     Systems systems;
@@ -17,6 +18,7 @@ struct AppContext {
     std::vector<std::unique_ptr<Window>> windows;
     Scene scene;
     BevelTool bevel;
+    History history;
 
     bool is_running = false;
 };

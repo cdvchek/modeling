@@ -39,6 +39,8 @@ enum class Action : u8 {
     BevelSelection,
     ConfirmBevel,
     CancelBevel,
+    Undo,
+    Redo,
     XAxis,
     YAxis,
     ZAxis,

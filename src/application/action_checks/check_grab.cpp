@@ -115,6 +115,8 @@ void checkGrabContext(AppContext& ctx) {
             ctx.systems.input,
             ctx.systems.input_ctx.getContext())) {
 
+        ctx.history.commit();
+
         ctx.systems.input_ctx.setContext(
             ctx.systems.input_ctx.getSelectionContext()
         );
@@ -147,6 +149,8 @@ void checkGrabContext(AppContext& ctx) {
 
             obj.meshDirty = true;
         }
+
+        ctx.history.cancel(ctx.scene);
 
         ctx.systems.input_ctx.setContext(
             ctx.systems.input_ctx.getSelectionContext()

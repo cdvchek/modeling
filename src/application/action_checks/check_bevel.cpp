@@ -56,6 +56,7 @@ void beginBevel(AppContext& ctx) {
 
         bevel.objectIndex = selected.objectIndex;
         bevel.pivot = mesh.getVertexPosition(selected.vertex);
+        ctx.history.begin(ctx.scene);
         started = mesh.bevelVertex(selected.vertex, bevel.session);
     } else if (mode == InputContext_SelectionEdge) {
         if (selection.getEdges().size() != 1) return;
@@ -67,6 +68,7 @@ void beginBevel(AppContext& ctx) {
         bevel.pivot =
             (mesh.getVertexPosition(mesh.getEdgeOrigin(selected.edge)) +
              mesh.getVertexPosition(mesh.getEdgeTip(selected.edge))) / 2.0f;
+        ctx.history.begin(ctx.scene);
         started = mesh.bevelEdge(selected.edge, bevel.session);
     } else if (mode == InputContext_SelectionFace) {
         if (selection.getFaces().size() != 1) return;
@@ -80,10 +82,12 @@ void beginBevel(AppContext& ctx) {
 
         bevel.objectIndex = selected.objectIndex;
         bevel.pivot = center / static_cast<f32>(corners.size());
+        ctx.history.begin(ctx.scene);
         started = mesh.bevelFace(selected.face, bevel.session);
     }
 
     if (!started) {
+        ctx.history.cancel(ctx.scene);
         std::cout << "bevel: can't bevel this (borders aren't supported yet)" << std::endl;
         return;
     }
@@ -126,6 +130,8 @@ void checkBevelContext(AppContext& ctx) {
             ctx.systems.input,
             ctx.systems.input_ctx.getContext())) {
 
+        ctx.history.commit();
+
         ctx.systems.input_ctx.setContext(
             ctx.systems.input_ctx.getSelectionContext()
         );
@@ -140,6 +146,8 @@ void checkBevelContext(AppContext& ctx) {
         object.meshDirty = true;
 
         ctx.scene.selection = bevel.savedSelection;
+
+        ctx.history.cancel(ctx.scene);
 
         ctx.systems.input_ctx.setContext(
             ctx.systems.input_ctx.getSelectionContext()

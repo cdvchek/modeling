@@ -162,6 +162,20 @@ namespace DefaultKeybinds {
         }
     };
 
+    inline Keybind Undo {
+        {
+            key(Key::LeftCtrl),
+            key(Key::Z)
+        }
+    };
+
+    inline Keybind Redo {
+        {
+            key(Key::LeftCtrl),
+            key(Key::Y)
+        }
+    };
+
     inline Keybind GrabSelection {
         {
             key(Key::G)

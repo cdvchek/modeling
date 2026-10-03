@@ -143,6 +143,8 @@ void checkRotateContext(AppContext& ctx) {
             ctx.systems.input_ctx.getContext()
         )) {
 
+        ctx.history.commit();
+
         ctx.systems.input_ctx.setContext(
             ctx.systems.input_ctx.getSelectionContext()
         );
@@ -181,6 +183,8 @@ void checkRotateContext(AppContext& ctx) {
 
             object.meshDirty = true;
         }
+
+        ctx.history.cancel(ctx.scene);
 
         ctx.systems.input_ctx.setContext(
             ctx.systems.input_ctx.getSelectionContext()

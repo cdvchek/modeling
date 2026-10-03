@@ -67,8 +67,13 @@ void Application::registerCommands(AppContext& ctx) {
                     const VertexHandle a = selectedVerts[0];
                     const VertexHandle b = selectedVerts[1];
 
+                    ctx.history.begin(ctx.scene);
+
                     if (ctx.scene.objects.get(0).meshData.mergeVertices(a, b, mergeType)) {
                         ctx.scene.selection.removeVertex(0, b);
+                        ctx.history.commit();
+                    } else {
+                        ctx.history.cancel(ctx.scene);
                     }
 
                     ctx.scene.objects.get(0).meshDirty = true;
@@ -90,23 +95,28 @@ void Application::registerCommands(AppContext& ctx) {
                 const std::vector<EdgeHandle> edges = ctx.scene.selection.getEdgeHandles();
                 if (edges.size() != 1) return;
 
+                ctx.history.begin(ctx.scene);
                 dissolved = mesh.isValidHandle(mesh.dissolveEdge(edges[0]));
             } else if (selectionContext == InputContext_SelectionFace) {
                 const std::vector<FaceHandle> faces = ctx.scene.selection.getFaceHandles();
                 if (faces.size() != 1) return;
 
+                ctx.history.begin(ctx.scene);
                 dissolved = mesh.isValidHandle(mesh.dissolveFace(faces[0]));
             } else {
                 return;
             }
 
             if (!dissolved) {
+                ctx.history.cancel(ctx.scene);
                 std::cout << "dissolve: can't collapse this without breaking the mesh" << std::endl;
                 return;
             }
 
             ctx.scene.selection.clear();
             ctx.scene.objects.get(0).meshDirty = true;
+
+            ctx.history.commit();
         }
     );
 }

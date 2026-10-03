@@ -119,6 +119,9 @@ void checkSelectionContext(AppContext& ctx) {
     ContextManager& ictx = ctx.systems.input_ctx;
     Camera& camera = ctx.scene.camera;
 
+    if (actions.wasActionPressedThisFrame(Action::Undo, input, ictx.getContext())) ctx.history.undo(ctx.scene);
+    if (actions.wasActionPressedThisFrame(Action::Redo, input, ictx.getContext())) ctx.history.redo(ctx.scene);
+
     if (actions.wasActionPressedThisFrame(Action::VertexMode, input, ictx.getContext())) {
         ictx.setSelectionContext(InputContext_SelectionVertex);
         ctx.scene.selection.clear();
@@ -241,6 +244,7 @@ void checkSelectionContext(AppContext& ctx) {
             starts.push_back(ctx.scene.objects.get(0).meshData.getVertexPosition(handle));
         }
         ctx.scene.selection.setSelectionStartPositions(starts);
+        ctx.history.begin(ctx.scene);
         ictx.setContext(InputContext_Grab);
     }
 
@@ -251,6 +255,7 @@ void checkSelectionContext(AppContext& ctx) {
             starts.push_back(ctx.scene.objects.get(0).meshData.getVertexPosition(handle));
         }
         ctx.scene.selection.setSelectionStartPositions(starts);
+        ctx.history.begin(ctx.scene);
         ictx.setContext(InputContext_Scale);
     }
 
@@ -261,6 +266,7 @@ void checkSelectionContext(AppContext& ctx) {
             starts.push_back(ctx.scene.objects.get(0).meshData.getVertexPosition(handle));
         }
         ctx.scene.selection.setSelectionStartPositions(starts);
+        ctx.history.begin(ctx.scene);
         ictx.setContext(InputContext_Rotate);
     }
 
@@ -272,7 +278,11 @@ void checkSelectionContext(AppContext& ctx) {
         if (actions.wasActionPressedThisFrame(Action::ConnectVertices, input, ictx.getContext())) {
             auto vertHandles = ctx.scene.selection.getVertexHandles();
             if (vertHandles.size() == 2) {
-                ctx.scene.objects.get(0).meshData.connectVertices(vertHandles[0], vertHandles[1]);
+                ctx.history.begin(ctx.scene);
+
+                if (ctx.scene.objects.get(0).meshData.connectVertices(vertHandles[0], vertHandles[1])) ctx.history.commit();
+                else ctx.history.cancel(ctx.scene);
+
                 ctx.scene.objects.get(0).meshDirty = true;
             }
         }
@@ -280,8 +290,12 @@ void checkSelectionContext(AppContext& ctx) {
 
     if (ctx.systems.input_ctx.getSelectionContext() == InputContext_SelectionEdge) {
         if (actions.wasActionPressedThisFrame(Action::FillFaceLoop, input, ictx.getContext())) {
-            if (!ctx.scene.objects.get(0).meshData.getEdgeHandles().empty()) {
-                ctx.scene.objects.get(0).meshData.fillFaceLoop(ctx.scene.selection.getEdgeHandles()[0]);
+            if (!ctx.scene.selection.getEdgeHandles().empty()) {
+                ctx.history.begin(ctx.scene);
+
+                if (ctx.scene.objects.get(0).meshData.fillFaceLoop(ctx.scene.selection.getEdgeHandles()[0])) ctx.history.commit();
+                else ctx.history.cancel(ctx.scene);
+
                 ctx.scene.objects.get(0).meshDirty = true;
             }
         }
@@ -291,7 +305,9 @@ void checkSelectionContext(AppContext& ctx) {
         bool extruding = actions.wasActionPressedThisFrame(Action::ExtrudeSelection, input, ictx.getContext());
         bool insetting = actions.wasActionPressedThisFrame(Action::InsetSelection, input, ictx.getContext());
         if (extruding || insetting) {
-            if (!ctx.scene.objects.get(0).meshData.getFaceHandles().empty()) {
+            if (!ctx.scene.selection.getFaceHandles().empty()) {
+                ctx.history.begin(ctx.scene);
+
                 FaceHandle newFace = ctx.scene.objects.get(0).meshData.insertFaceRing(ctx.scene.selection.getFaceHandles()[0]);
         
                 ctx.scene.selection.clear();
@@ -314,7 +330,9 @@ void checkSelectionContext(AppContext& ctx) {
         }
     }
 
-    if (actions.wasActionPressedThisFrame(Action::DeleteSelection, input, ictx.getContext())) {
+    if (ctx.scene.selection.hasVertices() && actions.wasActionPressedThisFrame(Action::DeleteSelection, input, ictx.getContext())) {
+        ctx.history.begin(ctx.scene);
+
         u32 selectionCtx = ctx.systems.input_ctx.getSelectionContext();
 
         if (selectionCtx == InputContext_SelectionVertex) {
@@ -333,5 +351,7 @@ void checkSelectionContext(AppContext& ctx) {
 
         ctx.scene.objects.get(0).meshDirty = true;
         ctx.scene.selection.clear();
+
+        ctx.history.commit();
     }
 }

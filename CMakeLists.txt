@@ -60,6 +60,7 @@ set(APP_SRC
     src/scene/selection/scene_queries.cpp
     src/scene/selection/selection.cpp
     src/scene/camera.cpp
+    src/scene/history.cpp
     src/scene/object_collection.cpp
     src/scene/transform.cpp
 )

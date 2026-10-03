@@ -42,4 +42,6 @@ void Application::registerDefaultActions(AppContext& ctx) {
     actions.subscribe(Action::BevelSelection,      DefaultKeybinds::BevelSelection,      InputContext_SelectionVertex | InputContext_SelectionEdge | InputContext_SelectionFace);
     actions.subscribe(Action::ConfirmBevel,        DefaultKeybinds::ConfirmBevel,        InputContext_Bevel);
     actions.subscribe(Action::CancelBevel,         DefaultKeybinds::CancelBevel,         InputContext_Bevel);
+    actions.subscribe(Action::Undo,                DefaultKeybinds::Undo,                InputContext_SelectionVertex | InputContext_SelectionEdge | InputContext_SelectionFace);
+    actions.subscribe(Action::Redo,                DefaultKeybinds::Redo,                InputContext_SelectionVertex | InputContext_SelectionEdge | InputContext_SelectionFace);
 }

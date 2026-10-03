@@ -177,6 +177,8 @@ void checkScaleContext(AppContext& ctx) {
             ctx.systems.input_ctx.getContext()
         )) {
 
+        ctx.history.commit();
+
         ctx.systems.input_ctx.setContext(
             ctx.systems.input_ctx.getSelectionContext()
         );
@@ -215,6 +217,8 @@ void checkScaleContext(AppContext& ctx) {
 
             object.meshDirty = true;
         }
+
+        ctx.history.cancel(ctx.scene);
 
         ctx.systems.input_ctx.setContext(
             ctx.systems.input_ctx.getSelectionContext()
