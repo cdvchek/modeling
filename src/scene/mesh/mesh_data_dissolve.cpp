@@ -20,9 +20,9 @@ VertexHandle MeshData::dissolveFace(FaceHandle handle) {
     center /= static_cast<f32>(corners.size());
 
     // A collapse can be refused partway through; restore the mesh if it is.
-    const MeshArray<Vertex, VertexHandle> savedVertices = m_vertices;
-    const MeshArray<Edge, EdgeHandle> savedEdges = m_edges;
-    const MeshArray<Face, FaceHandle> savedFaces = m_faces;
+    const DynamicArray<Vertex, VertexHandle> savedVertices = m_vertices;
+    const DynamicArray<Edge, EdgeHandle> savedEdges = m_edges;
+    const DynamicArray<Face, FaceHandle> savedFaces = m_faces;
 
     // Merge each corner into the first one, walking around the face.
     const VertexHandle survivor = corners[0];

@@ -39,4 +39,5 @@ struct Mat4 {
     );
 
     static Mat4 inverse(const Mat4& matrix);
+    static Mat4 transpose(const Mat4& matrix);
 };

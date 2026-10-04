@@ -7,7 +7,7 @@ Camera::Camera()
       distance(3.0f),
       fovRadians(1.04719755f), // 60 degrees
       nearPlane(0.1f),
-      farPlane(100.0f) {}
+      farPlane(1000.0f) {}
 
 void Camera::updatePositionFromOrbit() {
     f32 cosPitch = std::cos(pitch);

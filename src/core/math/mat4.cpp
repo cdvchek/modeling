@@ -313,3 +313,15 @@ Mat4 Mat4::inverse(const Mat4& matrix) {
 
     return result;
 }
+
+Mat4 Mat4::transpose(const Mat4& matrix) {
+    Mat4 result;
+
+    for (u32 column = 0; column < 4; ++column) {
+        for (u32 row = 0; row < 4; ++row) {
+            result[row][column] = matrix[column][row];
+        }
+    }
+
+    return result;
+}

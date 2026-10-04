@@ -5,6 +5,7 @@
 
 #include "scene/mesh/mesh_data.hpp"
 #include "scene/transform.hpp"
+#include "scene/lights/light_collection.hpp"
 #include "scene/selection/selection.hpp"
 
 struct Scene;
@@ -23,6 +24,7 @@ private:
     struct State {
         std::vector<MeshData> meshes;
         std::vector<Transform> transforms;
+        LightCollection lights;
         Selection selection;
     };
 

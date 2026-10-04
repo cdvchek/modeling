@@ -1,0 +1,43 @@
+# Math
+
+Small hand-written vector and matrix types. Part of `modeling_core`.
+
+Files: `src/core/math/`
+
+## Vectors
+
+`Vec2`, `Vec3`, `Vec4` ([vec3.hpp](../../src/core/math/vec3.hpp) etc.) are plain structs of `f32` components.
+
+| Feature | Vec2 | Vec3 | Vec4 |
+|---|---|---|---|
+| Constructors `()`, `(x, y, …)`, `(n)` (fill) | ✓ | ✓ | ✓ |
+| `+ - * / -v`, `+= -=` | ✓ | ✓ | ✓ |
+| `*= /=` | | ✓ | |
+| `length()`, `normalized()` | | ✓ | |
+| `dot(a, b)` (static) | | ✓ | ✓ |
+| `cross(a, b)` (static) | | ✓ | |
+
+`*` and `/` take a scalar; there's no component-wise vector multiply.
+
+## Mat4
+
+[mat4.hpp](../../src/core/math/mat4.hpp)
+
+Column-major `f32 m[16]`, laid out the way OpenGL expects, so `m` uploads directly with `glUniformMatrix4fv(..., GL_FALSE, m)`. `matrix[c]` returns column `c`.
+
+| Function | Description |
+|---|---|
+| `Mat4()` / `identity()` | Identity |
+| `operator*(Mat4)` / `operator*(Vec4)` | Matrix product / transform a point or vector |
+| `translation(v)`, `scale(v)` | Affine builders |
+| `rotationX/Y/Z(radians)` | Rotation about one axis |
+| `perspective(fov, aspect, near, far)` | OpenGL-style projection (clip z in −1…1) |
+| `lookAt(eye, target, up)` | View matrix |
+| `inverse(m)` | General 4×4 inverse. Used for mouse rays, the grid, and the normal matrix. |
+| `transpose(m)` | Swaps rows and columns. `transpose(inverse(model))` is the normal matrix for lighting. |
+
+Transforms compose right to left: `projection * view * model * point`.
+
+## Utilities
+
+[math_utils.hpp](../../src/core/math/math_utils.hpp) provides `Math::EPSILON` (1e-6), `PI`, `TWO_PI`, and `HALF_PI`.

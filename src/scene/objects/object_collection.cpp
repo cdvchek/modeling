@@ -1,4 +1,4 @@
-#include "scene/object_collection.hpp"
+#include "scene/objects/object_collection.hpp"
 
 Object& ObjectCollection::create(const std::string& name, PresetMesh meshType) {
     Object object;

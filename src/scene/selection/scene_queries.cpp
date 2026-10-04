@@ -4,7 +4,7 @@
 #include <algorithm>
 
 #include "scene/scene.hpp"
-#include "scene/object_collection.hpp"
+#include "scene/objects/object_collection.hpp"
 #include "scene/mesh/mesh_data.hpp"
 #include "core/math/vec4.hpp"
 #include "core/math/math_utils.hpp"

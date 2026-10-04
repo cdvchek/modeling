@@ -21,20 +21,9 @@ struct Handle {
     bool isNull() const { return index == INVALID_INDEX; }
 };
 
-struct VertexTag {};
-struct EdgeTag {};
-struct FaceTag {};
-
-using VertexHandle = Handle<VertexTag>;
-using EdgeHandle   = Handle<EdgeTag>;
-using FaceHandle   = Handle<FaceTag>;
-
-constexpr VertexHandle INVALID_VERTEX { INVALID_INDEX, 0 };
-constexpr EdgeHandle INVALID_EDGE { INVALID_INDEX, 0 };
-constexpr FaceHandle INVALID_FACE { INVALID_INDEX, 0 };
-
-template <typename T, typename HandleT>
-class MeshArray {
+// Generational slot array; HandleT defaults to Handle<T> so any type gets its own handle
+template <typename T, typename HandleT = Handle<T>>
+class DynamicArray {
 public:
     HandleT insert(const T& value);
 
@@ -64,7 +53,7 @@ private:
 };
 
 template <typename T, typename HandleT>
-HandleT MeshArray<T, HandleT>::insert(const T& value) {
+HandleT DynamicArray<T, HandleT>::insert(const T& value) {
     if (!m_freeSlots.empty()) {
         const u32 index = m_freeSlots.back();
         m_freeSlots.pop_back();
@@ -97,7 +86,7 @@ HandleT MeshArray<T, HandleT>::insert(const T& value) {
 }
 
 template <typename T, typename HandleT>
-void MeshArray<T, HandleT>::remove(HandleT handle) {
+void DynamicArray<T, HandleT>::remove(HandleT handle) {
     if (!isValid(handle)) return;
 
     Slot<T>& slot = m_slots[handle.index];
@@ -112,7 +101,7 @@ void MeshArray<T, HandleT>::remove(HandleT handle) {
 }
 
 template <typename T, typename HandleT>
-bool MeshArray<T, HandleT>::isValid(HandleT handle) const {
+bool DynamicArray<T, HandleT>::isValid(HandleT handle) const {
     if (handle.index >= m_slots.size()) return false;
 
     const Slot<T>& slot = m_slots[handle.index];
@@ -121,31 +110,31 @@ bool MeshArray<T, HandleT>::isValid(HandleT handle) const {
 }
 
 template <typename T, typename HandleT>
-T& MeshArray<T, HandleT>::get(HandleT handle) {
+T& DynamicArray<T, HandleT>::get(HandleT handle) {
     assert(isValid(handle));
     return m_slots[handle.index].value;
 }
 
 template <typename T, typename HandleT>
-const T& MeshArray<T, HandleT>::get(HandleT handle) const {
+const T& DynamicArray<T, HandleT>::get(HandleT handle) const {
     assert(isValid(handle));
     return m_slots[handle.index].value;
 }
 
 template <typename T, typename HandleT>
-T* MeshArray<T, HandleT>::tryGet(HandleT handle) {
+T* DynamicArray<T, HandleT>::tryGet(HandleT handle) {
     if (isValid(handle)) return &m_slots[handle.index].value;
     return nullptr;
 }
 
 template <typename T, typename HandleT>
-const T* MeshArray<T, HandleT>::tryGet(HandleT handle) const {
+const T* DynamicArray<T, HandleT>::tryGet(HandleT handle) const {
     if (isValid(handle)) return &m_slots[handle.index].value;
     return nullptr;
 }
 
 template <typename T, typename HandleT>
-HandleT MeshArray<T, HandleT>::getHandle(u32 index) const {
+HandleT DynamicArray<T, HandleT>::getHandle(u32 index) const {
     assert(index < m_slots.size());
 
     const Slot<T>& slot = m_slots[index];
@@ -161,7 +150,7 @@ HandleT MeshArray<T, HandleT>::getHandle(u32 index) const {
 }
 
 template <typename T, typename HandleT>
-std::vector<HandleT> MeshArray<T, HandleT>::getActiveHandles() const {
+std::vector<HandleT> DynamicArray<T, HandleT>::getActiveHandles() const {
     std::vector<HandleT> handles;
     handles.reserve(m_activeCount);
 
@@ -182,7 +171,7 @@ std::vector<HandleT> MeshArray<T, HandleT>::getActiveHandles() const {
 }
 
 template <typename T, typename HandleT>
-std::vector<T> MeshArray<T, HandleT>::getActiveValues() const {
+std::vector<T> DynamicArray<T, HandleT>::getActiveValues() const {
     std::vector<T> values;
     values.reserve(m_activeCount);
 
@@ -198,11 +187,11 @@ std::vector<T> MeshArray<T, HandleT>::getActiveValues() const {
 }
 
 template <typename T, typename HandleT>
-u32 MeshArray<T, HandleT>::size() const {
+u32 DynamicArray<T, HandleT>::size() const {
     return static_cast<u32>(m_slots.size());
 }
 
 template <typename T, typename HandleT>
-u32 MeshArray<T, HandleT>::activeSize() const {
+u32 DynamicArray<T, HandleT>::activeSize() const {
     return m_activeCount;
 }

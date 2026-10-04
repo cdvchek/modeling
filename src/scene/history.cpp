@@ -56,6 +56,7 @@ History::State History::capture(const Scene& scene) {
         state.transforms.push_back(object.transform);
     }
 
+    state.lights = scene.lights;
     state.selection = scene.selection;
 
     return state;
@@ -71,5 +72,6 @@ void History::restore(Scene& scene, const State& state) {
         object.meshDirty = true;
     }
 
+    scene.lights = state.lights;
     scene.selection = state.selection;
 }

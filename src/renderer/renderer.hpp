@@ -39,6 +39,23 @@ struct ClearState {
     bool clearStencil = false;
 };
 
+constexpr u32 MAX_DIRECTIONAL_LIGHTS = 4;
+
+struct BackgroundGradient {
+    Vec3 top { 0.24f, 0.24f, 0.26f };
+    Vec3 bottom { 0.11f, 0.11f, 0.12f };
+};
+
+struct LightingState {
+    Vec3 ambientColor { 1.0f, 1.0f, 1.0f };
+    f32 ambientStrength = 1.0f;
+
+    // Directions are normalized and point the way the light travels; colors include intensity
+    Vec3 directionalDirections[MAX_DIRECTIONAL_LIGHTS];
+    Vec3 directionalColors[MAX_DIRECTIONAL_LIGHTS];
+    u32 directionalCount = 0;
+};
+
 struct DrawCommand {
     bool showVerts = true;
     bool showEdges = true;
@@ -49,6 +66,7 @@ struct DrawCommand {
     std::vector<FaceHandle> highlightedFaces;
 
     IMesh* mesh = nullptr;
+    Mat4 model;
     Mat4 mvp;
 };
 
@@ -68,6 +86,13 @@ struct DrawText3DCommand {
     const Mat4& mvp;
 };
 
+struct DrawGridCommand {
+    Mat4 viewProjection;
+    Vec3 cameraPosition;
+    f32 cameraDistance;
+    f32 farPlane;
+};
+
 class IRenderer {
 public:
     virtual ~IRenderer() = default;
@@ -80,9 +105,15 @@ public:
 
     virtual void beginFrame() = 0;
     virtual void beginMainPass(const ClearState& clearState) = 0;
+    virtual void setLighting(const LightingState& lighting) = 0;
+    virtual void setBackground(const BackgroundGradient& background) = 0;
+    virtual BackgroundGradient getBackground() const = 0;
+    virtual void setBackFaceTint(const Vec3& tint) = 0;
+    virtual Vec3 getBackFaceTint() const = 0;
     virtual void draw(const DrawCommand& command) = 0;
     virtual void drawText(const DrawTextCommand& command) = 0;
     virtual void drawText3D(const DrawText3DCommand& command) = 0;
+    virtual void drawGrid(const DrawGridCommand& command) = 0;
     virtual void drawDebugLine(const Vec3& start, const Vec3& end, const Mat4& mvp) = 0;
     virtual void drawConsoleBackground() = 0;
     virtual void endMainPass() = 0;

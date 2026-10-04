@@ -5,6 +5,7 @@
 
 #include "application/app_systems.hpp"
 #include "application/bevel_tool.hpp"
+#include "application/viewport_settings.hpp"
 #include "platform/window/window.hpp"
 #include "renderer/renderer.hpp"
 #include "renderer/debug_renderer.hpp"
@@ -19,6 +20,7 @@ struct AppContext {
     Scene scene;
     BevelTool bevel;
     History history;
+    ViewportSettings viewport;
 
     bool is_running = false;
 };

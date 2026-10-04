@@ -23,6 +23,7 @@ set(CORE_SRC
     src/scene/mesh/mesh_data_bevel.cpp
     src/scene/mesh/mesh_data_validate.cpp
     src/scene/mesh/mesh_data_gpu.cpp
+    src/scene/lights/light_collection.cpp
 )
 
 set(APP_SRC
@@ -53,7 +54,8 @@ set(APP_SRC
     src/renderer/opengl/opengl_font.cpp
     src/renderer/opengl/opengl_mesh.cpp
     src/renderer/opengl/opengl_renderer_common.cpp
-    src/renderer/opengl/opengl_shader.cpp
+    src/renderer/opengl/shaders/opengl_shader.cpp
+    src/renderer/opengl/shaders/opengl_shader_library.cpp
     src/renderer/debug_renderer.cpp
     src/renderer/renderer.cpp
     src/scene/selection/ray.cpp
@@ -61,7 +63,7 @@ set(APP_SRC
     src/scene/selection/selection.cpp
     src/scene/camera.cpp
     src/scene/history.cpp
-    src/scene/object_collection.cpp
+    src/scene/objects/object_collection.cpp
     src/scene/transform.cpp
 )
 

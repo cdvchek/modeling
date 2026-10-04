@@ -3,7 +3,7 @@
 #include <types>
 #include <cfloat>
 
-#include "scene/mesh/mesh_array.hpp"
+#include "scene/mesh/mesh_handles.hpp"
 #include "scene/selection/ray.hpp"
 
 struct Scene;

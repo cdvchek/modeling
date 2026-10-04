@@ -4,7 +4,7 @@
 #include <vector>
 #include <unordered_map>
 
-#include "scene/mesh/mesh_array.hpp"
+#include "scene/mesh/mesh_handles.hpp"
 #include "scene/mesh/mesh_data.hpp"
 #include "renderer/gpu_mesh.hpp"
 
@@ -24,9 +24,14 @@ public:
 private:
     void bind() const;
 
+    void upload(const MeshData& mesh);
+
     u32 m_vao = 0;
     u32 m_vbo = 0;
     u32 m_edgeEbo = 0;
+
+    u32 m_faceVao = 0;
+    u32 m_faceVbo = 0;
     u32 m_faceEbo = 0;
 
     u32 m_vCount = 0;

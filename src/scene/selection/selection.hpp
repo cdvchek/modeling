@@ -4,7 +4,7 @@
 
 #include <vector>
 
-#include "scene/mesh/mesh_array.hpp"
+#include "scene/mesh/mesh_handles.hpp"
 #include "core/math/vec3.hpp"
 
 struct VertexSelection {

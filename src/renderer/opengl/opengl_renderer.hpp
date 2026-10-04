@@ -3,7 +3,7 @@
 #include <types>
 #include <memory>
 #include "renderer/renderer.hpp"
-#include "renderer/opengl/opengl_shader.hpp"
+#include "renderer/opengl/shaders/opengl_shader_library.hpp"
 #include "renderer/opengl/opengl_mesh.hpp"
 #include "renderer/opengl/opengl_font.hpp"
 
@@ -20,9 +20,15 @@ public:
     
     void beginFrame() override;
     void beginMainPass(const ClearState& clearState) override;
+    void setLighting(const LightingState& lighting) override;
+    void setBackground(const BackgroundGradient& background) override;
+    BackgroundGradient getBackground() const override;
+    void setBackFaceTint(const Vec3& tint) override;
+    Vec3 getBackFaceTint() const override;
     void draw(const DrawCommand& command) override;
     void drawText(const DrawTextCommand& command) override;
     void drawText3D(const DrawText3DCommand& command) override;
+    void drawGrid(const DrawGridCommand& command) override;
     void drawDebugLine(const Vec3& start, const Vec3& end, const Mat4& mvp) override;
     void drawConsoleBackground() override;
     void endMainPass() override;
@@ -33,7 +39,11 @@ public:
     const char* getBackendName() const override;
 
 private:
-    virtual void drawCharacter(const OpenGLFont& font, char character, f32 x, f32 y);
+    bool createResources();
+    void destroyResources();
+
+    void createRenderTargets(u32 width, u32 height);
+    void destroyRenderTargets();
 
     void* m_window = nullptr;
     void* m_surface = nullptr;
@@ -43,10 +53,10 @@ private:
     u32 m_height = 0;
     bool m_vsyncEnabled = true;
 
-    std::unique_ptr<OpenGLShader> m_testShader;
-    std::unique_ptr<OpenGLShader> m_consoleShader;
-    std::unique_ptr<OpenGLShader> m_textShader;
-    std::unique_ptr<OpenGLShader> m_text3DShader;
+    OpenGLShaderLibrary m_shaders;
+    LightingState m_lighting;
+    Vec3 m_backFaceTint { 0.8f, 0.4f, 0.4f };
+    BackgroundGradient m_background;
 
     OpenGLFont m_consoleFont;
 
@@ -58,6 +68,14 @@ private:
 
     u32 m_debugLineVAO = 0;
     u32 m_debugLineVBO = 0;
+
+    u32 m_fullscreenVAO = 0;
+
+    // Scene is drawn into a multisampled framebuffer and resolved to the window in endMainPass
+    u32 m_msaaFramebuffer = 0;
+    u32 m_msaaColor = 0;
+    u32 m_msaaDepth = 0;
+    i32 m_msaaSamples = 4;
     
     bool m_initialized = false;
 };

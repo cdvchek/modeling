@@ -21,6 +21,10 @@ The application is currently under active development.
 * Face extrusion
 * Polygon triangulation for rendering
 
+## Documentation
+
+Developer documentation (features, architecture, and a guide to each system) lives in [docs/](docs/README.md).
+
 ## Technology
 
 * **C++20**

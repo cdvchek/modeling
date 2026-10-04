@@ -5,7 +5,7 @@
 #include <types>
 
 #include "scene/mesh/mesh_types.hpp"
-#include "scene/mesh/mesh_array.hpp"
+#include "scene/mesh/mesh_handles.hpp"
 #include "core/math/vec2.hpp"
 
 struct VertexData {
@@ -19,14 +19,17 @@ struct EdgeData {
 };
 
 struct FaceData {
-    std::vector<u32> indexMap;
+    static constexpr u32 FLOATS_PER_VERTEX = 6;
+
+    std::vector<f32> vertices;    // x, y, z, nx, ny, nz per face corner
     std::vector<u32> indices;
+    std::vector<u32> indexMap;
 };
 
 struct BevelSession {
-    MeshArray<Vertex, VertexHandle> savedVertices;
-    MeshArray<Edge, EdgeHandle> savedEdges;
-    MeshArray<Face, FaceHandle> savedFaces;
+    DynamicArray<Vertex, VertexHandle> savedVertices;
+    DynamicArray<Edge, EdgeHandle> savedEdges;
+    DynamicArray<Face, FaceHandle> savedFaces;
 
     std::vector<VertexHandle> vertices;
     std::vector<Vec3> starts;
@@ -119,7 +122,7 @@ public:
 
     VertexData getVertexData() const;
     EdgeData getEdgeData(const VertexData& vertexData) const;
-    FaceData getFaceData(const VertexData& vertexData) const;
+    FaceData getFaceData() const;
 
 private:
     // ---- Topology queries (mesh_data_queries.cpp) ----
@@ -179,9 +182,9 @@ private:
     bool joinFaces(EdgeHandle handle);
 
 
-    MeshArray<Vertex, VertexHandle> m_vertices;
-    MeshArray<Edge, EdgeHandle> m_edges;
-    MeshArray<Face, FaceHandle> m_faces;
+    DynamicArray<Vertex, VertexHandle> m_vertices;
+    DynamicArray<Edge, EdgeHandle> m_edges;
+    DynamicArray<Face, FaceHandle> m_faces;
     
     bool m_dirty = true;
 };

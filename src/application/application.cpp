@@ -34,6 +34,35 @@ void Application::run(AppContext& ctx) {
     }
 }
 
+namespace {
+    LightingState buildLightingState(const LightCollection& lights, const Headlight& headlight, const Camera& camera) {
+        LightingState state;
+
+        const AmbientLight& ambient = lights.getAmbient();
+        state.ambientColor = ambient.color;
+        state.ambientStrength = ambient.strength;
+
+        // Headlight goes first so scene lights can never push it out
+        if (headlight.enabled) {
+            state.directionalDirections[0] = camera.getForward();
+            state.directionalColors[0] = headlight.color * headlight.strength;
+            state.directionalCount = 1;
+        }
+
+        for (LightHandle handle : lights.handles()) {
+            const Light& light = lights.get(handle);
+            if (!light.enabled || light.type != LightType::Directional) continue;
+            if (state.directionalCount == MAX_DIRECTIONAL_LIGHTS) break;
+
+            state.directionalDirections[state.directionalCount] = light.direction.normalized();
+            state.directionalColors[state.directionalCount] = light.color * light.intensity;
+            ++state.directionalCount;
+        }
+
+        return state;
+    }
+}
+
 void Application::renderFrame(AppContext& ctx) {
     u32 width = 0;
     u32 height = 0;
@@ -49,6 +78,8 @@ void Application::renderFrame(AppContext& ctx) {
     Mat4 view = ctx.scene.camera.getViewMatrix();
     Mat4 projection = ctx.scene.camera.getProjectionMatrix(aspectRatio);
     Mat4 viewProjection = projection * view;
+
+    ctx.renderer->setLighting(buildLightingState(ctx.scene.lights, ctx.viewport.headlight, ctx.scene.camera));
 
     for (u32 i = 0; i < ctx.scene.objects.count(); i++) {
         Object& object = ctx.scene.objects.get(i);
@@ -76,10 +107,19 @@ void Application::renderFrame(AppContext& ctx) {
         cmd.highlightedFaces = selection.getFaceHandles();
         
         cmd.mesh = &object.gpuMesh;
+        cmd.model = model;
         cmd.mvp = mvp;
 
         ctx.renderer->draw(cmd);
     }
+
+    DrawGridCommand gridCmd;
+    gridCmd.viewProjection = viewProjection;
+    gridCmd.cameraPosition = ctx.scene.camera.position;
+    gridCmd.cameraDistance = ctx.scene.camera.distance;
+    gridCmd.farPlane = ctx.scene.camera.farPlane;
+
+    ctx.renderer->drawGrid(gridCmd);
 
     if (ctx.systems.input_ctx.isActive(InputContext_Debug)) {
         ctx.debug_renderer.render(

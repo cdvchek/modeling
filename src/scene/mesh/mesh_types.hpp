@@ -1,7 +1,7 @@
 #pragma once
 
 #include "core/math/vec3.hpp"
-#include "scene/mesh/mesh_array.hpp"
+#include "scene/mesh/mesh_handles.hpp"
 
 #include <types>
 #include <vector>
@@ -37,9 +37,9 @@ struct Face {
 };
 
 struct PackagedMesh {
-    MeshArray<Vertex, VertexHandle> vertices;
-    MeshArray<Edge, EdgeHandle> edges;
-    MeshArray<Face, FaceHandle> faces;
+    DynamicArray<Vertex, VertexHandle> vertices;
+    DynamicArray<Edge, EdgeHandle> edges;
+    DynamicArray<Face, FaceHandle> faces;
 };
 
 enum class PresetMesh {

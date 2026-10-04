@@ -1,7 +1,7 @@
 #pragma once
 
 #include <types>
-#include "scene/mesh/mesh_array.hpp"
+#include "scene/mesh/mesh_handles.hpp"
 
 class IMesh {
 public:

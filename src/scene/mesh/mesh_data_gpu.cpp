@@ -91,11 +91,12 @@ EdgeData MeshData::getEdgeData(const VertexData& vertexData) const {
     return data;
 }
 
-FaceData MeshData::getFaceData(const VertexData& vertexData) const {
+FaceData MeshData::getFaceData() const {
     FaceData data;
 
     data.indexMap.resize(m_faces.size() * 2, INVALID_INDEX);
     data.indices.reserve(m_faces.activeSize() * 6);
+    data.vertices.reserve(m_faces.activeSize() * 4 * FaceData::FLOATS_PER_VERTEX);
 
     u32 indexCount = 0;
 
@@ -106,23 +107,46 @@ FaceData MeshData::getFaceData(const VertexData& vertexData) const {
             continue;
         }
 
+        // Each face gets its own corners so every corner carries the face normal
+        const std::vector<VertexHandle> corners = getFaceVertices(faceHandle);
+        const Vec3 normal = getFaceNormal(faceHandle);
+        const u32 firstCorner = static_cast<u32>(data.vertices.size() / FaceData::FLOATS_PER_VERTEX);
+
+        for (VertexHandle corner : corners) {
+            const Vec3 position = getVertexPosition(corner);
+
+            data.vertices.insert(data.vertices.end(), {
+                position.x, position.y, position.z,
+                normal.x, normal.y, normal.z
+            });
+        }
+
+        const auto cornerIndex = [&](VertexHandle vertex) {
+            for (u32 c = 0; c < corners.size(); ++c) {
+                if (corners[c] == vertex) return firstCorner + c;
+            }
+            return INVALID_INDEX;
+        };
+
         const auto& triangles = getFaceTriangles(faceHandle);
-
-        const u32 faceIndexCount =
-            static_cast<u32>(triangles.size()) * 3;
-
-        data.indexMap[i * 2]     = indexCount;
-        data.indexMap[i * 2 + 1] = faceIndexCount;
+        const u32 faceStart = static_cast<u32>(data.indices.size());
 
         for (const Triangle& triangle : triangles) {
-            const u32 v0 = vertexData.indexMap[triangle.v0.index];
-            const u32 v1 = vertexData.indexMap[triangle.v1.index];
-            const u32 v2 = vertexData.indexMap[triangle.v2.index];
+            const u32 v0 = cornerIndex(triangle.v0);
+            const u32 v1 = cornerIndex(triangle.v1);
+            const u32 v2 = cornerIndex(triangle.v2);
+
+            if (v0 == INVALID_INDEX || v1 == INVALID_INDEX || v2 == INVALID_INDEX) continue;
 
             data.indices.push_back(v0);
             data.indices.push_back(v1);
             data.indices.push_back(v2);
         }
+
+        const u32 faceIndexCount = static_cast<u32>(data.indices.size()) - faceStart;
+
+        data.indexMap[i * 2]     = indexCount;
+        data.indexMap[i * 2 + 1] = faceIndexCount;
 
         indexCount += faceIndexCount;
     }
