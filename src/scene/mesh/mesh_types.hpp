@@ -44,4 +44,12 @@ struct PackagedMesh {
 
 enum class PresetMesh {
     Cube,
+    Plane,
+    Grid,
+    Circle,
+    Cylinder,
+    Cone,
+    UVSphere,
+    IcoSphere,
+    Torus,
 };

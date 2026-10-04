@@ -42,6 +42,11 @@ std::vector<LightHandle> LightCollection::handles() const {
     return m_lights.getActiveHandles();
 }
 
+LightHandle LightCollection::handleAt(u32 slot) const {
+    if (slot >= m_lights.size()) return INVALID_LIGHT;
+    return m_lights.getHandle(slot);
+}
+
 u32 LightCollection::count() const {
     return m_lights.activeSize();
 }

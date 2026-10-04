@@ -21,7 +21,7 @@ struct EdgeData {
 struct FaceData {
     static constexpr u32 FLOATS_PER_VERTEX = 6;
 
-    std::vector<f32> vertices;    // x, y, z, nx, ny, nz per face corner
+    std::vector<f32> vertices;    // x, y, z, nx, ny, nz per triangle corner
     std::vector<u32> indices;
     std::vector<u32> indexMap;
 };

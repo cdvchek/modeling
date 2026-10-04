@@ -5,9 +5,15 @@ void MeshData::setMesh(PresetMesh meshType) {
     PackagedMesh pMesh;
 
     switch(meshType) {
-        case PresetMesh::Cube:
-            pMesh = MeshFactory::cube();
-            break;
+        case PresetMesh::Cube:      pMesh = MeshFactory::cube(); break;
+        case PresetMesh::Plane:     pMesh = MeshFactory::plane(); break;
+        case PresetMesh::Grid:      pMesh = MeshFactory::grid(); break;
+        case PresetMesh::Circle:    pMesh = MeshFactory::circle(); break;
+        case PresetMesh::Cylinder:  pMesh = MeshFactory::cylinder(); break;
+        case PresetMesh::Cone:      pMesh = MeshFactory::cone(); break;
+        case PresetMesh::UVSphere:  pMesh = MeshFactory::uvSphere(); break;
+        case PresetMesh::IcoSphere: pMesh = MeshFactory::icoSphere(); break;
+        case PresetMesh::Torus:     pMesh = MeshFactory::torus(); break;
     }
 
     m_vertices = pMesh.vertices;

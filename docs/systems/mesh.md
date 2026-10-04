@@ -19,7 +19,7 @@ Files: `src/scene/mesh/`
 | `mesh_data_bevel.cpp` | Vertex / edge / face bevel |
 | `mesh_data_validate.cpp` | Topology checker |
 | `mesh_data_gpu.cpp` | Flattening to vertex/index arrays for the renderer |
-| [mesh_factory.hpp](../../src/scene/mesh/mesh_factory.hpp), `presets/cube.cpp` | Built-in meshes |
+| [mesh_factory.hpp](../../src/scene/mesh/mesh_factory.hpp), `presets/*.cpp` | Built-in meshes and the `fromPolygons` builder |
 
 ## Handles and DynamicArray
 
@@ -86,7 +86,7 @@ Every operator must leave the mesh passing `validate()`, including when it fails
 
 | Function | Description |
 |---|---|
-| `setMesh(PresetMesh)` | Replaces the mesh with a preset (currently only `Cube`). |
+| `setMesh(PresetMesh)` | Replaces the mesh with a preset at its default settings (see [Presets](#presets)). |
 | `getVertex` / `getEdge` / `getFace(handle)` | Pointer to the element, or `nullptr` if the handle is invalid. |
 | `getVertices()` / `getFaces()` | Copies of all live elements. |
 | `getVertexHandles()` / `getEdgeHandles()` / `getFaceHandles()` | Handles of all live elements. Edge handles include both halves. |
@@ -170,7 +170,7 @@ Used by `OpenGLMesh` to build buffers. See [renderer.md](renderer.md#gpu-meshes)
 |---|---|
 | `getVertexData()` | Flat `x,y,z` positions for live vertices, plus `indexMap` from vertex slot index to GPU vertex index. |
 | `getEdgeData(vertexData)` | Line index pairs (one per edge, not per half-edge), plus a map from half-edge slot index to its offset in the index buffer. Both halves map to the same line. |
-| `getFaceData()` | Its own vertex buffer: every face's corners are written separately as `x, y, z, nx, ny, nz` (`FaceData::FLOATS_PER_VERTEX` = 6), with the face's `getFaceNormal` as the normal. That gives flat shading: a vertex shared by three faces appears three times with three normals. `indices` are the face triangulations into that buffer, wound counter-clockwise around the normal. `indexMap` holds `(offset, count)` pairs per face slot. |
+| `getFaceData()` | Its own vertex buffer: every triangle's three corners are written separately as `x, y, z, nx, ny, nz` (`FaceData::FLOATS_PER_VERTEX` = 6), with that triangle's own normal (cross product of its edges; a zero-area triangle uses the face's `getFaceNormal`). That gives flat shading per triangle: planar faces look the same as with one face normal, and a non-planar face shows its fold along the triangulation. `indices` run over that buffer in order, wound counter-clockwise around the normal. `indexMap` holds `(offset, count)` pairs per face slot. |
 
 ### Private primitives
 
@@ -189,4 +189,32 @@ Low-level steps used to build operators. They don't keep the mesh valid on their
 
 ## Presets
 
-`MeshFactory::cube()` returns a `PackagedMesh` (the three arrays), which `setMesh(PresetMesh::Cube)` copies in. To add a preset: add a value to `PresetMesh`, a `MeshFactory` function in `presets/`, a case in `setMesh`, and the new `.cpp` to `CORE_SRC`.
+Each preset is a `MeshFactory` function in `presets/` that returns a `PackagedMesh` (the three arrays); `setMesh(PresetMesh::...)` copies it in. All are centered on the origin and sized to match the 1-unit cube.
+
+| `PresetMesh` | Function (defaults) | Shape |
+|---|---|---|
+| `Cube` | `cube()` | 8 vertices, 6 quads |
+| `Plane` | `plane(size 1, divisions 1)` | One quad on the XZ plane facing +Y. Open: all edges are borders. |
+| `Grid` | `grid(size 2, divisions 10)` | `plane` with 10 × 10 quads |
+| `Circle` | `circle(radius 0.5, sides 32)` | A single 32-sided n-gon facing +Y. Open. |
+| `Cylinder` | `cylinder(radius 0.5, height 1, sides 16)` | 16 side quads plus two 16-sided n-gon caps |
+| `Cone` | `cone(radius 0.5, height 1, sides 16)` | 16 triangles meeting at an apex plus a 16-sided base |
+| `UVSphere` | `uvSphere(radius 0.5, segments 16, rings 8)` | Quads, with triangle fans at the poles |
+| `IcoSphere` | `icoSphere(radius 0.5, subdivisions 1)` | 80 triangles (icosahedron split once) |
+| `Torus` | `torus(major 0.4, minor 0.15, segments 24, sides 12)` | 288 quads; every loop wraps around |
+
+`setMesh` always uses the defaults; the parameters are there for a future add-object command.
+
+### fromPolygons
+
+`MeshFactory::fromPolygons(positions, faces)` builds a half-edge mesh from a vertex list and faces given as vertex indices, **counter-clockwise seen from outside** (so `getFaceNormal` points out). Every preset uses it.
+
+1. Inserts vertices in order, so a vertex's handle index equals its position index.
+2. Creates each face's half-edge loop.
+3. Pairs half-edges by their end vertices. A half-edge with no opposite gets a border half-edge (no face) as its pair.
+4. Links border half-edges into hole loops.
+5. Sets each vertex's outgoing edge, preferring a border one.
+
+It asserts if two faces use the same directed edge (inconsistent winding or a non-manifold edge) or a border doesn't close into a loop.
+
+To add a preset: write the function in a new `presets/*.cpp` using `fromPolygons`, declare it in `mesh_factory.hpp`, add a `PresetMesh` value and a `setMesh` case, add the file to `CORE_SRC`, and add a test to `preset_tests.cpp`.

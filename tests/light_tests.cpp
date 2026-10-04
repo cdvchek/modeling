@@ -52,3 +52,16 @@ TEST_CASE(light_ambient_clamps) {
     CHECK(lights.getAmbient().color.y == 0.5f);
     CHECK(lights.getAmbient().color.z == 1.0f);
 }
+
+TEST_CASE(light_handle_at_slot) {
+    LightCollection lights;
+    LightHandle first = lights.add(Light{});
+    LightHandle second = lights.add(Light{});
+
+    CHECK(lights.handleAt(first.index) == first);
+    CHECK(lights.handleAt(second.index) == second);
+    CHECK(!lights.isValid(lights.handleAt(99)));
+
+    lights.remove(first);
+    CHECK(!lights.isValid(lights.handleAt(first.index)));
+}

@@ -40,6 +40,7 @@ struct ClearState {
 };
 
 constexpr u32 MAX_DIRECTIONAL_LIGHTS = 4;
+constexpr u32 MAX_LOCAL_LIGHTS = 8;
 
 struct BackgroundGradient {
     Vec3 top { 0.24f, 0.24f, 0.26f };
@@ -54,6 +55,15 @@ struct LightingState {
     Vec3 directionalDirections[MAX_DIRECTIONAL_LIGHTS];
     Vec3 directionalColors[MAX_DIRECTIONAL_LIGHTS];
     u32 directionalCount = 0;
+
+    // Point and spot lights; point lights use cosInner = -1, cosOuter = -2 so the cone never cuts them off
+    Vec3 localPositions[MAX_LOCAL_LIGHTS];
+    Vec3 localDirections[MAX_LOCAL_LIGHTS];
+    Vec3 localColors[MAX_LOCAL_LIGHTS];
+    f32 localRanges[MAX_LOCAL_LIGHTS] = {};
+    f32 localCosInner[MAX_LOCAL_LIGHTS] = {};
+    f32 localCosOuter[MAX_LOCAL_LIGHTS] = {};
+    u32 localCount = 0;
 };
 
 struct DrawCommand {

@@ -109,6 +109,10 @@ void OpenGLShader::setFloat(const char* name, f32 value) {
     glUniform1f(getUniformLocation(name), value);
 }
 
+void OpenGLShader::setFloatArray(const char* name, const f32* values, u32 count) {
+    glUniform1fv(getUniformLocation(name), static_cast<GLsizei>(count), values);
+}
+
 void OpenGLShader::setInt(const char* name, i32 value) {
     glUniform1i(getUniformLocation(name), value);
 }

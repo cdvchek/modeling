@@ -1,10 +1,12 @@
 #include "application/application.hpp"
+
 #include "platform/window/window.hpp"
 #include "platform/platform.hpp"
 #include "application/action_checks/action_checks.hpp"
 #include "core/math/vec4.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <iostream>
 
 bool Application::initialize(AppContext& ctx) {
@@ -51,12 +53,34 @@ namespace {
 
         for (LightHandle handle : lights.handles()) {
             const Light& light = lights.get(handle);
-            if (!light.enabled || light.type != LightType::Directional) continue;
-            if (state.directionalCount == MAX_DIRECTIONAL_LIGHTS) break;
+            if (!light.enabled) continue;
 
-            state.directionalDirections[state.directionalCount] = light.direction.normalized();
-            state.directionalColors[state.directionalCount] = light.color * light.intensity;
-            ++state.directionalCount;
+            if (light.type == LightType::Directional) {
+                if (state.directionalCount == MAX_DIRECTIONAL_LIGHTS) continue;
+
+                state.directionalDirections[state.directionalCount] = light.direction.normalized();
+                state.directionalColors[state.directionalCount] = light.color * light.intensity;
+                ++state.directionalCount;
+                continue;
+            }
+
+            if (state.localCount == MAX_LOCAL_LIGHTS) continue;
+
+            const u32 i = state.localCount++;
+            state.localPositions[i] = light.position;
+            state.localColors[i] = light.color * light.intensity;
+            state.localRanges[i] = light.range;
+
+            if (light.type == LightType::Spot) {
+                state.localDirections[i] = light.direction.normalized();
+                state.localCosInner[i] = std::cos(light.innerConeRadians);
+                // smoothstep needs outer < inner
+                state.localCosOuter[i] = std::min(std::cos(light.outerConeRadians), state.localCosInner[i] - 1e-4f);
+            } else {
+                state.localDirections[i] = Vec3(0.0f, -1.0f, 0.0f);
+                state.localCosInner[i] = -1.0f;
+                state.localCosOuter[i] = -2.0f;
+            }
         }
 
         return state;

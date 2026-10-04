@@ -14,6 +14,8 @@ Files: `src/application/`
 | [application_events.cpp](../../src/application/application_events.cpp) | `registerInputEvents` |
 | [application_actions.cpp](../../src/application/application_actions.cpp) | `registerDefaultActions` |
 | [application_commands.cpp](../../src/application/application_commands.cpp) | `registerCommands` (see [console.md](console.md)) |
+| [light_commands.cpp](../../src/application/light_commands.cpp) | `runLightCommand`: everything behind the `light` command |
+| [command_parsing.hpp](../../src/application/command_parsing.hpp) | Argument parsers shared by commands: `parseFloat`, `parseUnitFloat` (0..1), `parseU32`, `parseVec3Args` |
 | [application_scene.cpp](../../src/application/application_scene.cpp) | `initializeCamera`, `loadTestScene` |
 | `action_checks/` | Per-context input handlers: the tools |
 | [bevel_tool.hpp](../../src/application/bevel_tool.hpp) | State kept while a bevel is in progress |

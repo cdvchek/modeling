@@ -1,66 +1,10 @@
 #include "application/application.hpp"
+#include "application/command_parsing.hpp"
+#include "application/light_commands.hpp"
 
 #include <iostream>
-#include <cstdlib>
 
 namespace {
-    bool parseUnitFloat(const std::string& text, f32& out) {
-        char* end = nullptr;
-        const f32 value = std::strtof(text.c_str(), &end);
-        if (end == text.c_str() || end != text.c_str() + text.size()) return false;
-        if (!(value >= 0.0f && value <= 1.0f)) return false;
-
-        out = value;
-        return true;
-    }
-
-    void printAmbient(const AmbientLight& ambient) {
-        std::cout << "[light ambient] color "
-                  << ambient.color.x << " " << ambient.color.y << " " << ambient.color.z
-                  << ", strength " << ambient.strength << std::endl;
-    }
-
-    void runLightAmbientCommand(AppContext& ctx, const CommandArgs& args) {
-        LightCollection& lights = ctx.scene.lights;
-
-        if (args.size() == 1) {
-            printAmbient(lights.getAmbient());
-            return;
-        }
-
-        const std::string& property = args[1];
-
-        if (property == "color") {
-            Vec3 color;
-            if (args.size() != 5
-                || !parseUnitFloat(args[2], color.x)
-                || !parseUnitFloat(args[3], color.y)
-                || !parseUnitFloat(args[4], color.z)) {
-                std::cout << "usage: light ambient color <r> <g> <b>  (each 0 to 1)" << std::endl;
-                return;
-            }
-
-            ctx.history.begin(ctx.scene);
-            lights.setAmbientColor(color);
-            ctx.history.commit();
-        } else if (property == "strength") {
-            f32 strength = 0.0f;
-            if (args.size() != 3 || !parseUnitFloat(args[2], strength)) {
-                std::cout << "usage: light ambient strength <0 to 1>" << std::endl;
-                return;
-            }
-
-            ctx.history.begin(ctx.scene);
-            lights.setAmbientStrength(strength);
-            ctx.history.commit();
-        } else {
-            std::cout << "light ambient: unknown property '" << property << "' (color, strength)" << std::endl;
-            return;
-        }
-
-        printAmbient(lights.getAmbient());
-    }
-
     void printHeadlight(const Headlight& headlight) {
         std::cout << "[headlight] " << (headlight.enabled ? "on" : "off")
                   << ", color " << headlight.color.x << " " << headlight.color.y << " " << headlight.color.z
@@ -192,18 +136,9 @@ void Application::registerCommands(AppContext& ctx) {
 
     ctx.systems.commands.registerCommand(
         "light",
-        "Edits scene lighting: light ambient [color r g b | strength s]",
+        "Manages scene lights: light list | ambient ... | add <type> | <id> <property> ...",
         [&ctx](const CommandArgs& args) {
-            if (args.empty()) {
-                std::cout << "usage: light ambient [color <r> <g> <b> | strength <s>]" << std::endl;
-                return;
-            }
-
-            if (args[0] == "ambient") {
-                runLightAmbientCommand(ctx, args);
-            } else {
-                std::cout << "light: unknown target '" << args[0] << "' (ambient)" << std::endl;
-            }
+            runLightCommand(ctx, args);
         }
     );
 

@@ -69,10 +69,15 @@ struct LightingState {
     Vec3 directionalDirections[MAX_DIRECTIONAL_LIGHTS];   // normalized, direction the light travels
     Vec3 directionalColors[MAX_DIRECTIONAL_LIGHTS];       // color × intensity
     u32 directionalCount;
+
+    // Point and spot lights share one array (MAX_LOCAL_LIGHTS = 8)
+    Vec3 localPositions[8], localDirections[8], localColors[8];   // colors include intensity
+    f32 localRanges[8], localCosInner[8], localCosOuter[8];       // cosines of the cone half-angles
+    u32 localCount;
 };
 ```
 
-`LightingState` is backend-neutral and doesn't depend on scene types. `buildLightingState` in [application.cpp](../../src/application/application.cpp) fills it each frame: the ambient light, then the camera headlight in slot 0 when it's on (direction = camera forward, color × strength, from `ctx.viewport.headlight`), then enabled directional lights from `scene.lights` in the remaining slots (3 with the headlight on, 4 with it off). Point and spot lights are ignored for now.
+`LightingState` is backend-neutral and doesn't depend on scene types. `buildLightingState` in [application.cpp](../../src/application/application.cpp) fills it each frame: the ambient light, then the camera headlight in slot 0 when it's on (direction = camera forward, color × strength, from `ctx.viewport.headlight`), then enabled directional lights from `scene.lights` in the remaining slots (3 with the headlight on, 4 with it off), then up to 8 enabled point and spot lights. Extra lights past either limit are skipped. A point light is stored as a spot light whose cone covers everything (`cosInner = -1`, `cosOuter = -2`), so the shader has one loop for both.
 
 `DrawTextCommand` and `DrawText3DCommand` hold references, so they must be used immediately, not stored.
 
@@ -90,13 +95,18 @@ Everything between `beginMainPass` and `endMainPass` is drawn into an offscreen 
 ### Object drawing
 
 `OpenGLRenderer::draw` uses the `Lit` shader for faces and `Unlit` for everything else:
-1. Highlighted faces in yellow (`Unlit`, so selection stays bright), then all faces with `Lit`, with polygon offset so edges draw on top. `Lit` computes `0.7 gray × (ambientColor × ambientStrength + Σ directionalColor × max(dot(normal, −direction), 0))`. Normals come from the face buffer, transformed by `transpose(inverse(model))`. Back faces (seen through holes in open meshes, or a face whose normal got flipped) are lit with the normal flipped, then their base color is multiplied by a muted red tint (`u_BackFaceTint`, from `setBackFaceTint`, default 0.8/0.4/0.4) so they're recognizable at a glance. On a closed mesh, a red face means its winding is wrong.
+1. Highlighted faces in yellow (`Unlit`, so selection stays bright), then all faces with `Lit`, with polygon offset so edges draw on top. `Lit` computes `0.7 gray × (ambient + Σ directional + Σ local)`:
+   - ambient: `ambientColor × ambientStrength`
+   - directional: `color × max(dot(normal, −direction), 0)`
+   - local (point/spot): `color × max(dot(normal, toLight), 0) × falloff × cone`, where `falloff = (1 − (distance / range)²)²` (1 at the light, 0 at `range`) and `cone = smoothstep(cosOuter, cosInner, dot(−toLight, direction))`.
+
+   Point and spot lighting varies across a face because it depends on each pixel's world position (`v_WorldPosition` from `lit.vert`). There's no tone mapping, so the sum is clamped at white; strong lights on top of the default ambient, sun, and headlight saturate quickly. Normals come from the face buffer, transformed by `transpose(inverse(model))`. Back faces (seen through holes in open meshes, or a face whose normal got flipped) are lit with the normal flipped, then their base color is multiplied by a muted red tint (`u_BackFaceTint`, from `setBackFaceTint`, default 0.8/0.4/0.4) so they're recognizable at a glance. On a closed mesh, a red face means its winding is wrong.
 2. Highlighted edges in yellow, then all edges in dark gray, 2 px wide.
 3. Highlighted vertices in yellow, then all vertices as 8 px near-black points.
 
 Colors are constants at the top of `opengl_renderer_common.cpp`: `FACE_COLOR` (0.7), `EDGE_COLOR` (0.2), `VERTEX_COLOR` (0.1), `SELECTED_COLOR` (yellow).
 
-Faces are flat-shaded: one normal per face. See [features.md](../features.md#lighting-and-look) for what's next.
+Faces are flat-shaded with one normal per triangle, so non-planar faces show their fold. See [features.md](../features.md#lighting-and-look) for what's next.
 
 ### Shaders
 
@@ -109,7 +119,7 @@ Programs are looked up by `ShaderId` through `OpenGLShaderLibrary`:
 | `ShaderId` | Vertex | Fragment | Used for | Uniforms |
 |---|---|---|---|---|
 | `Unlit` | `unlit.vert` | `unlit.frag` | Mesh edges, vertices, highlights, debug lines | `u_MVP`, `u_Color` |
-| `Lit` | `lit.vert` | `lit.frag` | Mesh faces | `u_MVP`, `u_NormalMatrix`, `u_Color`, `u_BackFaceTint`, `u_AmbientColor`, `u_AmbientStrength`, `u_DirectionalLightDirections[4]`, `u_DirectionalLightColors[4]`, `u_DirectionalLightCount` |
+| `Lit` | `lit.vert` | `lit.frag` | Mesh faces | `u_MVP`, `u_Model`, `u_NormalMatrix`, `u_Color`, `u_BackFaceTint`, `u_AmbientColor`, `u_AmbientStrength`, `u_DirectionalLight{Directions,Colors}[4]`, `u_DirectionalLightCount`, `u_LocalLight{Positions,Directions,Colors,Ranges,CosInner,CosOuter}[8]`, `u_LocalLightCount` |
 | `ScreenText` | `screen_text.vert` | `text.frag` | Console text, positions already in NDC | `u_Color`, `u_Texture` |
 | `WorldText` | `world_text.vert` | `text.frag` | Debug labels in world space | `u_MVP`, `u_Color`, `u_Texture` |
 | `ConsoleBackground` | `fullscreen.vert` | `console_background.frag` | Translucent console overlay | — |
@@ -118,9 +128,9 @@ Programs are looked up by `ShaderId` through `OpenGLShaderLibrary`:
 
 Naming in GLSL: `a_` vertex inputs, `v_` values passed to the fragment stage, `u_` uniforms. `fullscreen.vert` and `grid.vert` take positions from `gl_VertexID` and are drawn with the empty `m_fullscreenVAO`.
 
-`OpenGLShader` methods: `create(name, vert, frag)`, `destroy()`, `bind()`, `setMat4`, `setVec3`, `setFloat`, `setInt` (use for samplers). Uniform locations are cached per name. Matrices are uploaded column-major without transposing. Compile and link errors are printed to stderr with the shader's name. A program that fails to load is skipped: `bind()` returns false and the draws that use it return early. The rest of the app keeps running.
+`OpenGLShader` methods: `create(name, vert, frag)`, `destroy()`, `bind()`, `setMat4`, `setVec3`, `setVec3Array`, `setFloat`, `setFloatArray`, `setInt` (use for samplers). Array setters take the name of element 0, e.g. `"u_Lights[0]"`. Uniform locations are cached per name. Matrices are uploaded column-major without transposing. Compile and link errors are printed to stderr with the shader's name. A program that fails to load is skipped: `bind()` returns false and the draws that use it return early. The rest of the app keeps running.
 
-**Adding a shader:** write the `.vert`/`.frag` in `glsl/`, add an `#embed` array for each new file and a `ShaderId` entry plus a row in `SOURCES` in `opengl_shader_library.cpp` (a `static_assert` catches a missing row), then `m_shaders.get(ShaderId::...)` in the draw code. `MAX_DIRECTIONAL_LIGHTS` in `renderer.hpp` and `lit.frag` must match.
+**Adding a shader:** write the `.vert`/`.frag` in `glsl/`, add an `#embed` array for each new file and a `ShaderId` entry plus a row in `SOURCES` in `opengl_shader_library.cpp` (a `static_assert` catches a missing row), then `m_shaders.get(ShaderId::...)` in the draw code. `MAX_DIRECTIONAL_LIGHTS` and `MAX_LOCAL_LIGHTS` in `renderer.hpp` and `lit.frag` must match.
 
 ### Grid
 
@@ -154,7 +164,7 @@ Tunables:
 
 `OpenGLMesh` ([opengl_mesh.hpp](../../src/renderer/opengl/opengl_mesh.hpp)) implements `IMesh` and owns two VAOs:
 - **Points and edges:** shared positions (`getVertexData`) and the edge index buffer. Attribute 0 = position.
-- **Faces:** the per-face corner buffer from `getFaceData` and its index buffer. Attribute 0 = position, 1 = normal.
+- **Faces:** the per-triangle corner buffer from `getFaceData` and its index buffer. Attribute 0 = position, 1 = normal.
 
 | Method | Description |
 |---|---|

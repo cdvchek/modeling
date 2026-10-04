@@ -46,7 +46,7 @@ Set `meshDirty = true` after any change to `meshData`. `renderFrame` then calls 
 
 [light.hpp](../../src/scene/lights/light.hpp), [light_collection.hpp](../../src/scene/lights/light_collection.hpp)
 
-Besides the individual lights, the collection holds one `AmbientLight` (color and strength only). The ambient light and enabled directional lights shade mesh faces: each frame `renderFrame` copies them into a `LightingState` for the renderer (see [renderer.md](renderer.md#object-drawing)). Point and spot lights aren't used for shading yet, and no light is drawn in the viewport.
+Besides the individual lights, the collection holds one `AmbientLight` (color and strength only). All enabled lights shade mesh faces: each frame `renderFrame` copies them into a `LightingState` for the renderer (see [renderer.md](renderer.md#object-drawing)). Lights aren't drawn in the viewport yet; use `light list` to see them (see [console.md](console.md#light-command)).
 
 The default scene (`loadTestScene`) adds one directional light, `sun`, traveling along `(0.4, −1, −0.6)` (from above, front, left) at intensity 0.6.
 
@@ -83,6 +83,7 @@ struct AmbientLight {
 | `tryGet(handle)` | Pointer, or `nullptr` if the handle is invalid. |
 | `isValid(handle)` | Whether the handle points to a live light. |
 | `handles()` | Handles of every live light, in slot order. |
+| `handleAt(slot)` | Handle of the live light in that slot, or an invalid handle. The `light` command uses slot indices as light ids. |
 | `count()` | Number of live lights. |
 | `getAmbient()` | The scene's single ambient light. |
 | `setAmbientColor(color)` / `setAmbientStrength(s)` | Set the ambient light; values are clamped to 0..1. |

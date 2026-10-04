@@ -9,13 +9,12 @@ When something ships, check it off and add it to [Current](#current). Delete che
 Work that's decided on. Rough order, top first.
 
 ### Lighting and look
-- **More light types in the shader**: point and spot lights. Ambient and directional lights are done.
 - **Light objects**: lights you can add from the app, move with the grab tool, and see as a small gizmo. The data side (`scene.lights`, with undo) exists; see [scene.md](systems/scene.md#lights).
 
 ### Gaps to close
 Known limitations of what exists today.
 - Tools only act on object 0 (`ctx.scene.objects.get(0)` is hard-coded in the tool code), though picking and selection support multiple objects.
-- Only one object exists: a cube created at startup. No way to add, delete, or transform objects.
+- Only one object exists, created at startup (a cube). No way to add, delete, or transform objects from the app.
 - Extrude and inset only use the first selected face.
 - Bevel refuses geometry that touches a mesh border.
 - No save/load or import/export.
@@ -30,7 +29,7 @@ Not committed to yet. Move an item into [Planned](#planned) when you decide to d
 ### Good next picks
 Small, builds on code that already exists, and very useful day to day:
 - **Loop cut**: split every face along an edge ring (ring selection already exists).
-- **Add primitives**: plane, cylinder, UV sphere, ico sphere, torus, as console commands with parameters (`add cylinder 16`).
+- **Add primitives from the app**: the presets exist (cube, plane, grid, circle, cylinder, cone, UV sphere, ico sphere, torus, with parameters in `MeshFactory`); what's missing is a console command like `add cylinder 16` and multi-object support.
 - **OBJ export/import**: simple text format that handles n-gons, so models can leave the app.
 - **Numeric input while transforming**: type `2` during grab/scale/rotate for exact values.
 - **Select all / none / invert, select linked**.
@@ -90,7 +89,7 @@ Small, builds on code that already exists, and very useful day to day:
 - Resizable window; the frame keeps drawing while the window is being resized.
 
 ### Scene display
-- Faces drawn in gray, flat-shaded by the scene's ambient light (`light ambient ...` console command) and directional lights; the default scene has one sun. A camera headlight (on by default, `headlight` command) lights whatever you're looking at. Back faces are tinted red (`backface tint r g b` to change). Edges in dark gray, vertices as near-black points (vertices only shown in vertex mode).
+- Faces drawn in gray, flat-shaded per triangle by the scene's ambient, directional, point, and spot lights (managed with the `light` console command); the default scene has one sun. A camera headlight (on by default, `headlight` command) lights whatever you're looking at. Back faces are tinted red (`backface tint r g b` to change). Edges in dark gray, vertices as near-black points (vertices only shown in vertex mode).
 - 4× MSAA anti-aliasing on everything drawn (edges, points, face outlines).
 - Vertical gradient background, lighter at the top, dithered to avoid banding.
 - Selected elements drawn in yellow.
@@ -139,6 +138,7 @@ All edits can be confirmed (left click) or cancelled (right click) while active.
 - Half-edge polygon mesh with generational handles.
 - N-gon faces, triangulated with ear clipping for rendering (cached per face).
 - Topology validator (`validate` command) that reports the first broken invariant.
+- Built-in presets: cube, plane, grid, circle, cylinder, cone, UV sphere, ico sphere, torus (see [systems/mesh.md](systems/mesh.md#presets)). The startup object is the cube; change `PresetMesh::Cube` in `loadTestScene` to start with another.
 
 ### Platform and build
 - Native Win32 window and input, OpenGL 3.3 via GLAD. No third-party frameworks.

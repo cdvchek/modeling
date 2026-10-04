@@ -30,12 +30,28 @@ TEST_CASE(face_data_cube_layout) {
     MeshData mesh = cube();
     FaceData data = mesh.getFaceData();
 
-    CHECK(data.vertices.size() == 6 * 4 * FaceData::FLOATS_PER_VERTEX);
+    CHECK(data.vertices.size() == 6 * 2 * 3 * FaceData::FLOATS_PER_VERTEX);
     CHECK(data.indices.size() == 6 * 2 * 3);
 
     for (FaceHandle face : mesh.getFaceHandles()) {
         CHECK(data.indexMap[face.index * 2 + 1] == 6);
     }
+}
+
+TEST_CASE(face_data_non_planar_quad_has_two_normals) {
+    MeshData mesh = cube();
+    const FaceHandle face = mesh.getFaceHandles()[0];
+
+    const VertexHandle corner = mesh.getFaceVertices(face)[0];
+    mesh.translateVertex(corner, mesh.getFaceNormal(face) * 0.5f);
+
+    FaceData data = mesh.getFaceData();
+    const u32 offset = data.indexMap[face.index * 2];
+
+    const Vec3 first = cornerNormal(data, data.indices[offset]);
+    const Vec3 second = cornerNormal(data, data.indices[offset + 3]);
+    CHECK(Vec3::dot(first, second) < 0.999f);
+    CHECK(trianglesMatchNormals(data));
 }
 
 TEST_CASE(face_data_normals_point_outward) {

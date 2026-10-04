@@ -227,6 +227,7 @@ void OpenGLRenderer::draw(const DrawCommand& command) {
             const Mat4 normalMatrix = Mat4::transpose(Mat4::inverse(command.model));
 
             lit.setMat4("u_MVP", command.mvp.m);
+            lit.setMat4("u_Model", command.model.m);
             lit.setMat4("u_NormalMatrix", normalMatrix.m);
             lit.setVec3("u_Color", FACE_COLOR);
             lit.setVec3("u_BackFaceTint", m_backFaceTint);
@@ -238,6 +239,17 @@ void OpenGLRenderer::draw(const DrawCommand& command) {
             if (count > 0) {
                 lit.setVec3Array("u_DirectionalLightDirections[0]", m_lighting.directionalDirections, count);
                 lit.setVec3Array("u_DirectionalLightColors[0]", m_lighting.directionalColors, count);
+            }
+
+            const u32 localCount = std::min(m_lighting.localCount, MAX_LOCAL_LIGHTS);
+            lit.setInt("u_LocalLightCount", static_cast<i32>(localCount));
+            if (localCount > 0) {
+                lit.setVec3Array("u_LocalLightPositions[0]", m_lighting.localPositions, localCount);
+                lit.setVec3Array("u_LocalLightDirections[0]", m_lighting.localDirections, localCount);
+                lit.setVec3Array("u_LocalLightColors[0]", m_lighting.localColors, localCount);
+                lit.setFloatArray("u_LocalLightRanges[0]", m_lighting.localRanges, localCount);
+                lit.setFloatArray("u_LocalLightCosInner[0]", m_lighting.localCosInner, localCount);
+                lit.setFloatArray("u_LocalLightCosOuter[0]", m_lighting.localCosOuter, localCount);
             }
 
             glEnable(GL_POLYGON_OFFSET_FILL);

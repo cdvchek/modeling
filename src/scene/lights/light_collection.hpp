@@ -18,6 +18,7 @@ public:
     const Light* tryGet(LightHandle handle) const;
 
     std::vector<LightHandle> handles() const;
+    LightHandle handleAt(u32 slot) const;
     u32 count() const;
 
     const AmbientLight& getAmbient() const;

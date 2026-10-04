@@ -1,4 +1,5 @@
 #include "scene/mesh/mesh_data.hpp"
+#include "core/math/math_utils.hpp"
 
 VertexData MeshData::getVertexData() const {
     VertexData data;
@@ -96,7 +97,7 @@ FaceData MeshData::getFaceData() const {
 
     data.indexMap.resize(m_faces.size() * 2, INVALID_INDEX);
     data.indices.reserve(m_faces.activeSize() * 6);
-    data.vertices.reserve(m_faces.activeSize() * 4 * FaceData::FLOATS_PER_VERTEX);
+    data.vertices.reserve(m_faces.activeSize() * 6 * FaceData::FLOATS_PER_VERTEX);
 
     u32 indexCount = 0;
 
@@ -107,40 +108,31 @@ FaceData MeshData::getFaceData() const {
             continue;
         }
 
-        // Each face gets its own corners so every corner carries the face normal
-        const std::vector<VertexHandle> corners = getFaceVertices(faceHandle);
-        const Vec3 normal = getFaceNormal(faceHandle);
-        const u32 firstCorner = static_cast<u32>(data.vertices.size() / FaceData::FLOATS_PER_VERTEX);
-
-        for (VertexHandle corner : corners) {
-            const Vec3 position = getVertexPosition(corner);
-
-            data.vertices.insert(data.vertices.end(), {
-                position.x, position.y, position.z,
-                normal.x, normal.y, normal.z
-            });
-        }
-
-        const auto cornerIndex = [&](VertexHandle vertex) {
-            for (u32 c = 0; c < corners.size(); ++c) {
-                if (corners[c] == vertex) return firstCorner + c;
-            }
-            return INVALID_INDEX;
-        };
-
+        const Vec3 faceNormal = getFaceNormal(faceHandle);
         const auto& triangles = getFaceTriangles(faceHandle);
         const u32 faceStart = static_cast<u32>(data.indices.size());
 
+        // Every triangle gets its own corners so a non-planar face shows its fold
         for (const Triangle& triangle : triangles) {
-            const u32 v0 = cornerIndex(triangle.v0);
-            const u32 v1 = cornerIndex(triangle.v1);
-            const u32 v2 = cornerIndex(triangle.v2);
+            if (!m_vertices.isValid(triangle.v0) || !m_vertices.isValid(triangle.v1) || !m_vertices.isValid(triangle.v2)) continue;
 
-            if (v0 == INVALID_INDEX || v1 == INVALID_INDEX || v2 == INVALID_INDEX) continue;
+            const Vec3 positions[3] = {
+                m_vertices.get(triangle.v0).position,
+                m_vertices.get(triangle.v1).position,
+                m_vertices.get(triangle.v2).position
+            };
 
-            data.indices.push_back(v0);
-            data.indices.push_back(v1);
-            data.indices.push_back(v2);
+            const Vec3 cross = Vec3::cross(positions[1] - positions[0], positions[2] - positions[0]);
+            const f32 length = cross.length();
+            const Vec3 normal = length > Math::EPSILON ? cross / length : faceNormal;
+
+            for (const Vec3& position : positions) {
+                data.indices.push_back(static_cast<u32>(data.vertices.size() / FaceData::FLOATS_PER_VERTEX));
+                data.vertices.insert(data.vertices.end(), {
+                    position.x, position.y, position.z,
+                    normal.x, normal.y, normal.z
+                });
+            }
         }
 
         const u32 faceIndexCount = static_cast<u32>(data.indices.size()) - faceStart;

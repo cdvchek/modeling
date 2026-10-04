@@ -22,6 +22,7 @@ public:
     void setVec3(const char* name, const Vec3& value);
     void setVec3Array(const char* name, const Vec3* values, u32 count);
     void setFloat(const char* name, f32 value);
+    void setFloatArray(const char* name, const f32* values, u32 count);
     void setInt(const char* name, i32 value);
 
 private:

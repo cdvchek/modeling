@@ -12,7 +12,16 @@ set(CORE_SRC
     src/core/math/vec3.cpp
     src/core/math/vec4.cpp
     src/core/math/mat4.cpp
+    src/scene/mesh/presets/from_polygons.cpp
     src/scene/mesh/presets/cube.cpp
+    src/scene/mesh/presets/plane.cpp
+    src/scene/mesh/presets/grid.cpp
+    src/scene/mesh/presets/circle.cpp
+    src/scene/mesh/presets/cylinder.cpp
+    src/scene/mesh/presets/cone.cpp
+    src/scene/mesh/presets/uv_sphere.cpp
+    src/scene/mesh/presets/ico_sphere.cpp
+    src/scene/mesh/presets/torus.cpp
     src/scene/mesh/mesh_data_access.cpp
     src/scene/mesh/mesh_data_queries.cpp
     src/scene/mesh/mesh_data_geometry.cpp
@@ -37,6 +46,7 @@ set(APP_SRC
     src/application/action_checks/check_selection.cpp
     src/application/application_actions.cpp
     src/application/application_commands.cpp
+    src/application/light_commands.cpp
     src/application/application_events.cpp
     src/application/application_render.cpp
     src/application/application_scene.cpp

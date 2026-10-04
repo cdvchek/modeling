@@ -46,3 +46,6 @@ For mesh operators, always `CHECK(mesh.validate())` after the operation, includi
 | `loop_tests.cpp` | Edge loops, edge rings, face loops on cubes and extrusions, border loops, edge highlight index map |
 | `bevel_tests.cpp` | Vertex/edge/face bevel, width clamping, cancel, 4-edge corners, extruded geometry, border refusal, re-beveling |
 | `font_tests.cpp` | Embedded console font loads every glyph |
+| `preset_tests.cpp` | Every preset: validates, exact element and border counts, normals point outward (or up for flat ones), and stays valid after extrude + inset |
+| `face_data_tests.cpp` | GPU face export: layout, outward normals, winding matches normals, per-triangle normals on non-planar faces |
+| `light_tests.cpp` | `LightCollection` add/edit/replace/remove, handle reuse, `handleAt`, ambient clamping |
