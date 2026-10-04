@@ -6,15 +6,47 @@ When something ships, check it off and add it to [Current](#current). Delete che
 
 ## Planned
 
-Work that's decided on. Rough order, top first.
+Work that's decided on. Rough order, top first; each step builds on the ones before it.
 
-### Lighting and look
-- **Light objects**: lights you can add from the app, move with the grab tool, and see as a small gizmo. The data side (`scene.lights`, with undo) exists; see [scene.md](systems/scene.md#lights).
+### UI, light markers, and objects
+
+1. **2D drawing layer**: UI code fills a backend-neutral `UIDrawList` (rects, lines, text in pixel coordinates, clip rects) and the renderer draws it with one `drawUI` call, so UI logic never touches OpenGL and can be unit tested. A rounded-rect shader with a soft drop shadow and 1 px border gives panels their floating look; `glScissor` clips panel contents. Needs a second, smaller bitmap font for UI text (the 16x24 console font is too big and doesn't scale cleanly).
+2. **Status line**: a bar along the bottom showing mode, active tool, axis lock, selection counts, object and light counts, and frame time. First real use of the 2D layer.
+3. **Light markers, selection, and moving lights**:
+   - Markers: camera-facing billboards at a fixed pixel size, drawn as a disc with a soft glow in the light's color. Directional lights add a short direction line (their marker sits at `light.position`), spot lights show their cone outline while selected, and a faint line drops to the grid. Selected = yellow ring; disabled = hollow gray ring.
+   - Picking: screen-space distance to the marker, checked before mesh elements.
+   - Selection: `Selection` can hold a light. Grab (G) moves it with axis lock and undo.
+4. **UI core**:
+   - Input routing: the UI sees the mouse first each frame and reports whether it used it; viewport picking and camera orbit only run when it didn't.
+   - Immediate-mode widgets with IDs and hot/active tracking: label, button, selectable list row, checkbox, drag slider, color swatch with RGB sliders.
+   - Slider drags call `history.begin` on press and `commit` on release, so one drag is one undo step.
+   - No text input yet; renaming stays a console command.
+5. **Floating panel**: one panel with tabs, state kept between frames (position, size, tabs, active tab, scroll).
+   - Drag by the tab bar or header; kept inside the window.
+   - Resize from edges and corners with a minimum size; resize cursor on hover (Win32 `SetCursor`).
+   - Click tabs to switch; mouse wheel scrolls content that doesn't fit.
+   - Later: reorder tabs by dragging them within the tab bar. Tearing tabs off into separate panels is out of scope for now.
+6. **Lights tab**: no refactor needed, all data and edit paths exist.
+   - Ambient light and headlight sections at the top.
+   - Light list; clicking a row selects the light, kept in sync with clicking markers in the viewport.
+   - Add point / directional / spot, delete.
+   - Selected light's properties: on/off, type, color, intensity, range, cone, position, direction.
+7. **Multi-object support**: prerequisite for the Objects tab.
+   - `ObjectCollection` stores a `DynamicArray<Object>` with `ObjectHandle`, like lights.
+   - `Selection` stores object handles instead of indices, plus an active object.
+   - Tools act on the active object instead of `objects.get(0)`.
+   - History snapshots objects by handle, so adding and removing objects is undoable.
+8. **Objects tab**:
+   - Object list; clicking a row selects the object.
+   - Add any preset (one button each), delete, show/hide, duplicate.
+   - Transform fields: position, rotation, scale.
+
+Code layout: `src/ui/` (draw list, UI context, widgets, panel; depends only on core math and input), `src/renderer/opengl/` (`drawUI`, UI and light-marker shaders), `src/application/` (tab contents, since they need `AppContext`).
 
 ### Gaps to close
 Known limitations of what exists today.
-- Tools only act on object 0 (`ctx.scene.objects.get(0)` is hard-coded in the tool code), though picking and selection support multiple objects.
-- Only one object exists, created at startup (a cube). No way to add, delete, or transform objects from the app.
+- Tools only act on object 0 (`ctx.scene.objects.get(0)` is hard-coded in the tool code), though picking and selection support multiple objects. Fixed by planned step 7.
+- Only one object exists, created at startup (a cube). No way to add, delete, or transform objects from the app. Fixed by planned steps 7 and 8.
 - Extrude and inset only use the first selected face.
 - Bevel refuses geometry that touches a mesh border.
 - No save/load or import/export.
@@ -29,11 +61,11 @@ Not committed to yet. Move an item into [Planned](#planned) when you decide to d
 ### Good next picks
 Small, builds on code that already exists, and very useful day to day:
 - **Loop cut**: split every face along an edge ring (ring selection already exists).
-- **Add primitives from the app**: the presets exist (cube, plane, grid, circle, cylinder, cone, UV sphere, ico sphere, torus, with parameters in `MeshFactory`); what's missing is a console command like `add cylinder 16` and multi-object support.
+- **Preset parameters from the app**: the Objects tab will add presets at their defaults; exposing `MeshFactory` parameters (sides, segments, radius) as panel fields or an `add cylinder 16` command.
 - **OBJ export/import**: simple text format that handles n-gons, so models can leave the app.
 - **Numeric input while transforming**: type `2` during grab/scale/rotate for exact values.
 - **Select all / none / invert, select linked**.
-- **`help` command and a status line** showing the active tool, mode, and axis lock.
+- **`help` command** listing commands and their descriptions.
 
 ### Modeling tools
 - Region extrude: extrude several connected faces as one piece; extrude edges and vertices.
@@ -63,15 +95,13 @@ Small, builds on code that already exists, and very useful day to day:
 ### Objects and scene
 - Object mode vs. edit mode: move, rotate, and scale whole objects.
 - Duplicate, join, and separate objects.
-- Simple object list (outliner) in the console or an overlay.
 
 ### Viewport
 - Orthographic front/side/top views on hotkeys, and a perspective/ortho toggle.
 - Frame selected: move the camera to fit the selection.
 - Small axis gizmo in a corner showing the view orientation.
 - Display toggles: face normals, backface culling, wireframe-only, x-ray.
-- Stats overlay: vertex/edge/face counts and frame time.
-- MSAA for smoother edges.
+- Vertex/edge/face counts for the whole mesh in the status line.
 
 ### Workflow and engineering
 - Native save format plus autosave.
