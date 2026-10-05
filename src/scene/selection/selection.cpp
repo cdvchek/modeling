@@ -6,7 +6,43 @@ void Selection::clear() {
     m_selectedVertices.clear();
     m_selectedEdges.clear();
     m_selectedFaces.clear();
+    m_selectedLights.clear();
     m_originalPositions.clear();
+    m_lightStartPositions.clear();
+    m_lightStartDirections.clear();
+}
+
+void Selection::clearMeshElements() {
+    m_selectedVertices.clear();
+    m_selectedEdges.clear();
+    m_selectedFaces.clear();
+    m_originalPositions.clear();
+}
+
+void Selection::clearLights() {
+    m_selectedLights.clear();
+    m_lightStartPositions.clear();
+    m_lightStartDirections.clear();
+}
+
+void Selection::addLight(LightHandle light) {
+    if (!hasLight(light)) m_selectedLights.push_back(light);
+}
+
+void Selection::removeLight(LightHandle light) {
+    m_selectedLights.erase(std::remove(m_selectedLights.begin(), m_selectedLights.end(), light), m_selectedLights.end());
+}
+
+bool Selection::hasLight(LightHandle light) const {
+    return std::find(m_selectedLights.begin(), m_selectedLights.end(), light) != m_selectedLights.end();
+}
+
+bool Selection::hasLights() const {
+    return !m_selectedLights.empty();
+}
+
+const std::vector<LightHandle>& Selection::getLights() const {
+    return m_selectedLights;
 }
 
 void Selection::addVertex(u32 object, VertexHandle vertex) {
@@ -222,4 +258,20 @@ void Selection::setSelectionStartPositions(
     const std::vector<Vec3>& positions
 ) {
     m_originalPositions = positions;
+}
+
+const std::vector<Vec3>& Selection::getLightStartPositions() const {
+    return m_lightStartPositions;
+}
+
+void Selection::setLightStartPositions(const std::vector<Vec3>& positions) {
+    m_lightStartPositions = positions;
+}
+
+const std::vector<Vec3>& Selection::getLightStartDirections() const {
+    return m_lightStartDirections;
+}
+
+void Selection::setLightStartDirections(const std::vector<Vec3>& directions) {
+    m_lightStartDirections = directions;
 }

@@ -38,6 +38,10 @@ Column-major `f32 m[16]`, laid out the way OpenGL expects, so `m` uploads direct
 
 Transforms compose right to left: `projection * view * model * point`.
 
+## Projection
+
+[projection.hpp](../../src/core/math/projection.hpp): `projectToScreen(viewProjection, point, width, height, out)` turns a world point into pixel coordinates (origin top-left, y down, matching the UI draw list). Returns false for points behind the camera. Used to place light markers.
+
 ## Utilities
 
 [math_utils.hpp](../../src/core/math/math_utils.hpp) provides `Math::EPSILON` (1e-6), `PI`, `TWO_PI`, and `HALF_PI`.

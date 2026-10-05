@@ -69,6 +69,7 @@ Defaults live in `namespace DefaultKeybinds`.
 | `subscribe(Action, Keybind, u32 contexts)` | Binds an action to a key combo, valid in any of `contexts`. One binding per action. |
 | `isActionDown(action, input, context, i32* axis = nullptr)` | True while every input in the combo is held. For `axis()` bindings, writes the scroll delta to `axis`. |
 | `wasActionPressedThisFrame(action, input, context)` | True on the frame the combo becomes complete (all held, at least one newly pressed). |
+| `setMouseBlocked(bool)` | While set, actions whose binding includes a mouse button or the scroll wheel never fire. Set every frame from `ctx.ui.wantsMouse()` so clicks and scrolling over UI don't reach the viewport. |
 
 Both return false if none of the action's contexts are active, or if the console is open and the action isn't a console action.
 

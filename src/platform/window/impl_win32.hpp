@@ -16,4 +16,6 @@ struct Window::Impl {
     std::function<void()> onQuitRequested;
 
     EventDispatcher* events;
+
+    CursorShape cursor = CursorShape::Arrow;
 };

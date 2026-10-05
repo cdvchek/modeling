@@ -71,19 +71,18 @@ bool BitmapFont::parse(std::istream& file) {
 
     file >> label >> width;
 
-    if (label != "width" ||
-        width != BitmapGlyph::WIDTH) {
-
+    if (label != "width" || width == 0 || width > 64) {
         return false;
     }
 
     file >> label >> height;
 
-    if (label != "height" ||
-        height != BitmapGlyph::HEIGHT) {
-
+    if (label != "height" || height == 0 || height > 64) {
         return false;
     }
+
+    m_glyphWidth = width;
+    m_glyphHeight = height;
 
 
     // Glyphs
@@ -101,25 +100,22 @@ bool BitmapFont::parse(std::istream& file) {
         u32 index = character - FIRST_CHAR;
 
         BitmapGlyph& glyph = m_glyphs[index];
+        glyph.pixels.assign(width * height, 0);
 
         std::string row;
 
-        for (u32 y = 0;
-             y < BitmapGlyph::HEIGHT;
-             ++y) {
+        for (u32 y = 0; y < height; ++y) {
 
             if (!(file >> row)) {
                 return false;
             }
 
-            if (row.size() != BitmapGlyph::WIDTH) {
+            if (row.size() != width) {
                 return false;
             }
 
 
-            for (u32 x = 0;
-                 x < BitmapGlyph::WIDTH;
-                 ++x) {
+            for (u32 x = 0; x < width; ++x) {
 
                 u8 alpha;
 
@@ -127,9 +123,7 @@ bool BitmapFont::parse(std::istream& file) {
                     return false;
                 }
 
-                glyph.pixels[
-                    y * BitmapGlyph::WIDTH + x
-                ] = alpha;
+                glyph.pixels[y * width + x] = alpha;
             }
         }
 

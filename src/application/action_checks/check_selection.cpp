@@ -1,6 +1,7 @@
 #include "application/action_checks/action_checks.hpp"
 #include "scene/selection/ray.hpp"
 #include "scene/selection/scene_queries.hpp"
+#include "application/light_markers.hpp"
 
 #include "core/math/vec4.hpp"
 
@@ -77,6 +78,8 @@ namespace {
 
             const MeshData& mesh = ctx.scene.objects.get(hit.objectIndex).meshData;
 
+            selection.clearLights();
+
             for (EdgeHandle edge : ring ? mesh.getEdgeRing(hit.edge) : mesh.getEdgeLoop(hit.edge)) {
                 selectEdge(selection, hit.objectIndex, mesh, edge);
             }
@@ -105,6 +108,8 @@ namespace {
                     nearestDistance = distance;
                 }
             }
+
+            selection.clearLights();
 
             for (FaceHandle face : mesh.getFaceLoop(nearest)) {
                 selectFace(selection, hit.objectIndex, mesh, face);
@@ -200,10 +205,25 @@ void checkSelectionContext(AppContext& ctx) {
 
         if (!toggling) selection.clear();
 
-        if (ictx.getSelectionContext() & InputContext_SelectionVertex) {
+        // Light markers sit on top of the scene, so they're picked before mesh elements
+        const Mat4 viewProjection = camera.getProjectionMatrix(static_cast<f32>(width) / static_cast<f32>(height)) * camera.getViewMatrix();
+        const LightHit lightHit = pickLight(ctx.scene, viewProjection, static_cast<f32>(input.getMouseX()), static_cast<f32>(input.getMouseY()),
+                                           static_cast<f32>(width), static_cast<f32>(height), LIGHT_MARKER_PICK_RADIUS);
+
+        if (lightHit.hit) {
+            selection.clearMeshElements();
+
+            if (toggling && selection.hasLight(lightHit.light)) {
+                selection.removeLight(lightHit.light);
+            } else {
+                selection.addLight(lightHit.light);
+            }
+        } else if (ictx.getSelectionContext() & InputContext_SelectionVertex) {
             VertexHit hit = pickVertex(ctx.scene, ray, 0.03f);
 
             if (hit.hit) {
+                selection.clearLights();
+
                 if (toggling && selection.hasVertex(hit.objectIndex, hit.vertex)) {
                     selection.removeVertex(hit.objectIndex, hit.vertex);
                 } else {
@@ -214,6 +234,8 @@ void checkSelectionContext(AppContext& ctx) {
             EdgeHit hit = pickEdge(ctx.scene, ray, 0.03f);
 
             if (hit.hit) {
+                selection.clearLights();
+
                 const MeshData& mesh = ctx.scene.objects.get(hit.objectIndex).meshData;
 
                 if (toggling && isEdgeSelected(selection, hit.objectIndex, mesh, hit.edge)) {
@@ -226,6 +248,8 @@ void checkSelectionContext(AppContext& ctx) {
             FaceHit hit = pickFace(ctx.scene, ray);
 
             if (hit.hit) {
+                selection.clearLights();
+
                 const MeshData& mesh = ctx.scene.objects.get(hit.objectIndex).meshData;
 
                 if (toggling && selection.hasFace(hit.objectIndex, hit.face)) {
@@ -237,13 +261,21 @@ void checkSelectionContext(AppContext& ctx) {
         }
     }
 
-    if (ctx.scene.selection.hasVertices() && actions.wasActionPressedThisFrame(Action::GrabSelection, input, ictx.getContext())) {
+    const bool grabbable = ctx.scene.selection.hasVertices() || ctx.scene.selection.hasLights();
+    if (grabbable && actions.wasActionPressedThisFrame(Action::GrabSelection, input, ictx.getContext())) {
         ictx.removeContext(InputContext_XAxis | InputContext_YAxis | InputContext_ZAxis);
         std::vector<Vec3> starts;
         for (const auto handle : ctx.scene.selection.getVertexHandles()) {
             starts.push_back(ctx.scene.objects.get(0).meshData.getVertexPosition(handle));
         }
         ctx.scene.selection.setSelectionStartPositions(starts);
+
+        std::vector<Vec3> lightStarts;
+        for (LightHandle light : ctx.scene.selection.getLights()) {
+            const Light* data = ctx.scene.lights.tryGet(light);
+            lightStarts.push_back(data ? data->position : Vec3());
+        }
+        ctx.scene.selection.setLightStartPositions(lightStarts);
         ctx.history.begin(ctx.scene);
         ictx.setContext(InputContext_Grab);
     }
@@ -259,13 +291,21 @@ void checkSelectionContext(AppContext& ctx) {
         ictx.setContext(InputContext_Scale);
     }
 
-    if (ctx.scene.selection.getVertices().size() >= 2 && actions.wasActionPressedThisFrame(Action::RotateSelection, input, ictx.getContext())) {
+    const bool rotatable = ctx.scene.selection.getVertices().size() >= 2 || ctx.scene.selection.hasLights();
+    if (rotatable && actions.wasActionPressedThisFrame(Action::RotateSelection, input, ictx.getContext())) {
         ictx.removeContext(InputContext_XAxis | InputContext_YAxis | InputContext_ZAxis);
         std::vector<Vec3> starts;
         for (const auto handle : ctx.scene.selection.getVertexHandles()) {
             starts.push_back(ctx.scene.objects.get(0).meshData.getVertexPosition(handle));
         }
         ctx.scene.selection.setSelectionStartPositions(starts);
+
+        std::vector<Vec3> lightDirections;
+        for (LightHandle light : ctx.scene.selection.getLights()) {
+            const Light* data = ctx.scene.lights.tryGet(light);
+            lightDirections.push_back(data ? data->direction : Vec3(0.0f, -1.0f, 0.0f));
+        }
+        ctx.scene.selection.setLightStartDirections(lightDirections);
         ctx.history.begin(ctx.scene);
         ictx.setContext(InputContext_Rotate);
     }

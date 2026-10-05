@@ -16,11 +16,17 @@ public:
     bool isActionDown(Action action, const InputState& input, u32 input_ctx, i32* axis_value = nullptr) const;
     bool wasActionPressedThisFrame(Action action, const InputState& input, u32 input_ctx) const;
 
+    // While blocked, actions bound to a mouse button or the scroll wheel never fire (the UI has the mouse)
+    void setMouseBlocked(bool blocked) { m_mouseBlocked = blocked; }
+
 private:
+    bool usesMouse(const Keybind& keybind) const;
+
     struct ActionData {
         Keybind bind;
         u32 ctx;
     };
 
     std::unordered_map<Action, ActionData> m_keybinds;
+    bool m_mouseBlocked = false;
 };

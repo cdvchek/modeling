@@ -1,4 +1,5 @@
 #include "scene/selection/scene_queries.hpp"
+#include "core/math/projection.hpp"
 
 #include <cfloat>
 #include <algorithm>
@@ -324,4 +325,23 @@ FaceHit pickFace(const Scene& scene, const Ray& ray) {
     }
 
     return bestHit;
+}
+
+LightHit pickLight(const Scene& scene, const Mat4& viewProjection, f32 mouseX, f32 mouseY, f32 width, f32 height, f32 radius) {
+    LightHit result;
+    const Vec2 mouse(mouseX, mouseY);
+
+    for (LightHandle handle : scene.lights.handles()) {
+        Vec2 screen;
+        if (!projectToScreen(viewProjection, scene.lights.get(handle).position, width, height, screen)) continue;
+
+        const f32 distance = (screen - mouse).length();
+        if (distance <= radius && distance < result.distance) {
+            result.hit = true;
+            result.light = handle;
+            result.distance = distance;
+        }
+    }
+
+    return result;
 }

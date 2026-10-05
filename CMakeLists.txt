@@ -8,6 +8,11 @@ set(CMAKE_C_STANDARD 17)
 set(CORE_SRC
     src/core/font/bitmap_font.cpp
     src/core/font/embedded_fonts.cpp
+    src/core/font/font_library.cpp
+    src/core/time/frame_timer.cpp
+    src/ui/ui_draw_list.cpp
+    src/ui/ui_context.cpp
+    src/ui/ui_widgets.cpp
     src/core/math/vec2.cpp
     src/core/math/vec3.cpp
     src/core/math/vec4.cpp
@@ -47,6 +52,9 @@ set(APP_SRC
     src/application/application_actions.cpp
     src/application/application_commands.cpp
     src/application/light_commands.cpp
+    src/application/status_bar.cpp
+    src/application/light_markers.cpp
+    src/application/main_panel.cpp
     src/application/application_events.cpp
     src/application/application_render.cpp
     src/application/application_scene.cpp
@@ -64,6 +72,7 @@ set(APP_SRC
     src/renderer/opengl/opengl_font.cpp
     src/renderer/opengl/opengl_mesh.cpp
     src/renderer/opengl/opengl_renderer_common.cpp
+    src/renderer/opengl/opengl_ui_renderer.cpp
     src/renderer/opengl/shaders/opengl_shader.cpp
     src/renderer/opengl/shaders/opengl_shader_library.cpp
     src/renderer/debug_renderer.cpp

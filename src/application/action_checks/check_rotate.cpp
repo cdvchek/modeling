@@ -12,9 +12,18 @@ void checkRotateContext(AppContext& ctx) {
     static bool wasZAxis = false;
 
     const auto& selections = ctx.scene.selection.getVertices();
+    const auto& lights = ctx.scene.selection.getLights();
+    const auto& lightStarts = ctx.scene.selection.getLightStartDirections();
 
-    if (selections.empty())
+    if (selections.empty() && lights.empty())
         return;
+
+    // Puts every selected light's direction back to where it was when the rotation started
+    const auto restoreLightDirections = [&]() {
+        for (u32 i = 0; i < static_cast<u32>(lights.size()) && i < static_cast<u32>(lightStarts.size()); ++i) {
+            if (Light* light = ctx.scene.lights.tryGet(lights[i])) light->direction = lightStarts[i];
+        }
+    };
 
     const auto& starts =
         ctx.scene.selection.getSelectionStartPositions();
@@ -26,8 +35,11 @@ void checkRotateContext(AppContext& ctx) {
         center += start;
     }
 
-    center =
-        center / static_cast<f32>(starts.size());
+    // Only lights selected: there's no vertex pivot, and lights turn in place anyway
+    if (!starts.empty()) {
+        center =
+            center / static_cast<f32>(starts.size());
+    }
 
     const bool xJustActivated = xAxis && !wasXAxis;
     const bool yJustActivated = yAxis && !wasYAxis;
@@ -35,6 +47,8 @@ void checkRotateContext(AppContext& ctx) {
 
     // Restore the original positions when an axis is first selected.
     if (xJustActivated || yJustActivated || zJustActivated) {
+        restoreLightDirections();
+
         for (u32 i = 0;
              i < static_cast<u32>(selections.size());
              ++i) {
@@ -97,6 +111,20 @@ void checkRotateContext(AppContext& ctx) {
 
         const f32 sinAngle =
             std::sin(angle);
+
+        // Lights turn in place: only their direction rotates
+        for (LightHandle handle : lights) {
+            Light* light = ctx.scene.lights.tryGet(handle);
+            if (!light) continue;
+
+            const Vec3 direction = light->direction;
+            const Vec3 rotated =
+                direction * cosAngle +
+                Vec3::cross(axis, direction) * sinAngle +
+                axis * Vec3::dot(axis, direction) * (1.0f - cosAngle);
+
+            light->direction = rotated.normalized();
+        }
 
         for (const VertexSelection& selection : selections) {
             Object& object =
@@ -183,6 +211,8 @@ void checkRotateContext(AppContext& ctx) {
 
             object.meshDirty = true;
         }
+
+        restoreLightDirections();
 
         ctx.history.cancel(ctx.scene);
 

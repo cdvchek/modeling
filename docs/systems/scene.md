@@ -46,7 +46,7 @@ Set `meshDirty = true` after any change to `meshData`. `renderFrame` then calls 
 
 [light.hpp](../../src/scene/lights/light.hpp), [light_collection.hpp](../../src/scene/lights/light_collection.hpp)
 
-Besides the individual lights, the collection holds one `AmbientLight` (color and strength only). All enabled lights shade mesh faces: each frame `renderFrame` copies them into a `LightingState` for the renderer (see [renderer.md](renderer.md#object-drawing)). Lights aren't drawn in the viewport yet; use `light list` to see them (see [console.md](console.md#light-command)).
+Besides the individual lights, the collection holds one `AmbientLight` (color and strength only). All enabled lights shade mesh faces: each frame `renderFrame` copies them into a `LightingState` for the renderer (see [renderer.md](renderer.md#object-drawing)). Every light is drawn as a marker in the viewport (see [application.md](application.md)); `light list` prints them (see [console.md](console.md#light-command)).
 
 The default scene (`loadTestScene`) adds one directional light, `sun`, traveling along `(0.4, −1, −0.6)` (from above, front, left) at intensity 0.6.
 
@@ -129,6 +129,10 @@ Separate lists of selected vertices, edges, and faces. Each entry stores an obje
 | `getVertices/Edges/Faces()` | Entries with object indices. |
 | `getVertexHandles/EdgeHandles/FaceHandles()` | Handles only (object index dropped). |
 | `getNumberOfVertices/Edges/Faces()` | Counts. |
+| `addLight/removeLight/hasLight(handle)`, `hasLights()`, `getLights()` | Selected lights. Independent of the selection mode; `clear()` empties them too. |
+| `clearMeshElements()` / `clearLights()` | Clear one kind only. Lights and mesh elements are never selected together: the click handlers in `check_selection.cpp` call `clearMeshElements` when a light is picked and `clearLights` when a vertex, edge, face, loop, or ring is picked (with or without Shift). |
+| `setLightStartPositions(positions)` / `getLightStartPositions()` | Light positions saved when grab starts, in the same order as `getLights()`. Used to cancel or axis-snap. |
+| `setLightStartDirections(directions)` / `getLightStartDirections()` | Light directions saved when rotate starts, same order. Used to cancel or reset on axis lock. |
 | `setSelectionStartPositions(positions)` / `getSelectionStartPositions()` | Vertex positions saved when a modal tool starts, in the same order as `getVertices()`. Used to cancel or axis-snap. |
 
 Conventions kept by the application code:
@@ -145,8 +149,9 @@ Conventions kept by the application code:
 | `pickVertex(scene, ray, radius)` | Nearest vertex within `radius` (world units) of the ray. |
 | `pickEdge(scene, ray, radius)` | Nearest edge within `radius` of the ray. |
 | `pickFace(scene, ray)` | Nearest face whose triangulation the ray hits. |
+| `pickLight(scene, viewProjection, mouseX, mouseY, width, height, radius)` | Nearest light whose marker is within `radius` pixels of the mouse, measured on screen. Returns a `LightHit` with the handle and pixel distance. Checked before the mesh picks; the radius is `LIGHT_MARKER_PICK_RADIUS` (11 px) from `light_markers.hpp`. |
 
-All three test every object (with its transform) and return a hit struct: `hit`, `objectIndex`, the handle, and `distance` along the ray. The selection code uses a radius of 0.03.
+The mesh picks test every object (with its transform) and return a hit struct: `hit`, `objectIndex`, the handle, and `distance` along the ray. The selection code uses a radius of 0.03.
 
 ## History
 

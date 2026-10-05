@@ -123,6 +123,30 @@ bool Window::isInitialized() const {
     return m_initialized;
 }
 
+namespace {
+    HCURSOR loadCursor(CursorShape shape) {
+        switch (shape) {
+            case CursorShape::ResizeHorizontal: return LoadCursor(nullptr, IDC_SIZEWE);
+            case CursorShape::ResizeVertical: return LoadCursor(nullptr, IDC_SIZENS);
+            case CursorShape::ResizeDiagonalDown: return LoadCursor(nullptr, IDC_SIZENWSE);
+            case CursorShape::ResizeDiagonalUp: return LoadCursor(nullptr, IDC_SIZENESW);
+            default: return LoadCursor(nullptr, IDC_ARROW);
+        }
+    }
+}
+
+void Window::setCursor(CursorShape shape) {
+    if (!m_impl || m_impl->cursor == shape) return;
+    m_impl->cursor = shape;
+
+    // Apply now if the mouse is over our client area or captured by us; otherwise WM_SETCURSOR applies it later
+    POINT point;
+    RECT client;
+    if (GetCursorPos(&point) && ScreenToClient(m_impl->hwnd, &point) && GetClientRect(m_impl->hwnd, &client)) {
+        if (GetCapture() == m_impl->hwnd || PtInRect(&client, point)) SetCursor(loadCursor(shape));
+    }
+}
+
 LRESULT CALLBACK windowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
     if (uMsg == WM_NCCREATE) {
         auto* cs = reinterpret_cast<CREATESTRUCTW*>(lParam);
@@ -133,7 +157,31 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
 
     Window::Impl* impl = reinterpret_cast<Window::Impl*>(GetWindowLongPtrW(hwnd, GWLP_USERDATA));
 
+    // Capture the mouse while any button is held so moves and releases outside the window still arrive
     switch (uMsg) {
+        case WM_LBUTTONDOWN:
+        case WM_RBUTTONDOWN:
+        case WM_MBUTTONDOWN:
+        case WM_XBUTTONDOWN:
+            SetCapture(hwnd);
+            break;
+        case WM_LBUTTONUP:
+        case WM_RBUTTONUP:
+        case WM_MBUTTONUP:
+        case WM_XBUTTONUP:
+            if (!(wParam & (MK_LBUTTON | MK_RBUTTON | MK_MBUTTON | MK_XBUTTON1 | MK_XBUTTON2))) ReleaseCapture();
+            break;
+    }
+
+    switch (uMsg) {
+        case WM_SETCURSOR:
+            if (impl && LOWORD(lParam) == HTCLIENT) {
+                SetCursor(loadCursor(impl->cursor));
+                return TRUE;
+            }
+            break;
+        case WM_CAPTURECHANGED:
+            return WindowCallback::handleCaptureChanged(impl, wParam, lParam);
         case WM_KEYDOWN:
         case WM_SYSKEYDOWN:
             return WindowCallback::handleKeyDown(impl, wParam, lParam);

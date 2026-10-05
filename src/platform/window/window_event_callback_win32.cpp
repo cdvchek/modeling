@@ -170,6 +170,18 @@ LRESULT WindowCallback::handleMouseWheel(Window::Impl* impl, WPARAM w_param, LPA
     return 0;
 }
 
+// Capture was taken away (e.g. Alt+Tab mid-drag): any button that isn't physically down anymore is released
+LRESULT WindowCallback::handleCaptureChanged(Window::Impl* impl, WPARAM w_param, LPARAM l_param) {
+    if (impl && impl->events) {
+        const int buttons[3] = { VK_LBUTTON, VK_RBUTTON, VK_MBUTTON };
+        for (u16 i = 0; i < 3; ++i) {
+            if (GetKeyState(buttons[i]) >= 0) impl->events->trigger(Event::MouseButtonUp{ static_cast<u16>(i + 1), 0, 0 });
+        }
+    }
+
+    return 0;
+}
+
 LRESULT WindowCallback::handleSize(Window::Impl* impl, WPARAM w_param, LPARAM l_param) {
     if (!impl) return 0;
 

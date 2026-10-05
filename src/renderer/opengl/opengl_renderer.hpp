@@ -6,6 +6,9 @@
 #include "renderer/opengl/shaders/opengl_shader_library.hpp"
 #include "renderer/opengl/opengl_mesh.hpp"
 #include "renderer/opengl/opengl_font.hpp"
+#include "renderer/opengl/opengl_ui_renderer.hpp"
+
+#include <array>
 
 class OpenGLRenderer : public IRenderer {
 public:
@@ -13,10 +16,12 @@ public:
     ~OpenGLRenderer() override;
 
     bool initialize(void* window, void* surface, const RendererConfig& config) override;
+    bool loadFonts(const FontLibrary& fonts) override;
     void shutdown() override;
 
     void present() override;
     void setVSync(bool enabled) override;
+    bool getVSync() const override { return m_vsyncEnabled; }
     
     void beginFrame() override;
     void beginMainPass(const ClearState& clearState) override;
@@ -26,11 +31,10 @@ public:
     void setBackFaceTint(const Vec3& tint) override;
     Vec3 getBackFaceTint() const override;
     void draw(const DrawCommand& command) override;
-    void drawText(const DrawTextCommand& command) override;
     void drawText3D(const DrawText3DCommand& command) override;
     void drawGrid(const DrawGridCommand& command) override;
     void drawDebugLine(const Vec3& start, const Vec3& end, const Mat4& mvp) override;
-    void drawConsoleBackground() override;
+    void drawUI(const UIDrawList& list) override;
     void endMainPass() override;
     void endFrame() override;
     void resize(u32 width, u32 height) override;
@@ -41,6 +45,7 @@ public:
 private:
     bool createResources();
     void destroyResources();
+    void setLitUniforms(OpenGLShader& lit, const DrawCommand& command);
 
     void createRenderTargets(u32 width, u32 height);
     void destroyRenderTargets();
@@ -58,10 +63,9 @@ private:
     Vec3 m_backFaceTint { 0.8f, 0.4f, 0.4f };
     BackgroundGradient m_background;
 
-    OpenGLFont m_consoleFont;
+    std::array<OpenGLFont, static_cast<u32>(FontId::Count)> m_fonts;
+    OpenGLUIRenderer m_ui;
 
-    u32 m_textVAO = 0;
-    u32 m_textVBO = 0;
 
     u32 m_text3DVAO = 0;
     u32 m_text3DVBO = 0;

@@ -3,11 +3,46 @@
 #include "platform/window/window.hpp"
 #include "platform/platform.hpp"
 #include "application/action_checks/action_checks.hpp"
+#include "application/status_bar.hpp"
+#include "application/light_markers.hpp"
+#include "application/main_panel.hpp"
 #include "core/math/vec4.hpp"
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <iostream>
+
+namespace {
+    CursorShape toCursorShape(UICursor cursor) {
+        switch (cursor) {
+            case UICursor::ResizeHorizontal: return CursorShape::ResizeHorizontal;
+            case UICursor::ResizeVertical: return CursorShape::ResizeVertical;
+            case UICursor::ResizeDiagonalDown: return CursorShape::ResizeDiagonalDown;
+            case UICursor::ResizeDiagonalUp: return CursorShape::ResizeDiagonalUp;
+            default: return CursorShape::Arrow;
+        }
+    }
+
+    UIInput makeUIInput(const InputState& input) {
+        const u16 buttons[UIInput::BUTTON_COUNT] = {
+            static_cast<u16>(MouseButton::Left), static_cast<u16>(MouseButton::Right), static_cast<u16>(MouseButton::Middle)
+        };
+
+        UIInput result;
+        result.mouse = Vec2(static_cast<f32>(input.getMouseX()), static_cast<f32>(input.getMouseY()));
+        result.mouseDelta = Vec2(static_cast<f32>(input.getMouseDeltaX()), static_cast<f32>(input.getMouseDeltaY()));
+        result.scroll = input.getScroll();
+
+        for (u32 i = 0; i < UIInput::BUTTON_COUNT; ++i) {
+            result.down[i] = input.isMouseDown(buttons[i]);
+            result.pressed[i] = input.wasMousePressedThisFrame(buttons[i]);
+            result.released[i] = input.wasMouseReleasedThisFrame(buttons[i]);
+        }
+
+        return result;
+    }
+}
 
 bool Application::initialize(AppContext& ctx) {
     if (!createMainWindow(ctx)) return false;
@@ -31,8 +66,17 @@ void Application::run(AppContext& ctx) {
     while(ctx.is_running) {
         ctx.systems.input.beginFrame();
         Platform::pollEvents();
+
+        // The UI decides first whether it owns the mouse this frame, then the viewport handles the rest
+        const ContextManager& contexts = ctx.systems.input_ctx;
+        const bool uiInteractive = !contexts.isActive(InputContext_Console) && contexts.isActive(InputContext_SelectionVertex | InputContext_SelectionEdge | InputContext_SelectionFace);
+        ctx.ui.beginFrame(makeUIInput(ctx.systems.input), uiInteractive);
+        ctx.systems.actions.setMouseBlocked(ctx.ui.wantsMouse());
+
         checkActions(ctx);
         Application::renderFrame(ctx);
+
+        ctx.windows[0]->setCursor(toCursorShape(ctx.ui.cursor()));
     }
 }
 
@@ -87,12 +131,31 @@ namespace {
     }
 }
 
+void Application::drawConsole(AppContext& ctx, UIDrawList& ui, f32 width, f32 height) {
+    const UIFont font = makeUIFont(FontId::Console, ctx.fonts.get(FontId::Console));
+    const Color textColor { 1.0f, 1.0f, 1.0f, 1.0f };
+
+    ui.rect({ 0.0f, 0.0f, width, height }, { 0.15f, 0.15f, 0.15f, 0.7f });
+
+    // History grows upward from just above the input line
+    const std::vector<std::string>& history = ctx.systems.console.getHistory();
+    u32 line = 1;
+    for (u32 i = static_cast<u32>(history.size()); i-- > 0;) {
+        ui.text(Vec2(25.0f, height - (84.0f + 28.0f * line++)), history[i], font, textColor);
+    }
+
+    ui.text(Vec2(25.0f, height - 49.0f), ctx.systems.console.getCurrentCommand(), font, textColor);
+}
+
 void Application::renderFrame(AppContext& ctx) {
     u32 width = 0;
     u32 height = 0;
     ctx.windows[0]->getDimensions(width, height);
 
     if (width == 0 || height == 0) return;
+
+    const auto now = std::chrono::steady_clock::now().time_since_epoch();
+    ctx.frameTimer.tick(std::chrono::duration<f64>(now).count());
 
     ctx.renderer->beginFrame();
     ctx.renderer->beginMainPass(ctx.renderer->m_clearState);
@@ -129,6 +192,13 @@ void Application::renderFrame(AppContext& ctx) {
         cmd.highlightedVerts = selection.getVertexHandles();
         cmd.highlightedEdges = selection.getEdgeHandles();
         cmd.highlightedFaces = selection.getFaceHandles();
+
+        // Selected faces are outlined with the same treatment as selected edges
+        for (FaceHandle face : cmd.highlightedFaces) {
+            const Face* data = object.meshData.getFace(face);
+            if (!data) continue;
+            for (EdgeHandle edge : object.meshData.getLoopEdges(data->edge)) cmd.highlightedEdges.push_back(edge);
+        }
         
         cmd.mesh = &object.gpuMesh;
         cmd.model = model;
@@ -153,35 +223,23 @@ void Application::renderFrame(AppContext& ctx) {
         );
     }
 
+    UIDrawList& ui = ctx.uiDrawList;
+    ui.clear();
+
+    drawLightMarkers(ctx, ui, viewProjection, static_cast<f32>(width), static_cast<f32>(height));
+    drawStatusBar(ctx, ui, static_cast<f32>(width), static_cast<f32>(height));
+
+    ctx.ui.setDrawList(&ui);
+    ctx.ui.setFont(makeUIFont(FontId::UI, ctx.fonts.get(FontId::UI)));
+    ctx.ui.beginDraw();
+    if (ctx.viewport.showPanel) drawMainPanel(ctx, { 0.0f, 0.0f, static_cast<f32>(width), static_cast<f32>(height) - statusBarHeight(ctx) });
+    ctx.ui.endDraw();
+
     if (ctx.systems.input_ctx.isActive(InputContext_Console)) {
-        ctx.renderer->drawConsoleBackground();
-        
-        u32 width;
-        u32 height;
-        ctx.windows[0].get()->getDimensions(width, height);
-
-        const std::vector<std::string>& commandHistory = ctx.systems.console.getHistory();
-        u32 j = 1;
-        for (u32 i = static_cast<u32>(commandHistory.size()); i-- > 0;) {
-            const std::string& command = commandHistory[i];
-
-            ctx.renderer->drawText(
-                DrawTextCommand{
-                    command,
-                    25.0f,
-                    static_cast<f32>(height) - (84.0f + (28.0f * j++))
-                }
-            );
-        }
-
-        ctx.renderer->drawText(
-            DrawTextCommand{
-                ctx.systems.console.getCurrentCommand(),
-                25.0f,
-                static_cast<f32>(height) - 49
-            }
-        );
+        drawConsole(ctx, ui, static_cast<f32>(width), static_cast<f32>(height));
     }
+
+    ctx.renderer->drawUI(ui);
 
     ctx.renderer->endMainPass();
     ctx.renderer->endFrame();

@@ -26,6 +26,7 @@ Pimpl class: the header has no Win32 types; `Window::Impl` (in `impl_win32.hpp`)
 | `bool getDimensions(u32& w, u32& h)` | Current client-area size. Used every frame for aspect ratio and mouse-ray math. |
 | `bool getPosition(u32& x, u32& y)` | Window position on screen. |
 | `void* getNativeHandle()` / `getNativeDisplayContext()` | `HWND` / `HDC`, passed to the renderer to create the GL context. |
+| `void setCursor(CursorShape)` | Cursor shown over the client area: `Arrow`, `ResizeHorizontal`, `ResizeVertical`, `ResizeDiagonalDown`, `ResizeDiagonalUp`. Applied immediately when the mouse is over the window (or captured), and on every `WM_SETCURSOR` in the client area. The app sets it each frame from `ctx.ui.cursor()`. |
 | `void printWindowError() const` | Prints the last `WindowError`. Public methods return `false`/`nullptr` on failure. |
 
 ### Window procedure
@@ -39,9 +40,12 @@ Pimpl class: the header has no Win32 types; `Window::Impl` (in `impl_win32.hpp`)
 | `WM_CHAR` | `Event::Char` |
 | `WM_MOUSEMOVE` | `Event::MouseMove` |
 | `WM_[L/R/M/X]BUTTONDOWN` / `UP` | `Event::MouseButtonDown` / `Up` |
+| `WM_CAPTURECHANGED` | `Event::MouseButtonUp` for each of left/right/middle that isn't physically held (`GetKeyState`) |
 | `WM_MOUSEWHEEL` | `Event::MouseWheel` |
 | `WM_SIZE` | `Event::WindowResize` |
 | `WM_CLOSE` | `Event::Quit` |
+
+**Mouse capture:** `windowProc` calls `SetCapture` on any button down and `ReleaseCapture` once no button is held. While captured, moves and releases outside the window still arrive (coordinates can be negative or past the edge), so a drag that ends outside the window doesn't leave a button stuck down. If capture is taken away mid-drag (Alt+Tab), `WM_CAPTURECHANGED` releases the buttons that are no longer held.
 
 ## Keys
 

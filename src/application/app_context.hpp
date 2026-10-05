@@ -11,6 +11,10 @@
 #include "renderer/debug_renderer.hpp"
 #include "scene/scene.hpp"
 #include "scene/history.hpp"
+#include "core/font/font_library.hpp"
+#include "ui/ui_draw_list.hpp"
+#include "ui/ui_context.hpp"
+#include "core/time/frame_timer.hpp"
 
 struct AppContext {
     Systems systems;
@@ -21,6 +25,10 @@ struct AppContext {
     BevelTool bevel;
     History history;
     ViewportSettings viewport;
+    FontLibrary fonts;
+    UIDrawList uiDrawList;
+    UIContext ui;
+    FrameTimer frameTimer;
 
     bool is_running = false;
 };

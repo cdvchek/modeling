@@ -20,5 +20,9 @@ bool Application::setupRenderer(AppContext& ctx) {
     config.enableVSync = true;
 
     if (!ctx.renderer->initialize(ctx.windows[0]->getNativeHandle(), ctx.windows[0]->getNativeDisplayContext(), config)) return false;
+
+    if (!ctx.fonts.loadEmbedded()) return false;
+    if (!ctx.renderer->loadFonts(ctx.fonts)) return false;
+
     return true;
 }

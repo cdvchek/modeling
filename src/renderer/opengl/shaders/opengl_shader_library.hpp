@@ -6,11 +6,10 @@
 enum class ShaderId : u32 {
     Unlit,
     Lit,
-    ScreenText,
     WorldText,
-    ConsoleBackground,
     Background,
     Grid,
+    UI,
     Count
 };
 

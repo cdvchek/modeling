@@ -9,6 +9,8 @@
 #include "core/math/mat4.hpp"
 #include "core/math/vec3.hpp"
 #include "renderer/gpu_mesh.hpp"
+#include "core/font/font_library.hpp"
+#include "ui/ui_draw_list.hpp"
 
 struct WindowHandle;
 
@@ -80,13 +82,6 @@ struct DrawCommand {
     Mat4 mvp;
 };
 
-struct DrawTextCommand {
-    const std::string& text;
-    f32 x;
-    f32 y;
-    Vec3 color;
-};
-
 struct DrawText3DCommand {
     const std::string& text;
     const Vec3& position;
@@ -108,10 +103,12 @@ public:
     virtual ~IRenderer() = default;
 
     virtual bool initialize(void* window, void* surface, const RendererConfig& config) = 0;
+    virtual bool loadFonts(const FontLibrary& fonts) = 0;
     virtual void shutdown() = 0;
 
     virtual void resize(u32 width, u32 height) = 0;
     virtual void setVSync(bool enabled) = 0;
+    virtual bool getVSync() const = 0;
 
     virtual void beginFrame() = 0;
     virtual void beginMainPass(const ClearState& clearState) = 0;
@@ -121,11 +118,10 @@ public:
     virtual void setBackFaceTint(const Vec3& tint) = 0;
     virtual Vec3 getBackFaceTint() const = 0;
     virtual void draw(const DrawCommand& command) = 0;
-    virtual void drawText(const DrawTextCommand& command) = 0;
     virtual void drawText3D(const DrawText3DCommand& command) = 0;
     virtual void drawGrid(const DrawGridCommand& command) = 0;
     virtual void drawDebugLine(const Vec3& start, const Vec3& end, const Mat4& mvp) = 0;
-    virtual void drawConsoleBackground() = 0;
+    virtual void drawUI(const UIDrawList& list) = 0;
     virtual void endMainPass() = 0;
     virtual void endFrame() = 0;
     virtual void present() = 0;

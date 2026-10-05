@@ -11,12 +11,13 @@ Files: `src/renderer/`, plus [opengl_renderer_win32.cpp](../../src/platform/rend
 | [gpu_mesh.hpp](../../src/renderer/gpu_mesh.hpp) | `IMesh` interface |
 | [shader.hpp](../../src/renderer/shader.hpp) | `Shader` interface |
 | `opengl/opengl_renderer.hpp` | `OpenGLRenderer` class |
-| `opengl/opengl_renderer_common.cpp` | Portable GL code: `createResources`/`destroyResources`, and drawing objects, grid, text, debug lines, console |
+| `opengl/opengl_renderer_common.cpp` | Portable GL code: `createResources`/`destroyResources`, and drawing objects, grid, world text, debug lines |
+| `opengl/opengl_ui_renderer.*` | `OpenGLUIRenderer`: draws a `UIDrawList` (see [ui.md](ui.md)) |
 | `opengl/opengl_mesh.*` | `OpenGLMesh`: GPU buffers for one `MeshData` |
 | `opengl/shaders/opengl_shader.*` | `OpenGLShader`: compile, bind, set uniforms |
 | `opengl/shaders/opengl_shader_library.*` | `ShaderId`, `OpenGLShaderLibrary`: every program, embedded and compiled together |
 | `opengl/shaders/glsl/` | GLSL source files |
-| `opengl/opengl_font.*` | `OpenGLFont`: glyph atlas texture from a `BitmapFont` |
+| `opengl/opengl_font.*` | `OpenGLFont`: glyph atlas texture from a `BitmapFont`, one per `FontId` |
 | [debug_renderer.hpp](../../src/renderer/debug_renderer.hpp) | Half-edge debug overlay |
 
 ## IRenderer
@@ -24,18 +25,18 @@ Files: `src/renderer/`, plus [opengl_renderer_win32.cpp](../../src/platform/rend
 | Method | Description |
 |---|---|
 | `initialize(window, surface, config)` | Creates the context, then shaders and shared buffers (`createResources`). `window`/`surface` are the native handles from `Window`. |
+| `loadFonts(FontLibrary)` | Builds an atlas texture for every font. Called once by `setupRenderer` after `initialize`. |
 | `shutdown()` | Destroys the context. |
-| `resize(w, h)` / `setVSync(bool)` | Viewport size (also rebuilds the MSAA framebuffer) / swap interval. |
+| `resize(w, h)` / `setVSync(bool)` / `getVSync()` | Viewport size (also rebuilds the MSAA framebuffer) / swap interval, set by the `vsync` command. |
 | `beginFrame()` / `beginMainPass(ClearState)` | Start a frame, clear, and draw the gradient background (when `clearColor` is set). The gradient covers the clear color, which only shows if the background shader fails to load. |
 | `setBackground(BackgroundGradient)` / `getBackground()` | Top and bottom background colors. Default top 0.24/0.24/0.26, bottom 0.11/0.11/0.12. |
 | `setLighting(LightingState)` | Lighting for the following `draw` calls. Call once per frame before drawing objects. |
 | `setBackFaceTint(color)` / `getBackFaceTint()` | Color back faces are multiplied by. Default 0.8/0.4/0.4. Set by the `backface tint` command. |
 | `draw(DrawCommand)` | Draws one mesh's faces, edges, and vertices. |
 | `drawGrid(DrawGridCommand)` | Ground grid and axes. |
-| `drawText(DrawTextCommand)` | Screen-space text in pixels (origin top-left). |
 | `drawText3D(DrawText3DCommand)` | Text on a quad in world space. |
 | `drawDebugLine(start, end, mvp)` | One white line. |
-| `drawConsoleBackground()` | Translucent fullscreen overlay. |
+| `drawUI(UIDrawList)` | All 2D UI for the frame (console, later the status line and panel) in one call. See [ui.md](ui.md). |
 | `endMainPass()` / `endFrame()` / `present()` | Resolve the MSAA framebuffer to the window, finish, and swap buffers. |
 
 ### Draw commands
@@ -79,7 +80,7 @@ struct LightingState {
 
 `LightingState` is backend-neutral and doesn't depend on scene types. `buildLightingState` in [application.cpp](../../src/application/application.cpp) fills it each frame: the ambient light, then the camera headlight in slot 0 when it's on (direction = camera forward, color × strength, from `ctx.viewport.headlight`), then enabled directional lights from `scene.lights` in the remaining slots (3 with the headlight on, 4 with it off), then up to 8 enabled point and spot lights. Extra lights past either limit are skipped. A point light is stored as a spot light whose cone covers everything (`cosInner = -1`, `cosOuter = -2`), so the shader has one loop for both.
 
-`DrawTextCommand` and `DrawText3DCommand` hold references, so they must be used immediately, not stored.
+`DrawText3DCommand` holds references, so it must be used immediately, not stored.
 
 ## OpenGL backend
 
@@ -95,16 +96,18 @@ Everything between `beginMainPass` and `endMainPass` is drawn into an offscreen 
 ### Object drawing
 
 `OpenGLRenderer::draw` uses the `Lit` shader for faces and `Unlit` for everything else:
-1. Highlighted faces in yellow (`Unlit`, so selection stays bright), then all faces with `Lit`, with polygon offset so edges draw on top. `Lit` computes `0.7 gray × (ambient + Σ directional + Σ local)`:
+1. Highlighted faces with `Lit` in `SELECTED_FACE_COLOR` (amber-tinted, so selected faces keep their shading), then all faces with `Lit` in `FACE_COLOR`, with polygon offset so selected faces and all edges draw on top. Lit uniforms are set once by `setLitUniforms`. `Lit` computes `0.7 gray × (ambient + Σ directional + Σ local)`:
    - ambient: `ambientColor × ambientStrength`
    - directional: `color × max(dot(normal, −direction), 0)`
    - local (point/spot): `color × max(dot(normal, toLight), 0) × falloff × cone`, where `falloff = (1 − (distance / range)²)²` (1 at the light, 0 at `range`) and `cone = smoothstep(cosOuter, cosInner, dot(−toLight, direction))`.
 
    Point and spot lighting varies across a face because it depends on each pixel's world position (`v_WorldPosition` from `lit.vert`). There's no tone mapping, so the sum is clamped at white; strong lights on top of the default ambient, sun, and headlight saturate quickly. Normals come from the face buffer, transformed by `transpose(inverse(model))`. Back faces (seen through holes in open meshes, or a face whose normal got flipped) are lit with the normal flipped, then their base color is multiplied by a muted red tint (`u_BackFaceTint`, from `setBackFaceTint`, default 0.8/0.4/0.4) so they're recognizable at a glance. On a closed mesh, a red face means its winding is wrong.
-2. Highlighted edges in yellow, then all edges in dark gray, 2 px wide.
-3. Highlighted vertices in yellow, then all vertices as 8 px near-black points.
+2. Highlighted edges: two translucent amber glow bands (9 px and 5 px, no depth writes) under a crisp 2.5 px amber line. Then all edges in dark gray, 2 px. Selected faces' boundary edges are added to the highlighted edges by `renderFrame`, so selected faces get the same outline.
+3. Highlighted vertices, layered like a light marker: a 22 px soft amber glow, an 11 px dark disc, then an 8 px amber disc (only the last writes depth). Then all vertices as 7 px near-black discs. Points use a small depth bias (`u_DepthBias`) so they draw over the edges meeting at them.
 
-Colors are constants at the top of `opengl_renderer_common.cpp`: `FACE_COLOR` (0.7), `EDGE_COLOR` (0.2), `VERTEX_COLOR` (0.1), `SELECTED_COLOR` (yellow).
+Blending is on for edges and vertices; selection colors match the light markers (`light_markers.cpp`).
+
+Colors and sizes are constants at the top of `opengl_renderer_common.cpp`: `FACE_COLOR` (0.7), `EDGE_COLOR` (0.2), `VERTEX_COLOR` (0.1), `SELECTED_COLOR` (amber 1.0/0.76/0.30), `SELECTED_FACE_COLOR` (0.72/0.54/0.28), `SELECTED_GLOW_ALPHA`, and the edge widths and vertex sizes.
 
 Faces are flat-shaded with one normal per triangle, so non-planar faces show their fold. See [features.md](../features.md#lighting-and-look) for what's next.
 
@@ -118,12 +121,11 @@ Programs are looked up by `ShaderId` through `OpenGLShaderLibrary`:
 
 | `ShaderId` | Vertex | Fragment | Used for | Uniforms |
 |---|---|---|---|---|
-| `Unlit` | `unlit.vert` | `unlit.frag` | Mesh edges, vertices, highlights, debug lines | `u_MVP`, `u_Color` |
+| `Unlit` | `unlit.vert` | `unlit.frag` | Mesh edges, vertices, selection glows, debug lines | `u_MVP`, `u_Color`, `u_Alpha`, `u_DepthBias`, `u_PointShape` (0 square, 1 anti-aliased disc, 2 soft glow; points only, needs `GL_POINT_SPRITE` on in this compatibility context) |
 | `Lit` | `lit.vert` | `lit.frag` | Mesh faces | `u_MVP`, `u_Model`, `u_NormalMatrix`, `u_Color`, `u_BackFaceTint`, `u_AmbientColor`, `u_AmbientStrength`, `u_DirectionalLight{Directions,Colors}[4]`, `u_DirectionalLightCount`, `u_LocalLight{Positions,Directions,Colors,Ranges,CosInner,CosOuter}[8]`, `u_LocalLightCount` |
-| `ScreenText` | `screen_text.vert` | `text.frag` | Console text, positions already in NDC | `u_Color`, `u_Texture` |
-| `WorldText` | `world_text.vert` | `text.frag` | Debug labels in world space | `u_MVP`, `u_Color`, `u_Texture` |
-| `ConsoleBackground` | `fullscreen.vert` | `console_background.frag` | Translucent console overlay | — |
+| `WorldText` | `world_text.vert` | `world_text.frag` | Debug labels in world space | `u_MVP`, `u_Color`, `u_Texture` |
 | `Background` | `fullscreen.vert` | `background.frag` | Viewport gradient, drawn first with depth test and writes off. Blends `u_BottomColor` → `u_TopColor` by `gl_FragCoord.y / u_ViewportHeight` and adds ±½/255 noise to break up 8-bit banding. | `u_TopColor`, `u_BottomColor`, `u_ViewportHeight` |
+| `UI` | `ui.vert` | `ui.frag` | All 2D UI: rounded rects, borders, shadows, lines, glyphs (see [ui.md](ui.md#shader)) | `u_ViewportSize`, `u_Texture` |
 | `Grid` | `grid.vert` | `grid.frag` | Ground grid and axes | see [Grid](#grid) |
 
 Naming in GLSL: `a_` vertex inputs, `v_` values passed to the fragment stage, `u_` uniforms. `fullscreen.vert` and `grid.vert` take positions from `gl_VertexID` and are drawn with the empty `m_fullscreenVAO`.
@@ -177,9 +179,11 @@ Normals are computed on the CPU during export, so they're only recalculated when
 
 ### Text
 
-`BitmapFont` ([bitmap_font.hpp](../../src/core/font/bitmap_font.hpp)) loads a `.bmf` file of 16×24 1-bit glyphs for ASCII 32–126. The console font is compiled into the binary with `#embed` ([embedded_fonts.cpp](../../src/core/font/embedded_fonts.cpp); assets path set by `--embed-dir` in CMake). `OpenGLFont` uploads the glyphs to a texture atlas and returns `GlyphUV`s. `drawText` builds one quad per character in a dynamic buffer; `\n` starts a new line.
+`BitmapFont` ([bitmap_font.hpp](../../src/core/font/bitmap_font.hpp)) loads a `.bmf` file: a text format with the glyph size in its header and one hex digit (16 alpha levels) per pixel, for ASCII 32–126. Fonts are compiled into the binary with `#embed` ([embedded_fonts.cpp](../../src/core/font/embedded_fonts.cpp); assets path set by `--embed-dir` in CMake) and loaded by `FontLibrary`. `OpenGLFont` uploads one font into a 16 × 6 atlas texture; `FontAtlas::glyphUV` gives each character's UVs.
 
-`tools/fix_bmf_baseline.py` adjusts glyph baselines in a `.bmf` file.
+Screen-space text goes through the UI draw list ([ui.md](ui.md)). `drawText3D` draws world-space text with the console font.
+
+`tools/scale_bmf.py` makes a smaller `.bmf` from a larger one (used for the UI font); `tools/fix_bmf_baseline.py` adjusts glyph baselines in the 16×24 console font.
 
 ## Debug renderer
 

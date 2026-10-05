@@ -4,6 +4,7 @@
 #include <string>
 #include <unordered_map>
 #include "renderer/shader.hpp"
+#include "core/math/vec2.hpp"
 #include "core/math/vec3.hpp"
 
 class OpenGLShader : public Shader {
@@ -19,6 +20,7 @@ public:
     bool bind() override;
 
     void setMat4(const char* name, const f32* matrix);
+    void setVec2(const char* name, const Vec2& value);
     void setVec3(const char* name, const Vec3& value);
     void setVec3Array(const char* name, const Vec3* values, u32 count);
     void setFloat(const char* name, f32 value);

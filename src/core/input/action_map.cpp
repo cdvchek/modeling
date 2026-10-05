@@ -4,6 +4,13 @@ void ActionMap::subscribe(Action action, Keybind keybind, u32 input_ctx) {
     m_keybinds.emplace(action, ActionData{keybind, input_ctx});
 }
 
+bool ActionMap::usesMouse(const Keybind& keybind) const {
+    for (const Input& input : keybind.inputs) {
+        if (input.kind == InputKind::MouseButton || input.kind == InputKind::Axis) return true;
+    }
+    return false;
+}
+
 bool ActionMap::isActionDown(Action action, const InputState& input, u32 input_ctx, i32* axis_value) const {
     auto it = m_keybinds.find(action);
 
@@ -20,6 +27,8 @@ bool ActionMap::isActionDown(Action action, const InputState& input, u32 input_c
 
     // Only console bindings work while the console is open.
     if (input_ctx & InputContext_Console && !(key_context & InputContext_Console)) return false;
+
+    if (m_mouseBlocked && usesMouse(keybind)) return false;
 
     for (const Input& bindingInput : keybind.inputs) {
         switch (bindingInput.kind) {
@@ -59,6 +68,7 @@ bool ActionMap::wasActionPressedThisFrame(Action action, const InputState& input
 
     if (input_ctx & InputContext_Console && !(key_context & InputContext_Console)) return false;
 
+    if (m_mouseBlocked && usesMouse(keybind)) return false;
 
     bool anyPressedThisFrame = false;
 

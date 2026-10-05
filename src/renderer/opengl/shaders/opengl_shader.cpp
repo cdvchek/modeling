@@ -96,6 +96,10 @@ void OpenGLShader::setMat4(const char* name, const f32* matrix) {
     glUniformMatrix4fv(getUniformLocation(name), 1, GL_FALSE, matrix);
 }
 
+void OpenGLShader::setVec2(const char* name, const Vec2& value) {
+    glUniform2f(getUniformLocation(name), value.x, value.y);
+}
+
 void OpenGLShader::setVec3(const char* name, const Vec3& value) {
     glUniform3f(getUniformLocation(name), value.x, value.y, value.z);
 }

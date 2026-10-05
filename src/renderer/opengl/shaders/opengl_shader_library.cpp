@@ -22,24 +22,16 @@ namespace {
         #embed "glsl/fullscreen.vert"
         , 0
     };
-    const unsigned char consoleBackgroundFrag[] = {
-        #embed "glsl/console_background.frag"
-        , 0
-    };
     const unsigned char backgroundFrag[] = {
         #embed "glsl/background.frag"
-        , 0
-    };
-    const unsigned char screenTextVert[] = {
-        #embed "glsl/screen_text.vert"
         , 0
     };
     const unsigned char worldTextVert[] = {
         #embed "glsl/world_text.vert"
         , 0
     };
-    const unsigned char textFrag[] = {
-        #embed "glsl/text.frag"
+    const unsigned char worldTextFrag[] = {
+        #embed "glsl/world_text.frag"
         , 0
     };
     const unsigned char gridVert[] = {
@@ -48,6 +40,14 @@ namespace {
     };
     const unsigned char gridFrag[] = {
         #embed "glsl/grid.frag"
+        , 0
+    };
+    const unsigned char uiVert[] = {
+        #embed "glsl/ui.vert"
+        , 0
+    };
+    const unsigned char uiFrag[] = {
+        #embed "glsl/ui.frag"
         , 0
     };
 
@@ -59,13 +59,12 @@ namespace {
     };
 
     const ShaderSource SOURCES[] = {
-        { ShaderId::Unlit,             "unlit",              unlitVert,      unlitFrag },
-        { ShaderId::Lit,               "lit",                litVert,        litFrag },
-        { ShaderId::ScreenText,        "screen_text",        screenTextVert, textFrag },
-        { ShaderId::WorldText,         "world_text",         worldTextVert,  textFrag },
-        { ShaderId::ConsoleBackground, "console_background", fullscreenVert, consoleBackgroundFrag },
-        { ShaderId::Background,        "background",         fullscreenVert, backgroundFrag },
-        { ShaderId::Grid,              "grid",               gridVert,       gridFrag },
+        { ShaderId::Unlit,      "unlit",      unlitVert,      unlitFrag },
+        { ShaderId::Lit,        "lit",        litVert,        litFrag },
+        { ShaderId::WorldText,  "world_text", worldTextVert,  worldTextFrag },
+        { ShaderId::Background, "background", fullscreenVert, backgroundFrag },
+        { ShaderId::Grid,       "grid",       gridVert,       gridFrag },
+        { ShaderId::UI,         "ui",         uiVert,         uiFrag },
     };
 
     static_assert(std::size(SOURCES) == static_cast<u32>(ShaderId::Count), "every ShaderId needs a source");

@@ -10,22 +10,23 @@ A from-scratch C++20 modeling app on Win32 and OpenGL 3.3. No windowing, UI, or 
        ┌─────▼──────┐
        │ application│  startup, main loop, tools (action_checks/), console commands
        └─────┬──────┘
-   ┌─────────┼─────────────┬───────────┐
-┌──▼───┐ ┌───▼───┐   ┌─────▼────┐ ┌────▼─────┐
-│ core │ │ scene │   │ renderer │ │ platform │
-└──────┘ └───────┘   └──────────┘ └──────────┘
- events   objects     IRenderer    Win32 window
- input    mesh        OpenGL impl  message pump
- console  selection   shaders      GL context
- font     camera      GPU meshes   key mapping
+   ┌─────────┼──────────┬──────────────┬───────────┐
+┌──▼───┐ ┌───▼───┐  ┌───▼──┐   ┌─────▼────┐ ┌────▼─────┐
+│ core │ │ scene │  │  ui  │   │ renderer │ │ platform │
+└──────┘ └───────┘  └──────┘   └──────────┘ └──────────┘
+ events   objects   draw list   IRenderer    Win32 window
+ input    mesh      rects,      OpenGL impl  message pump
+ console  selection text, clips shaders      GL context
+ font     camera                GPU meshes   key mapping
  math     history
 ```
 
 | Directory | Role | Depends on |
 |---|---|---|
-| `src/core/` | Engine building blocks with no app knowledge: math, containers (`DynamicArray`), events, input, console, bitmap font | — |
+| `src/core/` | Engine building blocks with no app knowledge: math, containers (`DynamicArray`), events, input, console, bitmap fonts, frame timing | — |
 | `src/scene/` | Everything being edited: objects, lights, half-edge meshes, selection, picking, camera, history | core (and `renderer/opengl` for `OpenGLMesh`, see below) |
-| `src/renderer/` | Backend-neutral `IRenderer` interface plus the OpenGL implementation | core, scene (mesh handles, `Scene` for the debug overlay) |
+| `src/ui/` | 2D UI draw list in pixel coordinates (shapes, text, clipping) and the immediate-mode widget system (`UIContext`). No OpenGL. | core (math, fonts) |
+| `src/renderer/` | Backend-neutral `IRenderer` interface plus the OpenGL implementation | core, scene (mesh handles, `Scene` for the debug overlay), ui (draws a `UIDrawList`) |
 | `src/platform/` | Win32 window, message pump, key translation, OpenGL context creation | core (events, keys) |
 | `src/application/` | Wires everything together and owns all modeling behavior triggered by input | everything |
 
@@ -39,7 +40,7 @@ Defined in [CMakeLists.txt](../CMakeLists.txt):
 
 | Target | Contents |
 |---|---|
-| `modeling_core` (static lib) | Math, font, and all `MeshData` code. No OpenGL or Win32, so it can be tested on its own. |
+| `modeling_core` (static lib) | Math, fonts, lights, the UI draw list, and all `MeshData` code. No OpenGL or Win32, so it can be tested on its own. |
 | `modeling` (exe → `bin/modeling.exe`) | Everything else plus `glad.c`, linked with `opengl32` and `dwmapi`. |
 | `tests` (exe) | Every `tests/*.cpp`, linked against `modeling_core`. |
 
@@ -59,6 +60,10 @@ struct AppContext {
     BevelTool bevel;          // state of an in-progress bevel
     History history;          // undo/redo
     ViewportSettings viewport; // headlight and other view-only settings
+    FontLibrary fonts;        // embedded bitmap fonts
+    UIDrawList uiDrawList;    // 2D UI, rebuilt every frame
+    FrameTimer frameTimer;    // FPS for the status bar
+    UIContext ui;             // widgets and mouse routing
     bool is_running;
 };
 ```
@@ -73,8 +78,10 @@ struct AppContext {
 while running:
     input.beginFrame()          // copy current key/mouse state to "previous", zero deltas
     Platform::pollEvents()      // Win32 messages → Event structs → InputState
+    ui.beginFrame(...)          // UI decides whether it owns the mouse this frame
+    actions.setMouseBlocked(..) // if so, viewport mouse actions don't fire
     checkActions(ctx)           // read actions for active contexts, run tools, edit the scene
-    renderFrame(ctx)            // upload dirty meshes, draw objects, grid, debug, console
+    renderFrame(ctx)            // upload dirty meshes, draw objects, grid, debug, UI (markers, status bar, widgets, console)
 ```
 
 Rendering order inside `renderFrame`:

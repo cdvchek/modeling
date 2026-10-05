@@ -1,17 +1,13 @@
 #pragma once
 
-#include <array>
 #include <cstddef>
 #include <istream>
 #include <string>
+#include <vector>
 #include <types>
 
 struct BitmapGlyph {
-
-    static constexpr u32 WIDTH = 16;
-    static constexpr u32 HEIGHT = 24;
-
-    std::array<u8, WIDTH * HEIGHT> pixels{};
+    std::vector<u8> pixels;    // glyphWidth * glyphHeight alpha values, row-major
 };
 
 class BitmapFont {
@@ -19,14 +15,19 @@ public:
     static constexpr u32 FIRST_CHAR = 32;
     static constexpr u32 LAST_CHAR = 126;
     static constexpr u32 GLYPH_COUNT = LAST_CHAR - FIRST_CHAR + 1;
-    
+
     bool load(const std::string& path);
     bool loadFromMemory(const unsigned char* data, std::size_t size);
     const BitmapGlyph* getGlyph(char character) const;
 
+    u32 getGlyphWidth() const { return m_glyphWidth; }
+    u32 getGlyphHeight() const { return m_glyphHeight; }
+
 private:
     bool parse(std::istream& file);
 
-    std::array<BitmapGlyph, GLYPH_COUNT> m_glyphs{};
-    std::array<bool, GLYPH_COUNT> m_loaded{};
+    u32 m_glyphWidth = 0;
+    u32 m_glyphHeight = 0;
+    std::vector<BitmapGlyph> m_glyphs = std::vector<BitmapGlyph>(GLYPH_COUNT);
+    std::vector<bool> m_loaded = std::vector<bool>(GLYPH_COUNT, false);
 };

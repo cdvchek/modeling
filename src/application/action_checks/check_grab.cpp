@@ -14,8 +14,10 @@ void checkGrabContext(AppContext& ctx) {
     static bool wasZAxis = false;
 
     const auto& selections = ctx.scene.selection.getVertices();
+    const auto& lights = ctx.scene.selection.getLights();
+    const auto& lightStarts = ctx.scene.selection.getLightStartPositions();
 
-    if (selections.empty()) return;
+    if (selections.empty() && lights.empty()) return;
 
     const auto& starts =
         ctx.scene.selection.getSelectionStartPositions();
@@ -27,6 +29,17 @@ void checkGrabContext(AppContext& ctx) {
 
     // Snap vertices back onto the selected axis.
     if (xJustActivated || yJustActivated || zJustActivated) {
+        // Lights snap the same way as vertices
+        for (u32 i = 0; i < static_cast<u32>(lights.size()) && i < static_cast<u32>(lightStarts.size()); ++i) {
+            Light* light = ctx.scene.lights.tryGet(lights[i]);
+            if (!light) continue;
+
+            const Vec3& start = lightStarts[i];
+            if (xJustActivated) { light->position.y = start.y; light->position.z = start.z; }
+            else if (yJustActivated) { light->position.x = start.x; light->position.z = start.z; }
+            else if (zJustActivated) { light->position.x = start.x; light->position.y = start.y; }
+        }
+
         for (u32 i = 0; i < static_cast<u32>(selections.size()); ++i) {
             const VertexSelection& selection = selections[i];
             const Vec3& start = starts[i];
@@ -92,6 +105,11 @@ void checkGrabContext(AppContext& ctx) {
         if (!zAxis) vertMove.z = 0.0f;
     }
 
+    // Move selected lights.
+    for (LightHandle handle : lights) {
+        if (Light* light = ctx.scene.lights.tryGet(handle)) light->position += vertMove;
+    }
+
     // Move selected vertices.
     for (const VertexSelection& vs : selections) {
         Object& obj =
@@ -148,6 +166,10 @@ void checkGrabContext(AppContext& ctx) {
             );
 
             obj.meshDirty = true;
+        }
+
+        for (u32 i = 0; i < static_cast<u32>(lights.size()) && i < static_cast<u32>(lightStarts.size()); ++i) {
+            if (Light* light = ctx.scene.lights.tryGet(lights[i])) light->position = lightStarts[i];
         }
 
         ctx.history.cancel(ctx.scene);

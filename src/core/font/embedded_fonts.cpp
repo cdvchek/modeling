@@ -8,4 +8,10 @@ namespace EmbeddedFonts {
     };
 
     const std::size_t consoleSize = sizeof(console);
+
+    const unsigned char ui[] = {
+        #embed <fonts/ui.bmf>
+    };
+
+    const std::size_t uiSize = sizeof(ui);
 }

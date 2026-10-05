@@ -5,6 +5,8 @@
 
 #include "scene/mesh/mesh_handles.hpp"
 #include "scene/selection/ray.hpp"
+#include "scene/lights/light.hpp"
+#include "core/math/mat4.hpp"
 
 struct Scene;
 
@@ -40,3 +42,14 @@ struct FaceHit {
 };
 
 FaceHit pickFace(const Scene& scene, const Ray& ray);
+
+struct LightHit {
+    bool hit = false;
+
+    LightHandle light = INVALID_LIGHT;
+
+    f32 distance = FLT_MAX;   // pixels from the mouse to the light's marker
+};
+
+// Nearest light whose marker is within radius pixels of the mouse
+LightHit pickLight(const Scene& scene, const Mat4& viewProjection, f32 mouseX, f32 mouseY, f32 width, f32 height, f32 radius);

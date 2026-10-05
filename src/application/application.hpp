@@ -6,6 +6,7 @@ namespace Application {
     bool initialize(AppContext& ctx);
     void run(AppContext& ctx);
     void renderFrame(AppContext& ctx);
+    void drawConsole(AppContext& ctx, UIDrawList& ui, f32 width, f32 height);
     
     bool createMainWindow(AppContext& ctx);
     bool setupRenderer(AppContext& ctx);

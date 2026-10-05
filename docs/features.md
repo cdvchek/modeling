@@ -10,33 +10,20 @@ Work that's decided on. Rough order, top first; each step builds on the ones bef
 
 ### UI, light markers, and objects
 
-1. **2D drawing layer**: UI code fills a backend-neutral `UIDrawList` (rects, lines, text in pixel coordinates, clip rects) and the renderer draws it with one `drawUI` call, so UI logic never touches OpenGL and can be unit tested. A rounded-rect shader with a soft drop shadow and 1 px border gives panels their floating look; `glScissor` clips panel contents. Needs a second, smaller bitmap font for UI text (the 16x24 console font is too big and doesn't scale cleanly).
-2. **Status line**: a bar along the bottom showing mode, active tool, axis lock, selection counts, object and light counts, and frame time. First real use of the 2D layer.
-3. **Light markers, selection, and moving lights**:
-   - Markers: camera-facing billboards at a fixed pixel size, drawn as a disc with a soft glow in the light's color. Directional lights add a short direction line (their marker sits at `light.position`), spot lights show their cone outline while selected, and a faint line drops to the grid. Selected = yellow ring; disabled = hollow gray ring.
-   - Picking: screen-space distance to the marker, checked before mesh elements.
-   - Selection: `Selection` can hold a light. Grab (G) moves it with axis lock and undo.
-4. **UI core**:
-   - Input routing: the UI sees the mouse first each frame and reports whether it used it; viewport picking and camera orbit only run when it didn't.
-   - Immediate-mode widgets with IDs and hot/active tracking: label, button, selectable list row, checkbox, drag slider, color swatch with RGB sliders.
-   - Slider drags call `history.begin` on press and `commit` on release, so one drag is one undo step.
-   - No text input yet; renaming stays a console command.
-5. **Floating panel**: one panel with tabs, state kept between frames (position, size, tabs, active tab, scroll).
-   - Drag by the tab bar or header; kept inside the window.
-   - Resize from edges and corners with a minimum size; resize cursor on hover (Win32 `SetCursor`).
+1. **Floating panel** (moving, resizing, and staying inside the window are done):
    - Click tabs to switch; mouse wheel scrolls content that doesn't fit.
    - Later: reorder tabs by dragging them within the tab bar. Tearing tabs off into separate panels is out of scope for now.
-6. **Lights tab**: no refactor needed, all data and edit paths exist.
+2. **Lights tab**: no refactor needed, all data and edit paths exist.
    - Ambient light and headlight sections at the top.
    - Light list; clicking a row selects the light, kept in sync with clicking markers in the viewport.
    - Add point / directional / spot, delete.
    - Selected light's properties: on/off, type, color, intensity, range, cone, position, direction.
-7. **Multi-object support**: prerequisite for the Objects tab.
+3. **Multi-object support**: prerequisite for the Objects tab.
    - `ObjectCollection` stores a `DynamicArray<Object>` with `ObjectHandle`, like lights.
    - `Selection` stores object handles instead of indices, plus an active object.
    - Tools act on the active object instead of `objects.get(0)`.
    - History snapshots objects by handle, so adding and removing objects is undoable.
-8. **Objects tab**:
+4. **Objects tab**:
    - Object list; clicking a row selects the object.
    - Add any preset (one button each), delete, show/hide, duplicate.
    - Transform fields: position, rotation, scale.
@@ -45,8 +32,8 @@ Code layout: `src/ui/` (draw list, UI context, widgets, panel; depends only on c
 
 ### Gaps to close
 Known limitations of what exists today.
-- Tools only act on object 0 (`ctx.scene.objects.get(0)` is hard-coded in the tool code), though picking and selection support multiple objects. Fixed by planned step 7.
-- Only one object exists, created at startup (a cube). No way to add, delete, or transform objects from the app. Fixed by planned steps 7 and 8.
+- Tools only act on object 0 (`ctx.scene.objects.get(0)` is hard-coded in the tool code), though picking and selection support multiple objects. Fixed by planned step 3.
+- Only one object exists, created at startup (a cube). No way to add, delete, or transform objects from the app. Fixed by planned steps 3 and 4.
 - Extrude and inset only use the first selected face.
 - Bevel refuses geometry that touches a mesh border.
 - No save/load or import/export.
@@ -101,7 +88,7 @@ Small, builds on code that already exists, and very useful day to day:
 - Frame selected: move the camera to fit the selection.
 - Small axis gizmo in a corner showing the view orientation.
 - Display toggles: face normals, backface culling, wireframe-only, x-ray.
-- Vertex/edge/face counts for the whole mesh in the status line.
+- Spot light cone outline drawn while a spot light is selected.
 
 ### Workflow and engineering
 - Native save format plus autosave.
@@ -160,9 +147,23 @@ All edits can be confirmed (left click) or cancelled (right click) while active.
 - Ctrl+Z / Ctrl+Y. Up to 100 steps.
 - Snapshots mesh data, object transforms, lights, and selection.
 
+### Light markers
+- Every light is drawn in the viewport as a fixed-size orb in its color with a soft glow, always on top of the scene. Disabled lights are hollow gray rings. Spot lights show an arrow for where they point and directional lights three parallel arrows; every light has a faint line down to the grid.
+- Selection is drawn in warm amber with a soft glow everywhere: selected vertices as amber discs with a dark outline and glow, edges as amber lines with a soft glow, faces amber-tinted (still lit) with an amber outline. Vertices are drawn as round dots.
+- Grab (G) moves selected lights with X/Y/Z axis lock, cancel (right click), and undo.
+- Rotate (R) aims selected lights: their direction turns around the view axis or a locked X/Y/Z axis while they stay in place. Cancel and undo work as for vertices.
+- Lights and mesh elements are never selected at the same time: clicking (or Shift+clicking) one kind clears the other.
+- Click a light's marker to select it (amber ring with a soft glow); Shift+click adds or removes. Lights are picked before mesh elements and can be selected in any mode.
+
+### UI drawing
+- Immediate-mode widgets (`ctx.ui`): button, list row, checkbox, slider, X/Y/Z drag fields, color swatch with RGB sliders, headings, separators. Clicks and scrolling over UI don't reach the viewport; a whole slider drag is one undo step. A floating panel (top right by default, `ui panel` toggles it) can be dragged by its header, resized from any edge or corner (with resize cursors and a minimum size), and always stays inside the viewport; it currently holds light controls. See [systems/ui.md](systems/ui.md#widgets-uicontext).
+- Status bar along the bottom of the viewport showing frames per second (averaged over half a second), the selection mode (Vertex, Edge, Face), active tool (Select, Grab, Scale, Rotate, Bevel), and axis lock (`-` outside grab/scale/rotate, `Free`, or the locked axes in red/green/blue), separated by dividers. Items keep fixed positions as values change.
+- 2D draw list (`ctx.uiDrawList`) for everything drawn over the viewport: rectangles, rounded rectangles with borders, soft shadows, anti-aliased lines, text, and nested clipping, drawn in a few batched calls. See [systems/ui.md](systems/ui.md).
+- Two embedded fonts: the 16x24 console font and a 10x16 UI font (the console font trimmed and scaled down).
+
 ### Console
-- Tab toggles an in-app console with command history (Up/Down) and cursor movement.
-- Commands: `debug`, `validate`, `merge`, `dissolve`, `light`, `headlight`, `backface`, `test`. See [systems/console.md](systems/console.md).
+- Tab toggles an in-app console with command history (Up/Down) and cursor movement. Drawn with the UI draw list.
+- Commands: `debug`, `validate`, `merge`, `dissolve`, `light`, `headlight`, `backface`, `vsync`, `ui`, `test`. See [systems/console.md](systems/console.md).
 
 ### Mesh
 - Half-edge polygon mesh with generational handles.

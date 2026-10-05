@@ -43,6 +43,8 @@ Descriptions are stored but not shown anywhere yet.
 | `light` | see [below](#light-command) | Lists, adds, removes, and edits scene lights and the ambient light. Undoable. |
 | `headlight` | none / `on` / `off` / `color <r> <g> <b>` / `strength <s>` | Prints or changes the camera headlight (values 0 to 1). A viewport setting, not undoable. |
 | `backface` | `tint` / `tint <r> <g> <b>` | Prints or sets the color back faces are multiplied by (each 0 to 1; `1 1 1` turns the tint off). A display setting stored on the renderer, so not undoable. |
+| `ui` | `panel` | Shows or hides the floating panel (shown by default). |
+| `vsync` | `on` / `off` / none (toggle) | Turns vertical sync on or off and prints the new state. Off lets the frame rate (status bar FPS) go past the monitor's refresh rate. Not saved; starts on each launch. |
 | `test` | any | Prints its arguments to stdout. |
 
 Output goes to stdout/stderr, not to the console overlay.

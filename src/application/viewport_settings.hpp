@@ -2,6 +2,7 @@
 
 #include <types>
 #include "core/math/vec3.hpp"
+#include "ui/ui_context.hpp"
 
 struct Headlight {
     bool enabled = true;
@@ -11,4 +12,6 @@ struct Headlight {
 
 struct ViewportSettings {
     Headlight headlight;
+    bool showPanel = true;
+    UIPanelState panel;
 };

@@ -211,4 +211,36 @@ void Application::registerCommands(AppContext& ctx) {
             printHeadlight(headlight);
         }
     );
+
+    ctx.systems.commands.registerCommand(
+        "vsync",
+        "Toggles or sets vertical sync: vsync [on | off]",
+        [&ctx](const CommandArgs& args) {
+            if (args.empty()) {
+                ctx.renderer->setVSync(!ctx.renderer->getVSync());
+            } else if (args[0] == "on" && args.size() == 1) {
+                ctx.renderer->setVSync(true);
+            } else if (args[0] == "off" && args.size() == 1) {
+                ctx.renderer->setVSync(false);
+            } else {
+                std::cout << "usage: vsync [on | off]  (no argument toggles)" << std::endl;
+                return;
+            }
+
+            std::cout << "[vsync] " << (ctx.renderer->getVSync() ? "on" : "off") << std::endl;
+        }
+    );
+
+    ctx.systems.commands.registerCommand(
+        "ui",
+        "UI: ui panel (shows or hides the floating panel)",
+        [&ctx](const CommandArgs& args) {
+            if (args.size() == 1 && args[0] == "panel") {
+                ctx.viewport.showPanel = !ctx.viewport.showPanel;
+                std::cout << "[ui panel] " << (ctx.viewport.showPanel ? "shown" : "hidden") << std::endl;
+            } else {
+                std::cout << "usage: ui panel" << std::endl;
+            }
+        }
+    );
 }

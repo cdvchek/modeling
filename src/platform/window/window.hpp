@@ -6,6 +6,14 @@
 
 class EventDispatcher;
 
+enum class CursorShape : u8 {
+    Arrow,
+    ResizeHorizontal,
+    ResizeVertical,
+    ResizeDiagonalDown,   // top-left to bottom-right
+    ResizeDiagonalUp      // bottom-left to top-right
+};
+
 class Window {
 
 // Public methods return false or nullptr on error; see printWindowError.
@@ -24,6 +32,9 @@ public:
     void* getNativeDisplayContext();
     
     void setOnQuitCallback(std::function<void()> onQuit);
+
+    // Shown whenever the mouse is over the window's client area
+    void setCursor(CursorShape shape);
 
     void printWindowError() const;
 

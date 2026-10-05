@@ -18,6 +18,7 @@ namespace WindowCallback {
     LRESULT handleMouseMiddleButtonUp(Window::Impl* impl, WPARAM wParam, LPARAM lParam);
     LRESULT handleMouseXButtonUp(Window::Impl* impl, WPARAM wParam, LPARAM lParam);
     LRESULT handleMouseWheel(Window::Impl* impl, WPARAM wParam, LPARAM lParam);
+    LRESULT handleCaptureChanged(Window::Impl* impl, WPARAM wParam, LPARAM lParam);
     LRESULT handleSize(Window::Impl* impl, WPARAM wParam, LPARAM lParam);
     LRESULT handleClose(Window::Impl* impl, WPARAM wParam, LPARAM lParam);
 };

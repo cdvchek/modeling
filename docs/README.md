@@ -14,6 +14,7 @@ Developer documentation for the modeling application.
 | [systems/mesh.md](systems/mesh.md) | Half-edge mesh, generational handles, and every mesh operator |
 | [systems/scene.md](systems/scene.md) | Objects, transforms, camera, selection, picking, and undo/redo history |
 | [systems/renderer.md](systems/renderer.md) | Renderer interface, OpenGL backend, shaders, grid, text, debug overlay |
+| [systems/ui.md](systems/ui.md) | 2D UI draw list, UI shader, fonts |
 | [systems/math.md](systems/math.md) | Vector and matrix types |
 | [testing.md](testing.md) | The test runner and what the tests cover |
 

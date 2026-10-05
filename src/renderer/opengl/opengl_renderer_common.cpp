@@ -1,7 +1,6 @@
 #include "renderer/opengl/opengl_renderer.hpp"
 #include "core/input/contexts.hpp"
-#include "core/font/bitmap_font.hpp"
-#include "core/font/embedded_fonts.hpp"
+#include "core/font/font_atlas.hpp"
 
 #include <iostream>
 #include <algorithm>
@@ -12,26 +11,37 @@ namespace {
     const Vec3 FACE_COLOR { 0.7f, 0.7f, 0.7f };
     const Vec3 EDGE_COLOR { 0.2f, 0.2f, 0.2f };
     const Vec3 VERTEX_COLOR { 0.1f, 0.1f, 0.1f };
-    const Vec3 SELECTED_COLOR { 1.0f, 1.0f, 0.0f };
+    const Vec3 OUTLINE_COLOR { 0.06f, 0.06f, 0.08f };
+
+    // Selection matches the light markers: warm amber with a soft glow
+    const Vec3 SELECTED_COLOR { 1.0f, 0.76f, 0.30f };
+    const Vec3 SELECTED_FACE_COLOR { 0.72f, 0.54f, 0.28f };
+    constexpr f32 SELECTED_GLOW_ALPHA = 0.35f;
+
+    constexpr f32 EDGE_WIDTH = 2.0f;
+    constexpr f32 SELECTED_EDGE_WIDTH = 2.5f;
+    constexpr f32 SELECTED_EDGE_GLOW_WIDTH = 9.0f;
+    constexpr f32 SELECTED_EDGE_INNER_GLOW_WIDTH = 5.0f;
+    constexpr f32 VERTEX_DEPTH_BIAS = 0.0005f;
+
+    constexpr f32 VERTEX_SIZE = 7.0f;
+    constexpr f32 SELECTED_VERTEX_SIZE = 8.0f;
+    constexpr f32 SELECTED_VERTEX_OUTLINE_SIZE = 11.0f;
+    constexpr f32 SELECTED_VERTEX_GLOW_SIZE = 22.0f;
+
+    // Point shapes understood by unlit.frag
+    constexpr i32 POINT_SQUARE = 0;
+    constexpr i32 POINT_DISC = 1;
+    constexpr i32 POINT_GLOW = 2;
+
+    // Compatibility contexts need point sprites enabled for gl_PointCoord; GLAD's core header doesn't define it
+    constexpr GLenum GL_POINT_SPRITE = 0x8861;
 }
 
 OpenGLRenderer::~OpenGLRenderer() { shutdown(); }
 
 bool OpenGLRenderer::createResources() {
     glEnable(GL_DEPTH_TEST);
-
-    // Screen text: 2D position + UV
-    glGenVertexArrays(1, &m_textVAO);
-    glGenBuffers(1, &m_textVBO);
-
-    glBindVertexArray(m_textVAO);
-    glBindBuffer(GL_ARRAY_BUFFER, m_textVBO);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(f32) * 6 * 4, nullptr, GL_DYNAMIC_DRAW);
-
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(f32), (void*)0);
-    glEnableVertexAttribArray(1);
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(f32), (void*)(2 * sizeof(f32)));
 
     // Debug lines: two 3D points
     glGenVertexArrays(1, &m_debugLineVAO);
@@ -73,9 +83,7 @@ bool OpenGLRenderer::createResources() {
         std::cerr << "[renderer] some shaders failed to load; their draws will be skipped" << std::endl;
     }
 
-    BitmapFont font;
-    if (!font.loadFromMemory(EmbeddedFonts::console, EmbeddedFonts::consoleSize)) return false;
-    m_consoleFont.create(font);
+    m_ui.create();
 
     return true;
 }
@@ -83,19 +91,34 @@ bool OpenGLRenderer::createResources() {
 void OpenGLRenderer::destroyResources() {
     m_shaders.destroy();
     destroyRenderTargets();
+    m_ui.destroy();
 
-    glDeleteVertexArrays(1, &m_textVAO);
-    glDeleteBuffers(1, &m_textVBO);
+    for (OpenGLFont& font : m_fonts) font.destroy();
+
     glDeleteVertexArrays(1, &m_text3DVAO);
     glDeleteBuffers(1, &m_text3DVBO);
     glDeleteVertexArrays(1, &m_debugLineVAO);
     glDeleteBuffers(1, &m_debugLineVBO);
     glDeleteVertexArrays(1, &m_fullscreenVAO);
 
-    m_textVAO = m_textVBO = 0;
     m_text3DVAO = m_text3DVBO = 0;
     m_debugLineVAO = m_debugLineVBO = 0;
     m_fullscreenVAO = 0;
+}
+
+bool OpenGLRenderer::loadFonts(const FontLibrary& fonts) {
+    if (!m_initialized) return false;
+
+    bool allLoaded = true;
+    for (u32 i = 0; i < static_cast<u32>(FontId::Count); ++i) {
+        allLoaded &= m_fonts[i].create(fonts.get(static_cast<FontId>(i)));
+    }
+    return allLoaded;
+}
+
+void OpenGLRenderer::drawUI(const UIDrawList& list) {
+    if (!m_initialized) return;
+    m_ui.draw(list, m_shaders.get(ShaderId::UI), m_fonts, m_width, m_height);
 }
 
 void OpenGLRenderer::createRenderTargets(u32 width, u32 height) {
@@ -209,173 +232,124 @@ Vec3 OpenGLRenderer::getBackFaceTint() const {
 void OpenGLRenderer::draw(const DrawCommand& command) {
     if (!m_initialized || !command.mesh) return;
 
+    // Faces: selected ones stay lit, just tinted
+    if (command.showFaces) {
+        OpenGLShader& lit = m_shaders.get(ShaderId::Lit);
+        if (lit.bind()) {
+            setLitUniforms(lit, command);
+
+            lit.setVec3("u_Color", SELECTED_FACE_COLOR);
+            for (const FaceHandle& face : command.highlightedFaces) {
+                command.mesh->drawFace(face);
+            }
+
+            // Offset pushes the rest back so selected faces and edges win the depth test
+            lit.setVec3("u_Color", FACE_COLOR);
+            glEnable(GL_POLYGON_OFFSET_FILL);
+            glPolygonOffset(1.0f, 1.0f);
+            command.mesh->drawFaces();
+            glDisable(GL_POLYGON_OFFSET_FILL);
+        }
+    }
+
     OpenGLShader& shader = m_shaders.get(ShaderId::Unlit);
     if (!shader.bind()) return;
 
     shader.setMat4("u_MVP", command.mvp.m);
-
-    // Faces
-    if (command.showFaces) {
-        shader.setVec3("u_Color", SELECTED_COLOR);
-
-        for (const FaceHandle& face : command.highlightedFaces) {
-            command.mesh->drawFace(face);
-        }
-
-        OpenGLShader& lit = m_shaders.get(ShaderId::Lit);
-        if (lit.bind()) {
-            const Mat4 normalMatrix = Mat4::transpose(Mat4::inverse(command.model));
-
-            lit.setMat4("u_MVP", command.mvp.m);
-            lit.setMat4("u_Model", command.model.m);
-            lit.setMat4("u_NormalMatrix", normalMatrix.m);
-            lit.setVec3("u_Color", FACE_COLOR);
-            lit.setVec3("u_BackFaceTint", m_backFaceTint);
-            lit.setVec3("u_AmbientColor", m_lighting.ambientColor);
-            lit.setFloat("u_AmbientStrength", m_lighting.ambientStrength);
-
-            const u32 count = std::min(m_lighting.directionalCount, MAX_DIRECTIONAL_LIGHTS);
-            lit.setInt("u_DirectionalLightCount", static_cast<i32>(count));
-            if (count > 0) {
-                lit.setVec3Array("u_DirectionalLightDirections[0]", m_lighting.directionalDirections, count);
-                lit.setVec3Array("u_DirectionalLightColors[0]", m_lighting.directionalColors, count);
-            }
-
-            const u32 localCount = std::min(m_lighting.localCount, MAX_LOCAL_LIGHTS);
-            lit.setInt("u_LocalLightCount", static_cast<i32>(localCount));
-            if (localCount > 0) {
-                lit.setVec3Array("u_LocalLightPositions[0]", m_lighting.localPositions, localCount);
-                lit.setVec3Array("u_LocalLightDirections[0]", m_lighting.localDirections, localCount);
-                lit.setVec3Array("u_LocalLightColors[0]", m_lighting.localColors, localCount);
-                lit.setFloatArray("u_LocalLightRanges[0]", m_lighting.localRanges, localCount);
-                lit.setFloatArray("u_LocalLightCosInner[0]", m_lighting.localCosInner, localCount);
-                lit.setFloatArray("u_LocalLightCosOuter[0]", m_lighting.localCosOuter, localCount);
-            }
-
-            glEnable(GL_POLYGON_OFFSET_FILL);
-            glPolygonOffset(1.0f, 1.0f);
-
-            command.mesh->drawFaces();
-
-            glDisable(GL_POLYGON_OFFSET_FILL);
-        }
-
-        shader.bind();
-    }
-
-    // Edges
-    if (command.showEdges) {
-        shader.setVec3("u_Color", SELECTED_COLOR);
-
-        for (const EdgeHandle& edge : command.highlightedEdges) {
-            command.mesh->drawEdge(edge);
-        }
-
-        shader.setVec3("u_Color", EDGE_COLOR);
-
-        glLineWidth(2.0f);
-        command.mesh->drawEdges();
-    }
-
-    // Vertices
-    if (command.showVerts) {
-        shader.setVec3("u_Color", SELECTED_COLOR);
-
-        for (const VertexHandle& vertex : command.highlightedVerts) {
-            command.mesh->drawVertex(vertex);
-        }
-
-        shader.setVec3("u_Color", VERTEX_COLOR);
-
-        glPointSize(8.0f);
-        command.mesh->drawVertices();
-    }
-
-    glBindVertexArray(0);
-}
-
-void OpenGLRenderer::drawText(const DrawTextCommand& command) {
-    if (command.text.empty()) return;
-
-    constexpr f32 charWidth = 16.0f;
-    constexpr f32 charHeight = 24.0f;
-
-    std::vector<f32> vertices;
-    vertices.reserve(command.text.size() * 6 * 4);
-
-    f32 currentX = command.x;
-    f32 currentY = command.y;
-
-    for (char character : command.text) {
-        if (character == '\n') {
-            currentX = command.x;
-            currentY += charHeight;
-            continue;
-        }
-
-        GlyphUV uv = m_consoleFont.getGlyphUV(character);
-
-        f32 left = (currentX / static_cast<f32>(m_width)) * 2.0f - 1.0f;
-        f32 right = ((currentX + charWidth) / static_cast<f32>(m_width)) * 2.0f - 1.0f;
-        f32 top = 1.0f - (currentY / static_cast<f32>(m_height)) * 2.0f;
-        f32 bottom = 1.0f - ((currentY + charHeight) / static_cast<f32>(m_height)) * 2.0f;
-
-        f32 characterVertices[] = {
-            left,  top,       uv.u0, uv.v0,
-            left,  bottom,    uv.u0, uv.v1,
-            right, bottom,    uv.u1, uv.v1,
-
-            left,  top,       uv.u0, uv.v0,
-            right, bottom,    uv.u1, uv.v1,
-            right, top,       uv.u1, uv.v0
-        };
-
-        vertices.insert(
-            vertices.end(),
-            std::begin(characterVertices),
-            std::end(characterVertices)
-        );
-
-        currentX += charWidth;
-    }
-
-    glBindBuffer(GL_ARRAY_BUFFER, m_textVBO);
-
-    glBufferData(
-        GL_ARRAY_BUFFER,
-        vertices.size() * sizeof(f32),
-        vertices.data(),
-        GL_DYNAMIC_DRAW
-    );
-
-    glDisable(GL_DEPTH_TEST);
+    shader.setInt("u_PointShape", POINT_SQUARE);
+    shader.setFloat("u_DepthBias", 0.0f);
 
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-    OpenGLShader& shader = m_shaders.get(ShaderId::ScreenText);
-    shader.bind();
-    shader.setVec3("u_Color", {1.0f, 1.0f, 1.0f});
-    shader.setInt("u_Texture", 0);
+    // Edges: selected ones get a wide faint glow under a crisp line
+    if (command.showEdges) {
+        if (!command.highlightedEdges.empty()) {
+            // Two overlapping bands fake a soft falloff, since lines have no width-wise gradient
+            glDepthMask(GL_FALSE);
+            shader.setVec3("u_Color", SELECTED_COLOR);
+            shader.setFloat("u_Alpha", SELECTED_GLOW_ALPHA * 0.5f);
+            glLineWidth(SELECTED_EDGE_GLOW_WIDTH);
+            for (const EdgeHandle& edge : command.highlightedEdges) command.mesh->drawEdge(edge);
+            glLineWidth(SELECTED_EDGE_INNER_GLOW_WIDTH);
+            for (const EdgeHandle& edge : command.highlightedEdges) command.mesh->drawEdge(edge);
+            glDepthMask(GL_TRUE);
 
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(
-        GL_TEXTURE_2D,
-        m_consoleFont.getTexture()
-    );
+            shader.setFloat("u_Alpha", 1.0f);
+            glLineWidth(SELECTED_EDGE_WIDTH);
+            for (const EdgeHandle& edge : command.highlightedEdges) command.mesh->drawEdge(edge);
+        }
 
-    glBindVertexArray(m_textVAO);
+        shader.setVec3("u_Color", EDGE_COLOR);
+        shader.setFloat("u_Alpha", 1.0f);
+        glLineWidth(EDGE_WIDTH);
+        command.mesh->drawEdges();
+    }
 
-    glDrawArrays(
-        GL_TRIANGLES,
-        0,
-        static_cast<GLsizei>(vertices.size() / 4)
-    );
+    // Vertices: round points; selected ones layer glow, dark outline, and amber center like a light marker
+    if (command.showVerts) {
+        glEnable(GL_POINT_SPRITE);
+        shader.setFloat("u_DepthBias", VERTEX_DEPTH_BIAS);
 
+        if (!command.highlightedVerts.empty()) {
+            const auto drawSelected = [&](f32 size, i32 shape, const Vec3& color, f32 alpha) {
+                glPointSize(size);
+                shader.setInt("u_PointShape", shape);
+                shader.setVec3("u_Color", color);
+                shader.setFloat("u_Alpha", alpha);
+                for (const VertexHandle& vertex : command.highlightedVerts) command.mesh->drawVertex(vertex);
+            };
+
+            // Only the center writes depth, so the layers under it don't block it
+            glDepthMask(GL_FALSE);
+            drawSelected(SELECTED_VERTEX_GLOW_SIZE, POINT_GLOW, SELECTED_COLOR, SELECTED_GLOW_ALPHA);
+            drawSelected(SELECTED_VERTEX_OUTLINE_SIZE, POINT_DISC, OUTLINE_COLOR, 1.0f);
+            glDepthMask(GL_TRUE);
+            drawSelected(SELECTED_VERTEX_SIZE, POINT_DISC, SELECTED_COLOR, 1.0f);
+        }
+
+        glPointSize(VERTEX_SIZE);
+        shader.setInt("u_PointShape", POINT_DISC);
+        shader.setVec3("u_Color", VERTEX_COLOR);
+        shader.setFloat("u_Alpha", 1.0f);
+        command.mesh->drawVertices();
+
+        shader.setInt("u_PointShape", POINT_SQUARE);
+        shader.setFloat("u_DepthBias", 0.0f);
+        glDisable(GL_POINT_SPRITE);
+    }
+
+    glDisable(GL_BLEND);
     glBindVertexArray(0);
-    glBindTexture(GL_TEXTURE_2D, 0);
+}
 
-    glEnable(GL_DEPTH_TEST);
+void OpenGLRenderer::setLitUniforms(OpenGLShader& lit, const DrawCommand& command) {
+    const Mat4 normalMatrix = Mat4::transpose(Mat4::inverse(command.model));
+
+    lit.setMat4("u_MVP", command.mvp.m);
+    lit.setMat4("u_Model", command.model.m);
+    lit.setMat4("u_NormalMatrix", normalMatrix.m);
+    lit.setVec3("u_BackFaceTint", m_backFaceTint);
+    lit.setVec3("u_AmbientColor", m_lighting.ambientColor);
+    lit.setFloat("u_AmbientStrength", m_lighting.ambientStrength);
+
+    const u32 count = std::min(m_lighting.directionalCount, MAX_DIRECTIONAL_LIGHTS);
+    lit.setInt("u_DirectionalLightCount", static_cast<i32>(count));
+    if (count > 0) {
+        lit.setVec3Array("u_DirectionalLightDirections[0]", m_lighting.directionalDirections, count);
+        lit.setVec3Array("u_DirectionalLightColors[0]", m_lighting.directionalColors, count);
+    }
+
+    const u32 localCount = std::min(m_lighting.localCount, MAX_LOCAL_LIGHTS);
+    lit.setInt("u_LocalLightCount", static_cast<i32>(localCount));
+    if (localCount > 0) {
+        lit.setVec3Array("u_LocalLightPositions[0]", m_lighting.localPositions, localCount);
+        lit.setVec3Array("u_LocalLightDirections[0]", m_lighting.localDirections, localCount);
+        lit.setVec3Array("u_LocalLightColors[0]", m_lighting.localColors, localCount);
+        lit.setFloatArray("u_LocalLightRanges[0]", m_lighting.localRanges, localCount);
+        lit.setFloatArray("u_LocalLightCosInner[0]", m_lighting.localCosInner, localCount);
+        lit.setFloatArray("u_LocalLightCosOuter[0]", m_lighting.localCosOuter, localCount);
+    }
 }
 
 void OpenGLRenderer::drawText3D(const DrawText3DCommand& command) {
@@ -401,7 +375,7 @@ void OpenGLRenderer::drawText3D(const DrawText3DCommand& command) {
             continue;
         }
 
-        GlyphUV uv = m_consoleFont.getGlyphUV(character);
+        GlyphUV uv = FontAtlas::glyphUV(character);
 
         Vec3 origin = command.position + command.right * currentX + command.up * currentY;
         Vec3 topLeft = origin + command.up * charHeight;
@@ -485,7 +459,7 @@ void OpenGLRenderer::drawText3D(const DrawText3DCommand& command) {
 
     glBindTexture(
         GL_TEXTURE_2D,
-        m_consoleFont.getTexture()
+        m_fonts[static_cast<u32>(FontId::Console)].getTexture()
     );
 
     glBindVertexArray(m_text3DVAO);
@@ -562,23 +536,14 @@ void OpenGLRenderer::drawDebugLine(
     shader.bind();
     shader.setMat4("u_MVP", mvp.m);
     shader.setVec3("u_Color", {1.0f, 1.0f, 1.0f});
+    shader.setFloat("u_Alpha", 1.0f);
+    shader.setInt("u_PointShape", POINT_SQUARE);
+    shader.setFloat("u_DepthBias", 0.0f);
 
     glDrawArrays(GL_LINES, 0, 2);
 
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
-}
-
-void OpenGLRenderer::drawConsoleBackground() {
-    glDisable(GL_DEPTH_TEST);
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    m_shaders.get(ShaderId::ConsoleBackground).bind();
-    glBindVertexArray(m_fullscreenVAO);
-    glDrawArrays(GL_TRIANGLES, 0, 3);
-    glBindVertexArray(0);
-    glDisable(GL_BLEND);
-    glEnable(GL_DEPTH_TEST);
 }
 
 void OpenGLRenderer::endMainPass(){
