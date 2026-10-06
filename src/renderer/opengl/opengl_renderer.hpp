@@ -60,7 +60,7 @@ private:
 
     OpenGLShaderLibrary m_shaders;
     LightingState m_lighting;
-    Vec3 m_backFaceTint { 0.8f, 0.4f, 0.4f };
+    Vec3 m_backFaceTint { 0.95f, 0.45f, 0.70f };
     BackgroundGradient m_background;
 
     std::array<OpenGLFont, static_cast<u32>(FontId::Count)> m_fonts;

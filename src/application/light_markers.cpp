@@ -29,9 +29,9 @@ namespace {
     constexpr f32 SELECTED_GLOW_BLUR = 7.0f;
 
     const Color OUTLINE_COLOR { 0.06f, 0.06f, 0.08f, 0.9f };
-    const Color DISABLED_COLOR { 0.55f, 0.55f, 0.58f, 0.9f };
-    const Color SELECTED_COLOR { 1.0f, 0.76f, 0.30f, 1.0f };
-    const Color SELECTED_GLOW_COLOR { 1.0f, 0.70f, 0.25f, 0.45f };
+    const Color DISABLED_COLOR { 0.38f, 0.45f, 0.64f, 0.9f };
+    const Color SELECTED_COLOR = UIStyle::ACCENT;
+    const Color SELECTED_GLOW_COLOR { 0.74f, 0.58f, 0.98f, 0.45f };
 
     Color lightColor(const Light& light, f32 alpha) {
         return { light.color.x, light.color.y, light.color.z, alpha };

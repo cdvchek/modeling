@@ -16,10 +16,10 @@ namespace {
     constexpr f32 LABEL_PADDING_Y = 6.0f;
     constexpr f32 CENTER_DOT = 5.0f;
 
-    const Color SLICE_FILL { 0.14f, 0.14f, 0.16f, 0.92f };
-    const Color SLICE_DIM_FILL { 0.14f, 0.14f, 0.16f, 0.6f };
-    const Color TEXT_DISABLED { 0.55f, 0.55f, 0.60f, 0.5f };
-    const Color HINT { 0.55f, 0.55f, 0.60f, 0.7f };
+    const Color SLICE_FILL { 0.16f, 0.16f, 0.21f, 0.94f };
+    const Color SLICE_DIM_FILL { 0.16f, 0.16f, 0.21f, 0.6f };
+    const Color TEXT_DISABLED { 0.38f, 0.45f, 0.64f, 0.55f };
+    const Color HINT { 0.38f, 0.45f, 0.64f, 0.9f };
 
     RadialItem item(const ActionMap& actions, Action action) {
         const ActionHandler* handler = actions.getHandler(action);

@@ -1,4 +1,5 @@
 #include "application/status_bar.hpp"
+#include "ui/ui_style.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -12,21 +13,21 @@ namespace {
     constexpr f32 PADDING_Y = 6.0f;
     constexpr f32 ITEM_GAP = 12.0f;
 
-    const Color BAR_COLOR { 0.12f, 0.12f, 0.14f, 0.92f };
-    const Color BORDER_COLOR { 0.26f, 0.26f, 0.30f, 1.0f };
-    const Color DIVIDER_COLOR { 0.30f, 0.30f, 0.34f, 1.0f };
-    const Color TEXT_COLOR { 0.86f, 0.86f, 0.88f, 1.0f };
-    const Color DIM_TEXT_COLOR { 0.50f, 0.50f, 0.54f, 1.0f };
-    const Color ERROR_COLOR { 0.98f, 0.46f, 0.46f, 1.0f };
+    const Color BAR_COLOR { 0.10f, 0.10f, 0.13f, 0.95f };
+    const Color BORDER_COLOR = UIStyle::PANEL_BORDER;
+    const Color DIVIDER_COLOR = UIStyle::SEPARATOR;
+    const Color TEXT_COLOR = UIStyle::TEXT;
+    const Color DIM_TEXT_COLOR = UIStyle::TEXT_DIM;
+    const Color ERROR_COLOR = UIStyle::ERROR;
 
     // A new error shows at the right end for a few seconds, fading out at the end
     constexpr f64 ERROR_SHOWN = 4.0;
     constexpr f64 ERROR_FADE = 0.6;
 
     // Same hues as the grid axes
-    const Color X_AXIS_COLOR { 0.95f, 0.35f, 0.40f, 1.0f };
-    const Color Y_AXIS_COLOR { 0.50f, 0.85f, 0.35f, 1.0f };
-    const Color Z_AXIS_COLOR { 0.40f, 0.60f, 1.00f, 1.0f };
+    const Color X_AXIS_COLOR = UIStyle::AXIS_X;
+    const Color Y_AXIS_COLOR = UIStyle::AXIS_Y;
+    const Color Z_AXIS_COLOR = UIStyle::AXIS_Z;
 
     const std::vector<std::string_view> MODE_NAMES = { "Vertex", "Edge", "Face", "Object" };
     const std::vector<std::string_view> TOOL_NAMES = { "Select", "Grab", "Scale", "Rotate", "Bevel", "Inset" };

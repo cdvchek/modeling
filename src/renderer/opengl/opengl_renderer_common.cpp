@@ -8,14 +8,15 @@
 #include <glad/glad.h>
 
 namespace {
-    const Vec3 FACE_COLOR { 0.7f, 0.7f, 0.7f };
-    const Vec3 EDGE_COLOR { 0.2f, 0.2f, 0.2f };
-    const Vec3 VERTEX_COLOR { 0.1f, 0.1f, 0.1f };
+    // Dracula-themed: a cool gray surface, edges in the theme's darker background
+    const Vec3 FACE_COLOR { 0.72f, 0.73f, 0.78f };
+    const Vec3 EDGE_COLOR { 0.13f, 0.13f, 0.17f };
+    const Vec3 VERTEX_COLOR { 0.10f, 0.10f, 0.13f };
     const Vec3 OUTLINE_COLOR { 0.06f, 0.06f, 0.08f };
 
-    // Selection matches the light markers: warm amber with a soft glow
-    const Vec3 SELECTED_COLOR { 1.0f, 0.76f, 0.30f };
-    const Vec3 SELECTED_FACE_COLOR { 0.72f, 0.54f, 0.28f };
+    // Selection matches the light markers and UI accent: Dracula purple with a soft glow
+    const Vec3 SELECTED_COLOR { 0.74f, 0.58f, 0.98f };
+    const Vec3 SELECTED_FACE_COLOR { 0.46f, 0.34f, 0.74f };
     constexpr f32 SELECTED_GLOW_ALPHA = 0.35f;
 
     constexpr f32 EDGE_WIDTH = 2.0f;
@@ -286,7 +287,7 @@ void OpenGLRenderer::draw(const DrawCommand& command) {
         command.mesh->drawEdges();
     }
 
-    // Vertices: round points; selected ones layer glow, dark outline, and amber center like a light marker
+    // Vertices: round points; selected ones layer glow, dark outline, and purple center like a light marker
     if (command.showVerts) {
         glEnable(GL_POINT_SPRITE);
         shader.setFloat("u_DepthBias", VERTEX_DEPTH_BIAS);

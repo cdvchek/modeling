@@ -15,9 +15,10 @@ const float MINOR_ALPHA = 0.18;
 const float MAJOR_ALPHA = 0.4;
 const float AXIS_ALPHA = 0.9;
 
-const vec3 LINE_COLOR = vec3(0.55);
-const vec3 X_AXIS_COLOR = vec3(0.9, 0.25, 0.3);
-const vec3 Z_AXIS_COLOR = vec3(0.25, 0.5, 0.95);
+// Dracula comment color for lines, red and cyan for the axes
+const vec3 LINE_COLOR = vec3(0.45, 0.51, 0.70);
+const vec3 X_AXIS_COLOR = vec3(1.0, 0.33, 0.33);
+const vec3 Z_AXIS_COLOR = vec3(0.55, 0.91, 0.99);
 
 float gridLine(vec2 coord, float spacing, float widthPx) {
     vec2 cell = coord / spacing;

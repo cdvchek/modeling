@@ -45,8 +45,9 @@ constexpr u32 MAX_DIRECTIONAL_LIGHTS = 4;
 constexpr u32 MAX_LOCAL_LIGHTS = 8;
 
 struct BackgroundGradient {
-    Vec3 top { 0.24f, 0.24f, 0.26f };
-    Vec3 bottom { 0.11f, 0.11f, 0.12f };
+    // Dracula backgrounds: #343746 at the top to #191a21 at the bottom
+    Vec3 top { 0.20f, 0.22f, 0.28f };
+    Vec3 bottom { 0.10f, 0.10f, 0.13f };
 };
 
 struct LightingState {

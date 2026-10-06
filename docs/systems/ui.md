@@ -60,14 +60,14 @@ Inside a region, each widget takes the next row (`UIStyle::ROW_HEIGHT`, 24 px) a
 | Widget | Look and behavior | Returns true when |
 |---|---|---|
 | `label(text, dim)` | A line of text | — |
-| `heading(text)` | Amber section title | — |
+| `heading(text)` | Green section title | — |
 | `button(label)` | Full-width rounded button, centered text | Clicked (released over itself) |
-| `selectable(label, selected, detail)` | Full-width row; selected rows get an amber tint and a 2 px amber bar on the left. Optional `detail` is drawn dim and right-aligned | Clicked |
+| `selectable(label, selected, detail)` | Full-width row; selected rows get a purple tint and a 2 px purple bar on the left. Optional `detail` is drawn dim and right-aligned | Clicked |
 | `button(label, rect, enabled)` | A button at an explicit rect, for putting several controls on one row. Disabled buttons are drawn dim and ignore the mouse | Clicked |
-| `segmented(label, index, options)` | A row of options in one frame; the picked one is filled amber. Segments are sized to their text and share the leftover width; each label is clipped to its segment. An empty label uses the full row | A different option was picked (on release) |
+| `segmented(label, index, options)` | A row of options in one frame; the picked one is filled purple. Segments are sized to their text and share the leftover width; each label is clipped to its segment. An empty label uses the full row | A different option was picked (on release) |
 | `dropdown(label, rect, index, options)` | A button showing `options[index]` with a chevron; clicking it opens a list below it (or above, if it wouldn't fit in the viewport) drawn on top of everything. Picking an option closes the list | An option was picked (the frame after the click) |
-| `checkbox(label, value)` | Amber box with a check mark when on; toggles on release | Toggled |
-| `sliderFloat(label, value, min, max, format)` | Box filled in amber up to the value, number centered; the value follows the mouse's x while held | Value changed |
+| `checkbox(label, value)` | Purple box with a check mark when on; toggles on release | Toggled |
+| `sliderFloat(label, value, min, max, format)` | Box filled in purple up to the value, number centered; the value follows the mouse's x while held | Value changed |
 | `dragFloat3(label, vec3, speed, format)` | Three boxes with X/Y/Z in axis colors; dragging left/right nudges that component by `mouseDelta × speed` once the mouse has moved 3 px (`DRAG_THRESHOLD`). A press and release under that opens the component as a text edit (value as `%g`, all selected); Enter or a click elsewhere parses it (a non-number is ignored) | Any component changed (by drag, or when a typed value is kept) |
 | `textField(label, text, allowEmpty = false)` | A field showing `text`; pressing it starts an edit with all text selected (I-beam cursor over it) | Once, when an edit is kept that changed the text (trimmed; an empty edit is dropped unless `allowEmpty`) |
 | `colorEdit(label, rgb)` | A swatch of the color; clicking it shows or hides R/G/B sliders below it | A channel changed |
@@ -79,7 +79,7 @@ After any widget, `isItemHovered()`, `isItemActivated()`, `isItemDeactivated()`,
 One field at a time is edited; its state (`TextEdit`: buffer, caret, selection anchor, horizontal scroll) lives in the context, keyed by the widget's ID, and the widget draws it with `textEditBox` instead of its normal look.
 - **Mouse:** a press inside places the caret (Shift+click extends the selection) and dragging selects; a press anywhere outside **commits**. That press doesn't reach the viewport (`wantsMouse` is true for it), but other UI widgets still get it, so clicking another list row commits and then selects the row.
 - **Keys:** handled in the order pressed. Left/Right/Home/End move the caret (Shift extends; without Shift, Left/Right first collapse a selection), Backspace/Delete remove a character or the selection, Ctrl+A selects all, Ctrl+C/X/V use the clipboard functions given to `setClipboard(get, set)` (pasted text is cut at the first line break and limited to printable ASCII), Enter commits, Escape cancels. Typed `text` replaces the selection.
-- **Drawing:** the field gets the active frame color and an amber border; the selection is amber behind the text, the caret a 1 px line that blinks every 0.5 s and stays solid briefly after each edit. Text scrolls sideways to keep the caret in view.
+- **Drawing:** the field gets the active frame color and a green border; the selection is purple behind the text, the caret a 1 px green line that blinks every 0.5 s and stays solid briefly after each edit. Text scrolls sideways to keep the caret in view.
 - **Undo:** the whole edit is one interaction. The commit frame reports `isItemActivated()` and `isItemDeactivated()` together (and `isItemDeactivatedAfterEdit()` if the value changed), so `trackUndo` makes it a single step.
 - **Keyboard ownership:** `wantsKeyboard()` is true while a field is edited. The app passes it to `ActionMap::setKeyboardBlocked`, so no key shortcut fires (Quit excepted).
 - **Ending without a commit:** an edit whose widget isn't drawn in a frame (tab switched, object removed) or that becomes non-interactive is dropped.
@@ -94,7 +94,7 @@ Widgets never change a value on the frame they activate. That's what makes undo 
 
 ### Style
 
-All sizes and colors live in `UIStyle`. The accent is the same warm amber as viewport selection; X/Y/Z use the grid's axis colors.
+All sizes and colors live in `UIStyle`, following the Dracula theme: text `#f8f8f2`, dim text the comment blue `#6272a4`, panels and frames in its blue-grey backgrounds (`#282a36`, `#21222c`, `#44475a`). `ACCENT` is Dracula purple `#bd93f9`, the same as viewport selection, for selection and highlights (selected rows, the active tab, sliders, checkboxes, the radial menu's hovered slice). `ACCENT_GREEN` (`#50fa7b`) marks headings and whatever is being typed into (an edited text field's border and caret, the console's prompt, caret, and input line). `ERROR` is Dracula red. X/Y/Z use the grid's axis colors: red, green, and cyan.
 
 ### Floating panel
 
@@ -103,14 +103,14 @@ All sizes and colors live in `UIStyle`. The accent is the same warm amber as vie
 - `UIPanelState` (just a `Rect`) is owned by the app and kept between frames; the main panel's lives in `ctx.viewport.panel`.
 - Draws a soft drop shadow, a rounded background with a 1 px border, and a 32 px header strip (`PANEL_HEADER_HEIGHT`) with the title. The header lightens on hover and while dragging.
 - **Dragging:** press on the header and move. The offset where you grabbed is remembered (`m_panelGrabOffset`), so the panel doesn't jump.
-- **Resizing:** drag any edge or corner. The grab zone is `PANEL_RESIZE_GRIP` (5 px) on each side of the border, so edges can be grabbed from just outside the panel; the region is widened by that much to make it hoverable. The top edge wins over the header drag. The opposite edges stay put, the size never goes below `PANEL_MIN_WIDTH` × `PANEL_MIN_HEIGHT` (240 × 160), and dragged edges stop at the bounds. The border turns amber while an edge is hovered or being dragged.
+- **Resizing:** drag any edge or corner. The grab zone is `PANEL_RESIZE_GRIP` (5 px) on each side of the border, so edges can be grabbed from just outside the panel; the region is widened by that much to make it hoverable. The top edge wins over the header drag. The opposite edges stay put, the size never goes below `PANEL_MIN_WIDTH` × `PANEL_MIN_HEIGHT` (240 × 160), and dragged edges stop at the bounds. The border turns purple while an edge is hovered or being dragged.
 - **Cursor:** `ui.cursor()` reports the cursor the UI wants (`UICursor`: arrow, horizontal, vertical, one of two diagonals, or `Text` over a text field) based on the hovered or dragged edges; it stays a resize cursor for the whole drag. The main loop passes it to `Window::setCursor` after each frame.
 - **Kept inside `bounds`** on every frame, not just while dragging: a smaller window first shrinks the panel to fit, then moves it inside.
 - The whole panel is a region (blocks the viewport); widgets are laid out below the header.
 - **Scrolling:** content is clipped to the area under the header. `endPanel` measures how tall the content was (`state.contentHeight`); if it's taller than the visible area, the mouse wheel over the panel scrolls it (`SCROLL_STEP`, 48 px per notch) unless a child box under the mouse took the wheel first, clamped between the top and the bottom. Scrolling uses last frame's height, so it follows content as sections appear or disappear. While the panel content clip is active, widgets only respond when the mouse is inside it, so rows scrolled under the header or past the bottom can't be clicked.
 - **Scrollbar:** shown only when content overflows: a faint track and a thumb sized to the visible fraction (at least `SCROLLBAR_MIN_THUMB`), `SCROLLBAR_WIDTH` wide in the right padding, `SCROLLBAR_INSET` from the edge so it doesn't collide with the resize grip. The thumb can be dragged (its hit area is 4 px wider each side) and brightens on hover.
 - `UIPanelState` also keeps `activeTab`, `scroll`, and `contentHeight` between frames.
-- **Tabs:** `beginPanel(name, state, bounds, tabs)` (a list of names instead of a title) draws tabs left to right in the header, sized to their text. Pressing a tab switches `state.activeTab` (and resets the scroll); the header, tabs included, still drags the panel, so you can grab a tab and move. The selected tab takes the body's color with a 2 px amber underline; the others are dim until hovered. The caller draws the active tab's content.
+- **Tabs:** `beginPanel(name, state, bounds, tabs)` (a list of names instead of a title) draws tabs left to right in the header, sized to their text. Pressing a tab switches `state.activeTab` (and resets the scroll); the header, tabs included, still drags the panel, so you can grab a tab and move. The selected tab takes the body's color with a 2 px purple underline; the others are dim until hovered. The caller draws the active tab's content.
 
 [main_panel.cpp](../../src/application/main_panel.cpp) is the app's panel: it's placed at the top right on first use, bounded by the viewport above the status bar, and toggled with `ui panel`. Its contents are currently the light controls from the UI core work (ambient, headlight, light list, add light, selected light's properties); tabs come next.
 

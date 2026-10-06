@@ -50,7 +50,7 @@ struct Object {
 
 ### Active object
 
-Only one object is edited at a time: `selection.getActiveObject()` (`scene.activeObject()` for the object itself). Selected vertices, edges, and faces always belong to it, and tools act on it. In edit modes only the active object draws its edges, vertices, and selection; the others draw just their lit faces. In object mode selected objects draw every edge in the selection color (an amber outline), and the others draw just their faces. A new object added in object mode becomes the selection.
+Only one object is edited at a time: `selection.getActiveObject()` (`scene.activeObject()` for the object itself). Selected vertices, edges, and faces always belong to it, and tools act on it. In edit modes only the active object draws its edges, vertices, and selection; the others draw just their lit faces. In object mode selected objects draw every edge in the selection color (an purple outline), and the others draw just their faces. A new object added in object mode becomes the selection.
 
 Clicking in the viewport (any selection mode): the click is tested against the active object's elements for the current mode and its faces. If another object's face is closer than anything hit on the active object, that object becomes active instead, in the same mode with nothing selected. Loop and ring selection only look at the active object. The `object <id> edit` command also switches it.
 

@@ -67,7 +67,7 @@ void UIContext::label(std::string_view text, bool dim) {
 
 void UIContext::heading(std::string_view text) {
     const Rect row = nextRow();
-    drawLabelText(row, text, UIStyle::ACCENT);
+    drawLabelText(row, text, UIStyle::ACCENT_GREEN);
 }
 
 bool UIContext::button(std::string_view label) {
@@ -600,7 +600,7 @@ UIContext::TextEditResult UIContext::textEditBox(const Rect& rect, std::string& 
     edit.scroll = std::clamp(edit.scroll, 0.0f, std::max(0.0f, static_cast<f32>(buffer.size()) * glyph - inner.width + 1.0f));
 
     // 4. Draw: field, selection, text, caret
-    m_drawList->roundedRect(rect, UIStyle::CORNER_RADIUS, UIStyle::FRAME_ACTIVE, UIStyle::ACCENT, 1.0f);
+    m_drawList->roundedRect(rect, UIStyle::CORNER_RADIUS, UIStyle::FRAME_ACTIVE, UIStyle::ACCENT_GREEN, 1.0f);
     m_drawList->pushClip(inner);
 
     const f32 textY = std::round(inner.y + (inner.height - m_font.glyphHeight) * 0.5f);
@@ -615,7 +615,7 @@ UIContext::TextEditResult UIContext::textEditBox(const Rect& rect, std::string& 
     m_drawList->text(Vec2(originX, textY), buffer, m_font, UIStyle::TEXT);
 
     const bool caretOn = std::fmod(m_input.time - edit.lastInput, CARET_BLINK * 2.0) < CARET_BLINK;
-    if (caretOn) m_drawList->rect({ std::round(originX + caretX), textY, 1.0f, m_font.glyphHeight }, UIStyle::TEXT);
+    if (caretOn) m_drawList->rect({ std::round(originX + caretX), textY, 1.0f, m_font.glyphHeight }, UIStyle::ACCENT_GREEN);
 
     m_drawList->popClip();
     return TextEditResult::Editing;

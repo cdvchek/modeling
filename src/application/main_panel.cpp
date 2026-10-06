@@ -38,7 +38,7 @@ namespace {
 
     ListHeader listHeader(UIContext& ui, std::string_view title, f32 pickerWidth) {
         const Rect header = ui.row();
-        ui.text(header, title, UIStyle::ACCENT);
+        ui.text(header, title, UIStyle::ACCENT_GREEN);
 
         ListHeader rects;
         rects.minus = { header.right() - header.height, header.y, header.height, header.height };

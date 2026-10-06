@@ -261,7 +261,7 @@ void UIContext::beginPanelHeader(std::string_view name, UIPanelState& state, con
             const bool selected = state.activeTab == static_cast<i32>(i);
             const bool hovered = drag.hovered && tab.contains(m_input.mouse);
 
-            // The selected tab takes the body's color so it reads as connected to the content, with an amber underline
+            // The selected tab takes the body's color so it reads as connected to the content, with an accent underline
             if (selected) {
                 list.pushClip(tab);
                 list.roundedRect({ tab.x, tab.y, tab.width, tab.height + UIStyle::CORNER_RADIUS }, UIStyle::CORNER_RADIUS, UIStyle::PANEL_BACKGROUND);

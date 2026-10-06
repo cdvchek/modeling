@@ -131,14 +131,15 @@ Small, builds on existing code, and useful day to day:
 
 ### Rendering
 - Faces are gray and flat-shaded per triangle, so a non-planar face shows its fold.
-- Back faces are tinted red so flipped or open faces stand out (`backface tint r g b` to change).
+- Back faces are tinted pink so flipped or open faces stand out (`backface tint r g b` to change).
 - Edges in dark gray; vertices as near-black round dots (vertices only shown in vertex mode).
 - 4× MSAA anti-aliasing.
-- Vertical gradient background, lighter at the top, dithered to avoid banding.
+- Colors follow the Dracula theme: blue-grey backgrounds, purple selection and highlights, green headings and text input, red errors.
+- Vertical gradient background in Dracula blue-greys, lighter at the top, dithered to avoid banding.
 - Infinite ground grid on the XZ plane:
   - Spacing changes with zoom: 0.5 → 2.5 → 12.5 → 62.5 (each level 5× the last), cross-fading smoothly; every 5th line is thicker.
   - Anti-aliased lines with a fixed pixel width; dense lines fade out to avoid moiré.
-  - Fades out with distance; X axis in red, Z axis in blue.
+  - Fades out with distance; X axis in red, Z axis in cyan.
 - Debug overlay (`debug` command): every half-edge as an arrow with its `index:generation` label.
 - `vsync on | off` (on by default).
 
@@ -147,7 +148,7 @@ Small, builds on existing code, and useful day to day:
 - Ambient light (color and strength) and a camera headlight (on by default; color and strength; a view setting, not part of undo).
 - The default scene has one directional sun.
 - Markers: every light is drawn as a fixed-size orb in its color with a soft glow, always on top of the scene, with a faint line down to the grid. Disabled lights are hollow gray rings. Spot lights show a 3D arrow for their direction; directional lights show three parallel arrows.
-- Click a marker to select a light (amber ring); Shift+click adds or removes. Lights are picked before mesh elements, in any selection mode.
+- Click a marker to select a light (purple ring); Shift+click adds or removes. Lights are picked before mesh elements, in any selection mode.
 - Grab (G) moves selected lights; Rotate (R) turns their direction in place. Both support X/Y/Z axis lock, cancel, and undo. Delete removes selected lights.
 - New lights are named Light 1, Light 2, … (one past the highest number in use, so names never repeat after deleting).
 - `light` console command: list, add, remove, and edit every property (see [systems/console.md](systems/console.md#light-command)).
@@ -158,7 +159,7 @@ Small, builds on existing code, and useful day to day:
 - Click another object (in any edit mode) to make it the active object, staying in the same mode.
 - **Object mode** (Tab toggles it with the last edit mode; also M+O or the radial Mode menu): work with whole objects.
   - Click an object to select it, Shift+click to add or remove. The last one clicked becomes the active object (the one Tab edits). Entering object mode selects the active object.
-  - Selected objects are outlined in amber; the panel's object list highlights them.
+  - Selected objects are outlined in purple; the panel's object list highlights them.
   - Grab, scale, and rotate change the selected objects' transforms (position, rotation, scale), so the panel fields follow. With several objects, scale spreads them out from their shared center and rotate turns them around it. Axis locks work as in edit mode; locked scale changes only those scale components.
   - Delete removes the selected objects as one undo step.
 - `object` console command: list, add any preset, remove, rename, move, rotate, scale, and switch the active object (see [systems/console.md](systems/console.md#object-command)). Adding, removing, and editing objects are undoable.
@@ -170,7 +171,7 @@ Small, builds on existing code, and useful day to day:
 - Picking is ray-based against vertices, edges, and triangles; the closest hit wins.
 - Selecting an edge or face also selects its vertices.
 - Lights and mesh elements are never selected together: clicking one kind clears the other.
-- Selection is drawn in warm amber with a soft glow: vertices as amber dots with a dark outline, edges as amber lines, faces amber-tinted (still lit) with an amber outline, lights with an amber ring.
+- Selection is drawn in purple with a soft glow: vertices as purple dots with a dark outline, edges as purple lines, faces purple-tinted (still lit) with an purple outline, lights with an purple ring.
 
 ### Editing tools
 | Tool | Works on | What it does |
@@ -198,7 +199,7 @@ Hold the thumb side button (Mouse4) to open a radial menu at the cursor, move to
 
 - A menu's items split the circle evenly, with no empty slots: the first item is centered straight up and the rest go clockwise. Even counts mirror left/right and up/down; odd counts mirror only left/right. Items that can't run right now are dimmed, never removed, so positions stay put. Each label shows its key shortcut faintly.
 - Moving past the ring toward a submenu (`>`) opens it, re-centered at the cursor. Two levels at most.
-- Drawn with ring slices in the UI shader; the hovered slice is amber.
+- Drawn with ring slices in the UI shader; the hovered slice is purple.
 
 | Menu | Items, clockwise from the top |
 |---|---|
@@ -233,7 +234,7 @@ The menu replaces the awkward key chords (like M+V and M+F for modes). Everythin
 - **Text fields** (object and light names): click to edit with everything selected, type to replace it. Arrow keys, Home/End (Shift extends the selection), Backspace/Delete, Ctrl+A, and Ctrl+C/X/V with the system clipboard; click inside to place the caret or drag to select. Enter or a click anywhere else keeps the edit (one undo step), Escape restores the old text, and an empty name is ignored. While editing, keyboard shortcuts are off, so typing `g` or `/` just types.
 - **X/Y/Z fields**: drag to change; click without dragging (under 3 px of movement) to type an exact value, with the same keys. Text that isn't a number leaves the value alone.
 - Held keys repeat after the system's repeat delay, in text fields and in the console.
-- **Status bar** along the bottom: frames per second, selection mode, active tool, and axis lock (`-` outside grab/scale/rotate, `Free`, or the locked axes in red/green/blue). Items keep fixed positions as values change. An error that happens while the console is closed (an unknown command, a refused bevel/extrude/inset/dissolve) shows in red at the right end for 4 seconds, fading out at the end.
+- **Status bar** along the bottom: frames per second, selection mode, active tool, and axis lock (`-` outside grab/scale/rotate, `Free`, or the locked axes in red/green/cyan). Items keep fixed positions as values change. An error that happens while the console is closed (an unknown command, a refused bevel/extrude/inset/dissolve) shows in red at the right end for 4 seconds, fading out at the end.
 - **Console** (/): a panel docked above the status bar with commands, their output, and errors (red) above an input line with a blinking caret. `help` lists every command; an unknown command shows an error; tools report refusals there too (bevel, extrude, inset, dissolve). Output or errors longer than one line can be collapsed and expanded by clicking; closing the console collapses everything so far, so only new or reopened ones show expanded. The wheel scrolls the list; command history (Up/Down, with the recalled command highlighted in the list, which scrolls to keep it in view) and cursor movement; Backspace, Delete, and the arrow keys repeat while held. Commands: `help`, `debug`, `validate`, `merge`, `dissolve`, `light`, `object`, `headlight`, `backface`, `vsync`, `ui`. See [systems/console.md](systems/console.md).
 - Built on a from-scratch immediate-mode UI (tabs, buttons, dropdowns, list rows, checkboxes, sliders, X/Y/Z fields, text fields, color swatches, type switches, scrolling list boxes) and a batched 2D draw list. See [systems/ui.md](systems/ui.md).
 - Two embedded fonts: the 16×24 console font and a 10×16 UI font (the console font trimmed and scaled down).

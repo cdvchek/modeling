@@ -35,41 +35,48 @@ namespace UIStyle {
     constexpr f32 TAB_UNDERLINE = 2.0f;
     constexpr f32 POPUP_PADDING = 4.0f;
 
-    const Color TEXT { 0.86f, 0.86f, 0.88f, 1.0f };
-    const Color TEXT_DIM { 0.55f, 0.55f, 0.60f, 1.0f };
-    const Color TEXT_ON_ACCENT { 0.10f, 0.08f, 0.05f, 1.0f };
+    // Colors follow the Dracula theme: purple marks selection and highlights, green headings and whatever is being typed into
+    const Color TEXT { 0.97f, 0.97f, 0.95f, 1.0f };                // foreground #f8f8f2
+    const Color TEXT_DIM { 0.46f, 0.52f, 0.70f, 1.0f };            // comment #6272a4, a little brighter for labels
+    const Color TEXT_ON_ACCENT { 0.10f, 0.10f, 0.13f, 1.0f };
 
-    const Color FRAME { 0.18f, 0.18f, 0.21f, 1.0f };
-    const Color FRAME_HOVER { 0.23f, 0.23f, 0.27f, 1.0f };
-    const Color FRAME_ACTIVE { 0.27f, 0.27f, 0.32f, 1.0f };
-    const Color FRAME_BORDER { 0.30f, 0.30f, 0.35f, 1.0f };
+    const Color FRAME { 0.20f, 0.21f, 0.27f, 1.0f };
+    const Color FRAME_HOVER { 0.24f, 0.25f, 0.32f, 1.0f };
+    const Color FRAME_ACTIVE { 0.27f, 0.28f, 0.35f, 1.0f };        // current line #44475a
+    const Color FRAME_BORDER { 0.30f, 0.31f, 0.40f, 1.0f };
 
-    // Same warm amber as viewport selection
-    const Color ACCENT { 1.0f, 0.76f, 0.30f, 1.0f };
-    const Color ACCENT_FILL { 0.80f, 0.58f, 0.22f, 0.55f };
-    const Color ACCENT_SOFT { 1.0f, 0.76f, 0.30f, 0.18f };
+    // Purple #bd93f9, same as viewport selection
+    const Color ACCENT { 0.74f, 0.58f, 0.98f, 1.0f };
+    const Color ACCENT_FILL { 0.74f, 0.58f, 0.98f, 0.45f };
+    const Color ACCENT_SOFT { 0.74f, 0.58f, 0.98f, 0.18f };
+
+    // Green #50fa7b: headings, and the field or console line being typed into
+    const Color ACCENT_GREEN { 0.31f, 0.98f, 0.48f, 1.0f };
+
+    // Red #ff5555: errors
+    const Color ERROR { 1.0f, 0.33f, 0.33f, 1.0f };
 
     const Color ROW_HOVER { 1.0f, 1.0f, 1.0f, 0.05f };
-    const Color SEPARATOR { 0.30f, 0.30f, 0.34f, 1.0f };
+    const Color SEPARATOR { 0.27f, 0.28f, 0.35f, 1.0f };
 
-    const Color PANEL_BACKGROUND { 0.14f, 0.14f, 0.16f, 0.96f };
-    const Color PANEL_BORDER { 0.30f, 0.30f, 0.35f, 1.0f };
+    const Color PANEL_BACKGROUND { 0.16f, 0.16f, 0.21f, 0.97f };   // background #282a36
+    const Color PANEL_BORDER { 0.27f, 0.28f, 0.35f, 1.0f };
     const Color PANEL_SHADOW { 0.0f, 0.0f, 0.0f, 0.5f };
-    const Color PANEL_HEADER { 0.17f, 0.17f, 0.20f, 1.0f };
-    const Color PANEL_HEADER_HOVER { 0.20f, 0.20f, 0.24f, 1.0f };
-    const Color LIST_BACKGROUND { 0.11f, 0.11f, 0.13f, 1.0f };
+    const Color PANEL_HEADER { 0.13f, 0.13f, 0.17f, 1.0f };        // darker background #21222c
+    const Color PANEL_HEADER_HOVER { 0.17f, 0.17f, 0.22f, 1.0f };
+    const Color LIST_BACKGROUND { 0.13f, 0.13f, 0.17f, 1.0f };
     const Color SCROLLBAR_TRACK { 1.0f, 1.0f, 1.0f, 0.04f };
-    const Color SCROLLBAR_THUMB { 1.0f, 1.0f, 1.0f, 0.22f };
-    const Color SCROLLBAR_THUMB_HOVER { 1.0f, 1.0f, 1.0f, 0.35f };
+    const Color SCROLLBAR_THUMB { 0.38f, 0.45f, 0.64f, 0.55f };
+    const Color SCROLLBAR_THUMB_HOVER { 0.38f, 0.45f, 0.64f, 0.85f };
 
     // Faint viewport guides: light marker drop lines and the scale/rotate/bevel lines to the mouse
-    const Color GUIDE_LINE { 0.70f, 0.70f, 0.75f, 0.30f };
-    const Color GUIDE_DOT { 0.70f, 0.70f, 0.75f, 0.55f };
+    const Color GUIDE_LINE { 0.97f, 0.97f, 0.95f, 0.30f };
+    const Color GUIDE_DOT { 0.97f, 0.97f, 0.95f, 0.55f };
     // Dark edge under tool guides so they read on light faces too
-    const Color GUIDE_HALO { 0.05f, 0.05f, 0.07f, 0.45f };
+    const Color GUIDE_HALO { 0.10f, 0.10f, 0.13f, 0.45f };
 
-    // Same hues as the grid axes and status bar
-    const Color AXIS_X { 0.95f, 0.35f, 0.40f, 1.0f };
-    const Color AXIS_Y { 0.50f, 0.85f, 0.35f, 1.0f };
-    const Color AXIS_Z { 0.40f, 0.60f, 1.00f, 1.0f };
+    // Red, green, and cyan from the palette; same hues as the grid axes and status bar
+    const Color AXIS_X { 1.0f, 0.33f, 0.33f, 1.0f };
+    const Color AXIS_Y { 0.31f, 0.98f, 0.48f, 1.0f };
+    const Color AXIS_Z { 0.55f, 0.91f, 0.99f, 1.0f };
 }
