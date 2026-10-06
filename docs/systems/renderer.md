@@ -109,7 +109,7 @@ Blending is on for edges and vertices; selection colors match the light markers 
 
 Colors and sizes are constants at the top of `opengl_renderer_common.cpp`: `FACE_COLOR` (0.7), `EDGE_COLOR` (0.2), `VERTEX_COLOR` (0.1), `SELECTED_COLOR` (amber 1.0/0.76/0.30), `SELECTED_FACE_COLOR` (0.72/0.54/0.28), `SELECTED_GLOW_ALPHA`, and the edge widths and vertex sizes.
 
-Faces are flat-shaded with one normal per triangle, so non-planar faces show their fold. See [features.md](../features.md#lighting-and-look) for what's next.
+Faces are flat-shaded with one normal per triangle, so non-planar faces show their fold. See [features.md](../features.md#lights) for what's next.
 
 ### Shaders
 
@@ -125,7 +125,7 @@ Programs are looked up by `ShaderId` through `OpenGLShaderLibrary`:
 | `Lit` | `lit.vert` | `lit.frag` | Mesh faces | `u_MVP`, `u_Model`, `u_NormalMatrix`, `u_Color`, `u_BackFaceTint`, `u_AmbientColor`, `u_AmbientStrength`, `u_DirectionalLight{Directions,Colors}[4]`, `u_DirectionalLightCount`, `u_LocalLight{Positions,Directions,Colors,Ranges,CosInner,CosOuter}[8]`, `u_LocalLightCount` |
 | `WorldText` | `world_text.vert` | `world_text.frag` | Debug labels in world space | `u_MVP`, `u_Color`, `u_Texture` |
 | `Background` | `fullscreen.vert` | `background.frag` | Viewport gradient, drawn first with depth test and writes off. Blends `u_BottomColor` → `u_TopColor` by `gl_FragCoord.y / u_ViewportHeight` and adds ±½/255 noise to break up 8-bit banding. | `u_TopColor`, `u_BottomColor`, `u_ViewportHeight` |
-| `UI` | `ui.vert` | `ui.frag` | All 2D UI: rounded rects, borders, shadows, lines, glyphs (see [ui.md](ui.md#shader)) | `u_ViewportSize`, `u_Texture` |
+| `UI` | `ui.vert` | `ui.frag` | All 2D UI: rounded rects, borders, shadows, lines, ring slices, glyphs (see [ui.md](ui.md#shader)) | `u_ViewportSize`, `u_Texture` |
 | `Grid` | `grid.vert` | `grid.frag` | Ground grid and axes | see [Grid](#grid) |
 
 Naming in GLSL: `a_` vertex inputs, `v_` values passed to the fragment stage, `u_` uniforms. `fullscreen.vert` and `grid.vert` take positions from `gl_VertexID` and are drawn with the empty `m_fullscreenVAO`.
@@ -191,4 +191,4 @@ Screen-space text goes through the UI draw list ([ui.md](ui.md)). `drawText3D` d
 
 ## Adding a backend
 
-Implement `IRenderer` and `IMesh`, add a case to `createRenderer`. `Object` currently stores `OpenGLMesh` directly, so that would need to become backend-neutral first.
+Implement `IRenderer` and `IMesh`, add a case to `createRenderer`. The application's `ObjectMeshCache` holds `OpenGLMesh` per object, so it would need to create the new backend's mesh type instead.

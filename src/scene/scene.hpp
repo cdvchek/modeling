@@ -10,4 +10,8 @@ struct Scene {
     ObjectCollection objects;
     LightCollection lights;
     Selection selection;
+
+    // The object being edited; null when there are no objects
+    Object* activeObject() { return objects.tryGet(selection.getActiveObject()); }
+    const Object* activeObject() const { return objects.tryGet(selection.getActiveObject()); }
 };

@@ -65,3 +65,23 @@ TEST_CASE(light_handle_at_slot) {
     lights.remove(first);
     CHECK(!lights.isValid(lights.handleAt(first.index)));
 }
+
+TEST_CASE(light_next_name_counts_past_the_highest) {
+    LightCollection lights;
+    CHECK(lights.nextName() == "Light 1");
+
+    Light light;
+    light.name = lights.nextName();
+    const LightHandle first = lights.add(light);
+    light.name = lights.nextName();
+    lights.add(light);
+    CHECK(lights.nextName() == "Light 3");
+
+    // Deleting a lower number doesn't bring it back, and other names are ignored
+    lights.remove(first);
+    light.name = "Sun";
+    lights.add(light);
+    light.name = "Light 2b";
+    lights.add(light);
+    CHECK(lights.nextName() == "Light 3");
+}

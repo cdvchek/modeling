@@ -43,7 +43,7 @@ namespace {
 
 void beginBevel(AppContext& ctx) {
     Selection& selection = ctx.scene.selection;
-    BevelTool& bevel = ctx.bevel;
+    WidthTool& bevel = ctx.widthTool;
     const u32 mode = ctx.systems.input_ctx.getSelectionContext();
 
     bool started = false;
@@ -52,55 +52,50 @@ void beginBevel(AppContext& ctx) {
         if (selection.getVertices().size() != 1) return;
 
         const VertexSelection& selected = selection.getVertices()[0];
-        MeshData& mesh = ctx.scene.objects.get(selected.objectIndex).meshData;
+        MeshData& mesh = ctx.scene.objects.get(selected.object).meshData;
 
-        bevel.objectIndex = selected.objectIndex;
+        bevel.object = selected.object;
         bevel.pivot = mesh.getVertexPosition(selected.vertex);
         ctx.history.begin(ctx.scene);
-        started = mesh.bevelVertex(selected.vertex, bevel.session);
+        started = mesh.bevelVertex(selected.vertex, bevel.session, ctx.scene.objects.get(selected.object).transform.getMatrix());
     } else if (mode == InputContext_SelectionEdge) {
         if (selection.getEdges().size() != 1) return;
 
         const EdgeSelection& selected = selection.getEdges()[0];
-        MeshData& mesh = ctx.scene.objects.get(selected.objectIndex).meshData;
+        MeshData& mesh = ctx.scene.objects.get(selected.object).meshData;
 
-        bevel.objectIndex = selected.objectIndex;
+        bevel.object = selected.object;
         bevel.pivot =
             (mesh.getVertexPosition(mesh.getEdgeOrigin(selected.edge)) +
              mesh.getVertexPosition(mesh.getEdgeTip(selected.edge))) / 2.0f;
         ctx.history.begin(ctx.scene);
-        started = mesh.bevelEdge(selected.edge, bevel.session);
+        started = mesh.bevelEdge(selected.edge, bevel.session, ctx.scene.objects.get(selected.object).transform.getMatrix());
     } else if (mode == InputContext_SelectionFace) {
         if (selection.getFaces().size() != 1) return;
 
         const FaceSelection& selected = selection.getFaces()[0];
-        MeshData& mesh = ctx.scene.objects.get(selected.objectIndex).meshData;
+        MeshData& mesh = ctx.scene.objects.get(selected.object).meshData;
 
         const std::vector<VertexHandle> corners = mesh.getFaceVertices(selected.face);
         Vec3 center(0.0f);
         for (VertexHandle corner : corners) center += mesh.getVertexPosition(corner);
 
-        bevel.objectIndex = selected.objectIndex;
+        bevel.object = selected.object;
         bevel.pivot = center / static_cast<f32>(corners.size());
         ctx.history.begin(ctx.scene);
-        started = mesh.bevelFace(selected.face, bevel.session);
+        started = mesh.bevelFace(selected.face, bevel.session, ctx.scene.objects.get(selected.object).transform.getMatrix());
     }
 
     if (!started) {
         ctx.history.cancel(ctx.scene);
-        std::cout << "bevel: can't bevel this (borders aren't supported yet)" << std::endl;
+        ctx.systems.console.printError("bevel: can't bevel this (the corner is too complex, e.g. two separate open edges meet there)");
         return;
     }
 
-    Object& object = ctx.scene.objects.get(bevel.objectIndex);
+    Object& object = ctx.scene.objects.get(bevel.object);
 
-    f32 x = 0.0f;
-    f32 y = 0.0f;
-    f32 worldPerPixel = 0.0f;
-
-    bevel.startDistance = projectToScreen(ctx, object, bevel.pivot, x, y, worldPerPixel)
-        ? mouseDistance(ctx, x, y)
-        : 0.0f;
+    bevel.startMouseX = static_cast<f32>(ctx.systems.input.getMouseX());
+    bevel.startMouseY = static_cast<f32>(ctx.systems.input.getMouseY());
 
     bevel.savedSelection = selection;
     selection.clear();
@@ -111,22 +106,26 @@ void beginBevel(AppContext& ctx) {
 }
 
 void checkBevelContext(AppContext& ctx) {
-    BevelTool& bevel = ctx.bevel;
-    Object& object = ctx.scene.objects.get(bevel.objectIndex);
+    updateWidthTool(ctx, Action::ConfirmBevel, Action::CancelBevel);
+}
+
+void updateWidthTool(AppContext& ctx, Action confirm, Action cancel) {
+    WidthTool& bevel = ctx.widthTool;
+    Object& object = ctx.scene.objects.get(bevel.object);
 
     f32 x = 0.0f;
     f32 y = 0.0f;
     f32 worldPerPixel = 0.0f;
 
     if (projectToScreen(ctx, object, bevel.pivot, x, y, worldPerPixel)) {
-        const f32 width = (mouseDistance(ctx, x, y) - bevel.startDistance) * worldPerPixel;
+        const f32 width = mouseDistance(ctx, bevel.startMouseX, bevel.startMouseY) * worldPerPixel;
 
-        object.meshData.setBevelWidth(bevel.session, width);
+        object.meshData.setSlideWidth(bevel.session, width);
         object.meshDirty = true;
     }
 
     if (ctx.systems.actions.wasActionPressedThisFrame(
-            Action::ConfirmBevel,
+            confirm,
             ctx.systems.input,
             ctx.systems.input_ctx.getContext())) {
 
@@ -138,11 +137,11 @@ void checkBevelContext(AppContext& ctx) {
     }
 
     if (ctx.systems.actions.wasActionPressedThisFrame(
-            Action::CancelBevel,
+            cancel,
             ctx.systems.input,
             ctx.systems.input_ctx.getContext())) {
 
-        object.meshData.cancelBevel(bevel.session);
+        object.meshData.cancelSlide(bevel.session);
         object.meshDirty = true;
 
         ctx.scene.selection = bevel.savedSelection;

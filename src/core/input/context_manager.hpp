@@ -17,10 +17,7 @@ public:
     u32 getContext() const;
 
 private:
-    static constexpr u32 SelectionMask =
-        InputContext_SelectionVertex |
-        InputContext_SelectionEdge |
-        InputContext_SelectionFace;
+    static constexpr u32 SelectionMask = InputContext_AnySelection;
 
     u32 m_context =
         InputContext_Global |

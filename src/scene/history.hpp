@@ -3,8 +3,7 @@
 #include <optional>
 #include <vector>
 
-#include "scene/mesh/mesh_data.hpp"
-#include "scene/transform.hpp"
+#include "scene/objects/object_collection.hpp"
 #include "scene/lights/light_collection.hpp"
 #include "scene/selection/selection.hpp"
 
@@ -20,10 +19,12 @@ public:
     bool undo(Scene& scene);
     bool redo(Scene& scene);
 
+    bool canUndo() const { return !m_undo.empty(); }
+    bool canRedo() const { return !m_redo.empty(); }
+
 private:
     struct State {
-        std::vector<MeshData> meshes;
-        std::vector<Transform> transforms;
+        ObjectCollection objects;
         LightCollection lights;
         Selection selection;
     };

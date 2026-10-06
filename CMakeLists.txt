@@ -10,9 +10,16 @@ set(CORE_SRC
     src/core/font/embedded_fonts.cpp
     src/core/font/font_library.cpp
     src/core/time/frame_timer.cpp
+    src/core/input/input_state.cpp
+    src/core/input/action_map.cpp
+    src/core/input/context_manager.cpp
+    src/core/input/keybinds.cpp
+    src/core/console/command_system.cpp
+    src/core/console/console.cpp
     src/ui/ui_draw_list.cpp
     src/ui/ui_context.cpp
     src/ui/ui_widgets.cpp
+    src/ui/radial_layout.cpp
     src/core/math/vec2.cpp
     src/core/math/vec3.cpp
     src/core/math/vec4.cpp
@@ -35,9 +42,13 @@ set(CORE_SRC
     src/scene/mesh/mesh_data_merge.cpp
     src/scene/mesh/mesh_data_dissolve.cpp
     src/scene/mesh/mesh_data_bevel.cpp
+    src/scene/mesh/mesh_data_region.cpp
     src/scene/mesh/mesh_data_validate.cpp
     src/scene/mesh/mesh_data_gpu.cpp
     src/scene/lights/light_collection.cpp
+    src/scene/objects/object_collection.cpp
+    src/scene/selection/selection.cpp
+    src/scene/transform.cpp
 )
 
 set(APP_SRC
@@ -46,24 +57,26 @@ set(APP_SRC
     src/application/action_checks/check_bevel.cpp
     src/application/action_checks/check_console.cpp
     src/application/action_checks/check_grab.cpp
+    src/application/action_checks/check_inset.cpp
     src/application/action_checks/check_rotate.cpp
     src/application/action_checks/check_scale.cpp
     src/application/action_checks/check_selection.cpp
     src/application/application_actions.cpp
+    src/application/editing_actions.cpp
+    src/application/radial_menu.cpp
+    src/application/console_view.cpp
+    src/application/tool_guides.cpp
     src/application/application_commands.cpp
     src/application/light_commands.cpp
+    src/application/object_commands.cpp
     src/application/status_bar.cpp
     src/application/light_markers.cpp
     src/application/main_panel.cpp
+    src/application/object_meshes.cpp
     src/application/application_events.cpp
     src/application/application_render.cpp
     src/application/application_scene.cpp
     src/application/application.cpp
-    src/core/console/command_system.cpp
-    src/core/console/console.cpp
-    src/core/input/input_state.cpp
-    src/core/input/action_map.cpp
-    src/core/input/context_manager.cpp
     src/platform/keys/keys_win32.cpp
     src/platform/renderer/opengl_renderer_win32.cpp
     src/platform/window/window_event_callback_win32.cpp
@@ -79,11 +92,8 @@ set(APP_SRC
     src/renderer/renderer.cpp
     src/scene/selection/ray.cpp
     src/scene/selection/scene_queries.cpp
-    src/scene/selection/selection.cpp
     src/scene/camera.cpp
     src/scene/history.cpp
-    src/scene/objects/object_collection.cpp
-    src/scene/transform.cpp
 )
 
 set(C_SRC

@@ -51,11 +51,7 @@ bool History::redo(Scene& scene) {
 History::State History::capture(const Scene& scene) {
     State state;
 
-    for (const Object& object : scene.objects.all()) {
-        state.meshes.push_back(object.meshData);
-        state.transforms.push_back(object.transform);
-    }
-
+    state.objects = scene.objects;
     state.lights = scene.lights;
     state.selection = scene.selection;
 
@@ -63,15 +59,8 @@ History::State History::capture(const Scene& scene) {
 }
 
 void History::restore(Scene& scene, const State& state) {
-    const std::size_t count = std::min<std::size_t>(scene.objects.count(), state.meshes.size());
-
-    for (std::size_t i = 0; i < count; ++i) {
-        Object& object = scene.objects.get(static_cast<u32>(i));
-        object.meshData = state.meshes[i];
-        object.transform = state.transforms[i];
-        object.meshDirty = true;
-    }
-
+    scene.objects = state.objects;
+    scene.objects.markAllDirty();
     scene.lights = state.lights;
     scene.selection = state.selection;
 }

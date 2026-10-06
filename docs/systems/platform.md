@@ -11,6 +11,7 @@ Files: `src/platform/`
 | Function | Description |
 |---|---|
 | `void Platform::pollEvents()` | Drains the Win32 message queue (`PeekMessage` / `DispatchMessage`). Called once per frame. Messages reach the window procedure, which turns them into events. |
+| `std::string Platform::getClipboardText()` / `void Platform::setClipboardText(text)` | Plain text on the system clipboard (`CF_UNICODETEXT`). Characters outside ASCII come back as `?`. Text fields use them through `UIContext::setClipboard`. |
 | `void* Platform::getGLProcAddress(const char* name)` | Looks up an OpenGL function with `wglGetProcAddress`, falling back to `opengl32.dll` for GL 1.1 functions. |
 
 ## Window
@@ -26,7 +27,7 @@ Pimpl class: the header has no Win32 types; `Window::Impl` (in `impl_win32.hpp`)
 | `bool getDimensions(u32& w, u32& h)` | Current client-area size. Used every frame for aspect ratio and mouse-ray math. |
 | `bool getPosition(u32& x, u32& y)` | Window position on screen. |
 | `void* getNativeHandle()` / `getNativeDisplayContext()` | `HWND` / `HDC`, passed to the renderer to create the GL context. |
-| `void setCursor(CursorShape)` | Cursor shown over the client area: `Arrow`, `ResizeHorizontal`, `ResizeVertical`, `ResizeDiagonalDown`, `ResizeDiagonalUp`. Applied immediately when the mouse is over the window (or captured), and on every `WM_SETCURSOR` in the client area. The app sets it each frame from `ctx.ui.cursor()`. |
+| `void setCursor(CursorShape)` | Cursor shown over the client area: `Arrow`, `ResizeHorizontal`, `ResizeVertical`, `ResizeDiagonalDown`, `ResizeDiagonalUp`, `Text` (I-beam). Applied immediately when the mouse is over the window (or captured), and on every `WM_SETCURSOR` in the client area. The app sets it each frame from `ctx.ui.cursor()`. |
 | `void printWindowError() const` | Prints the last `WindowError`. Public methods return `false`/`nullptr` on failure. |
 
 ### Window procedure

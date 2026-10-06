@@ -47,6 +47,23 @@ LightHandle LightCollection::handleAt(u32 slot) const {
     return m_lights.getHandle(slot);
 }
 
+std::string LightCollection::nextName() const {
+    constexpr std::string_view PREFIX = "Light ";
+
+    u32 highest = 0;
+    for (LightHandle handle : handles()) {
+        const std::string& name = m_lights.get(handle).name;
+        if (name.size() <= PREFIX.size() || name.compare(0, PREFIX.size(), PREFIX) != 0) continue;
+
+        const std::string digits = name.substr(PREFIX.size());
+        if (digits.find_first_not_of("0123456789") != std::string::npos) continue;
+
+        highest = std::max(highest, static_cast<u32>(std::stoul(digits)));
+    }
+
+    return std::string(PREFIX) + std::to_string(highest + 1);
+}
+
 u32 LightCollection::count() const {
     return m_lights.activeSize();
 }

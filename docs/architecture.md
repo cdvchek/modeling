@@ -24,13 +24,11 @@ A from-scratch C++20 modeling app on Win32 and OpenGL 3.3. No windowing, UI, or 
 | Directory | Role | Depends on |
 |---|---|---|
 | `src/core/` | Engine building blocks with no app knowledge: math, containers (`DynamicArray`), events, input, console, bitmap fonts, frame timing | — |
-| `src/scene/` | Everything being edited: objects, lights, half-edge meshes, selection, picking, camera, history | core (and `renderer/opengl` for `OpenGLMesh`, see below) |
+| `src/scene/` | Everything being edited: objects, lights, half-edge meshes, selection, picking, camera, history | core |
 | `src/ui/` | 2D UI draw list in pixel coordinates (shapes, text, clipping) and the immediate-mode widget system (`UIContext`). No OpenGL. | core (math, fonts) |
 | `src/renderer/` | Backend-neutral `IRenderer` interface plus the OpenGL implementation | core, scene (mesh handles, `Scene` for the debug overlay), ui (draws a `UIDrawList`) |
 | `src/platform/` | Win32 window, message pump, key translation, OpenGL context creation | core (events, keys) |
 | `src/application/` | Wires everything together and owns all modeling behavior triggered by input | everything |
-
-**Known layering leak:** `Object` (in `scene/objects/object_collection.hpp`) stores an `OpenGLMesh` directly, so the scene depends on the OpenGL backend. A backend-neutral handle would remove that.
 
 **Platform split:** platform-specific code lives in files ending in `_win32.cpp`. The OpenGL renderer is split into `renderer/opengl/opengl_renderer_common.cpp` (portable GL drawing) and `platform/renderer/opengl_renderer_win32.cpp` (WGL context setup only). Shaders live in `renderer/opengl/shaders/` and have no platform code.
 
@@ -40,7 +38,7 @@ Defined in [CMakeLists.txt](../CMakeLists.txt):
 
 | Target | Contents |
 |---|---|
-| `modeling_core` (static lib) | Math, fonts, lights, the UI draw list, and all `MeshData` code. No OpenGL or Win32, so it can be tested on its own. |
+| `modeling_core` (static lib) | Math, fonts, input (`InputState`, `ActionMap`, `ContextManager`), the console and command system, objects, lights, selection, transforms, the UI, and all `MeshData` code. No OpenGL or Win32, so it can be tested on its own. |
 | `modeling` (exe → `bin/modeling.exe`) | Everything else plus `glad.c`, linked with `opengl32` and `dwmapi`. |
 | `tests` (exe) | Every `tests/*.cpp`, linked against `modeling_core`. |
 
@@ -57,13 +55,14 @@ struct AppContext {
     DebugRenderer debug_renderer;
     std::vector<std::unique_ptr<Window>> windows;   // only windows[0] is used
     Scene scene;              // camera, objects, lights, selection
-    BevelTool bevel;          // state of an in-progress bevel
+    WidthTool widthTool;      // state of an in-progress bevel or inset
     History history;          // undo/redo
     ViewportSettings viewport; // headlight and other view-only settings
     FontLibrary fonts;        // embedded bitmap fonts
     UIDrawList uiDrawList;    // 2D UI, rebuilt every frame
     FrameTimer frameTimer;    // FPS for the status bar
     UIContext ui;             // widgets and mouse routing
+    ObjectMeshCache objectMeshes; // GPU copies of object meshes, by handle
     bool is_running;
 };
 ```
@@ -100,17 +99,20 @@ WM_KEYDOWN ──► Window callback ──► EventDispatcher::trigger(Event::K
                                           ▼
                                      InputState::onKey
                                           │
-checkActions ──► ActionMap::wasActionPressedThisFrame(Action::GrabSelection, input, context)
+checkActions ──► ActionMap::dispatch ──► wasActionPressedThisFrame(Action::GrabSelection, input, context)
+                                          │
+                                          ▼
+                          handler: canGrab → startGrab
                                           │
                                           ▼
                     tool code edits MeshData, sets object.meshDirty
                                           │
-renderFrame ──► OpenGLMesh::update(meshData) ──► draw
+renderFrame ──► ObjectMeshCache::sync (OpenGLMesh::update) ──► draw
 ```
 
 Key ideas:
 - **Events** carry raw OS input. The app only subscribes to turn them into `InputState`.
-- **Actions** are named intents (`Action::GrabSelection`) bound to key combos. Tools never check raw keys.
+- **Actions** are named intents (`Action::GrabSelection`) bound to key combos. Tools never check raw keys. One-shot actions also have a handler (label, `canRun`, `run`) that `ActionMap::dispatch` runs when their keys are pressed, so other inputs (like the planned radial menu) can run the same action.
 - **Input contexts** are bit flags saying which modes are active (vertex mode, grab, console…). An action only fires if one of its contexts is active. Modal tools switch the context so that, for example, left click means "confirm grab" during a grab.
 - **Dirty flags**: mesh edits set `Object::meshDirty` (rebuild GPU buffers) and per-face `triangulationDirty` (re-triangulate that face).
 

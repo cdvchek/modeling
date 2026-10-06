@@ -122,7 +122,7 @@ namespace {
 
         Light light;
         light.type = *type;
-        light.name = args.size() == 3 ? args[2] : lightTypeName(*type);
+        light.name = args.size() == 3 ? args[2] : ctx.scene.lights.nextName();
 
         ctx.history.begin(ctx.scene);
         const LightHandle handle = ctx.scene.lights.add(light);
@@ -239,4 +239,15 @@ void runLightCommand(AppContext& ctx, const CommandArgs& args) {
     } else {
         runLightById(ctx, args);
     }
+}
+
+bool deleteSelectedLights(AppContext& ctx) {
+    const std::vector<LightHandle> selected = ctx.scene.selection.getLights();
+    if (selected.empty()) return false;
+
+    ctx.history.begin(ctx.scene);
+    for (LightHandle handle : selected) ctx.scene.lights.remove(handle);
+    ctx.scene.selection.clearLights();
+    ctx.history.commit();
+    return true;
 }

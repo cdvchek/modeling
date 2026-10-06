@@ -8,11 +8,11 @@ void Application::initializeCamera(AppContext& ctx) {
 }
 
 void Application::loadTestScene(AppContext& ctx) {
-    ctx.scene.objects.create("cube", PresetMesh::Cube);
-    ctx.scene.objects.get(0).gpuMesh.create(ctx.scene.objects.get(0).meshData);
+    const ObjectHandle cube = ctx.scene.objects.add("Cube", PresetMesh::Cube);
+    ctx.scene.selection.setActiveObject(cube);
 
     Light sun;
-    sun.name = "sun";
+    sun.name = "Sun";
     sun.type = LightType::Directional;
     sun.direction = Vec3(0.4f, -1.0f, -0.6f).normalized();
     sun.intensity = 0.6f;

@@ -1,4 +1,5 @@
 #include "scene/mesh/mesh_data.hpp"
+#include "core/math/vec4.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -19,10 +20,12 @@ namespace {
     };
 
     // Slot i is the face between spoke i - 1 and spoke i.
+    // On a border vertex spoke 0 is the border half-edge with no face, so slot 0 is the gap where there's no face.
     struct Corner {
         VertexHandle vertex;
         Vec3 position;
         bool keep = false;
+        bool border = false;
 
         std::vector<EdgeHandle> spokes;
         std::vector<SpokeRole> roles;
@@ -43,28 +46,66 @@ namespace {
         return (static_cast<u64>(a.index) << 32) | b.index;
     }
 
+    Vec3 transformPoint(const Mat4& matrix, Vec3 point) {
+        const Vec4 result = matrix * Vec4(point.x, point.y, point.z, 1.0f);
+        return Vec3(result.x, result.y, result.z);
+    }
+
+    Vec3 transformDirection(const Mat4& matrix, Vec3 direction) {
+        const Vec4 result = matrix * Vec4(direction.x, direction.y, direction.z, 0.0f);
+        return Vec3(result.x, result.y, result.z);
+    }
+
     void removeRepeats(std::vector<VertexHandle>& loop) {
         loop.erase(std::unique(loop.begin(), loop.end()), loop.end());
         while (loop.size() > 1 && loop.front() == loop.back()) loop.pop_back();
     }
 }
 
-bool MeshData::bevelVertex(VertexHandle handle, BevelSession& session) {
+bool MeshData::bevelVertex(VertexHandle handle, SlideSession& session, const Mat4& space) {
     if (!isValidHandle(handle)) return false;
-    return bevel({ handle }, {}, true, session);
+    return runInSpace(session, space, [&] { return bevel({ handle }, {}, true, session); });
 }
 
-bool MeshData::bevelEdge(EdgeHandle handle, BevelSession& session) {
+bool MeshData::bevelEdge(EdgeHandle handle, SlideSession& session, const Mat4& space) {
     if (!isValidHandle(handle)) return false;
-    return bevel({ getEdgeOrigin(handle), getEdgeTip(handle) }, { handle }, false, session);
+    return runInSpace(session, space, [&] { return bevel({ getEdgeOrigin(handle), getEdgeTip(handle) }, { handle }, false, session); });
 }
 
-bool MeshData::bevelFace(FaceHandle handle, BevelSession& session) {
+bool MeshData::bevelFace(FaceHandle handle, SlideSession& session, const Mat4& space) {
     if (!isValidHandle(handle)) return false;
-    return bevel(getFaceVertices(handle), getFaceEdges(handle), false, session);
+    return runInSpace(session, space, [&] { return bevel(getFaceVertices(handle), getFaceEdges(handle), false, session); });
 }
 
-void MeshData::setBevelWidth(const BevelSession& session, f32 width) {
+bool MeshData::runInSpace(SlideSession& session, const Mat4& space, const std::function<bool()>& op) {
+    // Exact copy, so existing vertices come back without rounding error
+    const DynamicArray<Vertex, VertexHandle> original = m_vertices;
+    const Mat4 back = Mat4::inverse(space);
+
+    for (VertexHandle handle : m_vertices.getActiveHandles()) {
+        Vertex& vertex = m_vertices.get(handle);
+        vertex.position = transformPoint(space, vertex.position);
+    }
+
+    const bool done = op();
+
+    for (VertexHandle handle : m_vertices.getActiveHandles()) {
+        Vertex& vertex = m_vertices.get(handle);
+        const Vertex* before = original.tryGet(handle);
+        vertex.position = before ? before->position : transformPoint(back, vertex.position);
+    }
+
+    if (!done) return false;
+
+    // Slides start and move in mesh space; a width still moves them that far in the bevel's space
+    session.savedVertices = original;
+    for (Vec3& start : session.starts) start = transformPoint(back, start);
+    for (Vec3& direction : session.directions) direction = transformDirection(back, direction);
+
+    return true;
+}
+
+void MeshData::setSlideWidth(const SlideSession& session, f32 width) {
     width = std::clamp(width, 0.0f, session.maxWidth);
 
     for (u32 i = 0; i < static_cast<u32>(session.vertices.size()); ++i) {
@@ -77,7 +118,7 @@ void MeshData::setBevelWidth(const BevelSession& session, f32 width) {
     }
 }
 
-void MeshData::cancelBevel(const BevelSession& session) {
+void MeshData::cancelSlide(const SlideSession& session) {
     m_vertices = session.savedVertices;
     m_edges = session.savedEdges;
     m_faces = session.savedFaces;
@@ -87,7 +128,7 @@ bool MeshData::bevel(
     const std::vector<VertexHandle>& cornerVertices,
     const std::vector<EdgeHandle>& edges,
     bool vertexOnly,
-    BevelSession& session
+    SlideSession& session
 ) {
     std::vector<EdgeHandle> beveled;
 
@@ -112,8 +153,16 @@ bool MeshData::bevel(
         return (getVertexPosition(getEdgeTip(spoke)) - getVertexPosition(getEdgeOrigin(spoke))).length();
     };
 
+    // An inset vertex sits between two beveled spokes, inside the face they share (never in a border gap)
+    auto hasInset = [](const Corner& corner, u32 i) {
+        const u32 count = static_cast<u32>(corner.spokes.size());
+        if (corner.border && i == 0) return false;
+        return corner.roles[i] == SpokeRole::Beveled && corner.roles[(i + count - 1) % count] == SpokeRole::Beveled;
+    };
+
     // 1. Classify each corner's spokes and work out how its new vertices move.
     std::vector<Corner> corners;
+    bool hasBorder = false;
 
     for (VertexHandle vertex : cornerVertices) {
         Corner corner;
@@ -122,19 +171,27 @@ bool MeshData::bevel(
         corner.spokes = getOutgoingEdges(vertex);
 
         const u32 count = static_cast<u32>(corner.spokes.size());
-        if (count < 3) return false;
 
-        for (EdgeHandle spoke : corner.spokes) {
-            if (isBorder(spoke)) return false;
+        // A border vertex's fan is open: start it at the gap so it runs from one border edge to the other
+        const auto gap = std::find_if(corner.spokes.begin(), corner.spokes.end(), [&](EdgeHandle spoke) { return isBorder(spoke); });
+        if (gap != corner.spokes.end()) {
+            if (std::count_if(corner.spokes.begin(), corner.spokes.end(), [&](EdgeHandle spoke) { return isBorder(spoke); }) > 1) return false;
+            std::rotate(corner.spokes.begin(), gap, corner.spokes.end());
+            corner.border = true;
+            hasBorder = true;
         }
 
-        for (u32 i = 0; i < count; ++i) {
-            const EdgeHandle prev = corner.spokes[(i + count - 1) % count];
-            const EdgeHandle next = corner.spokes[(i + 1) % count];
+        if (count < (corner.border ? 2u : 3u)) return false;
 
+        // Spokes on either side of the gap don't share a face, so they aren't neighbors
+        auto prevOf = [&](u32 i) { return corner.border && i == 0 ? -1 : static_cast<i32>((i + count - 1) % count); };
+        auto nextOf = [&](u32 i) { return corner.border && i == count - 1 ? -1 : static_cast<i32>((i + 1) % count); };
+        auto beveledAt = [&](i32 i) { return i >= 0 && isBeveled(corner.spokes[i]); };
+
+        for (u32 i = 0; i < count; ++i) {
             if (vertexOnly) corner.roles.push_back(SpokeRole::Slide);
             else if (isBeveled(corner.spokes[i])) corner.roles.push_back(SpokeRole::Beveled);
-            else if (isBeveled(prev) || isBeveled(next)) corner.roles.push_back(SpokeRole::Slide);
+            else if (beveledAt(prevOf(i)) || beveledAt(nextOf(i))) corner.roles.push_back(SpokeRole::Slide);
             else corner.roles.push_back(SpokeRole::Plain);
         }
 
@@ -148,6 +205,9 @@ bool MeshData::bevel(
 
         if (plainRuns > 1) return false;
         corner.keep = std::find(corner.roles.begin(), corner.roles.end(), SpokeRole::Plain) != corner.roles.end();
+
+        // A beveled border edge keeps its corner on the gap side, so the outline doesn't move
+        if (corner.border && (corner.roles.front() == SpokeRole::Beveled || corner.roles.back() == SpokeRole::Beveled)) corner.keep = true;
 
         corner.slides.resize(count);
         corner.insets.resize(count);
@@ -165,8 +225,8 @@ bool MeshData::bevel(
                     f32 total = 0.0f;
                     u32 neighbors = 0;
 
-                    for (u32 n : { prev, next }) {
-                        if (corner.roles[n] != SpokeRole::Beveled) continue;
+                    for (i32 n : { prevOf(i), nextOf(i) }) {
+                        if (n < 0 || corner.roles[n] != SpokeRole::Beveled) continue;
 
                         const f32 sine = Vec3::cross(along, direction(corner.spokes[n])).length();
                         total += 1.0f / std::max(sine, MIN_SIN);
@@ -182,7 +242,7 @@ bool MeshData::bevel(
                 corner.slides[i].maxWidth = reach / speed;
             }
 
-            if (corner.roles[i] == SpokeRole::Beveled && corner.roles[prev] == SpokeRole::Beveled) {
+            if (hasInset(corner, i)) {
                 const Vec3 a = direction(corner.spokes[prev]);
                 const Vec3 b = direction(spoke);
                 const Vec3 bisector = a + b;
@@ -244,9 +304,7 @@ bool MeshData::bevel(
             const u32 prev = (i + count - 1) % count;
 
             if (corner.roles[i] == SpokeRole::Slide) addSlider(corner.slides[i], corner.position);
-            if (corner.roles[i] == SpokeRole::Beveled && corner.roles[prev] == SpokeRole::Beveled) {
-                addSlider(corner.insets[i], corner.position);
-            }
+            if (hasInset(corner, i)) addSlider(corner.insets[i], corner.position);
         }
 
         auto element = [&](u32 i) {
@@ -259,7 +317,9 @@ bool MeshData::bevel(
             const u32 prev = (i + count - 1) % count;
             std::vector<VertexHandle> slot;
 
-            if (isValidHandle(corner.insets[i].vertex)) {
+            if (corner.border && i == 0) {
+                slot.push_back(corner.vertex);
+            } else if (isValidHandle(corner.insets[i].vertex)) {
                 slot.push_back(corner.insets[i].vertex);
             } else {
                 for (VertexHandle vertex : { element(prev), element(i) }) {
@@ -271,7 +331,11 @@ bool MeshData::bevel(
         }
 
         // Walking the fan backwards gives the same winding as the faces around it.
+        // A kept border corner sits in the gap, so the fill closes against it instead of leaving a hole.
+        const bool keptForBorder = corner.border && (corner.roles.front() == SpokeRole::Beveled || corner.roles.back() == SpokeRole::Beveled);
+
         for (u32 i = 0; i < count; ++i) {
+            if (i == 0 && keptForBorder) corner.ring.push_back(corner.vertex);
             if (isValidHandle(corner.insets[i].vertex)) corner.ring.push_back(corner.insets[i].vertex);
             if (corner.roles[i] == SpokeRole::Slide) corner.ring.push_back(corner.slides[i].vertex);
             if (corner.roles[i] == SpokeRole::Plain) corner.ring.push_back(corner.vertex);
@@ -291,6 +355,7 @@ bool MeshData::bevel(
     for (const Corner& corner : corners) {
         for (EdgeHandle spoke : corner.spokes) {
             const FaceHandle face = m_edges.get(spoke).face;
+            if (!m_faces.isValid(face)) continue;
             if (std::find(oldFaces.begin(), oldFaces.end(), face) == oldFaces.end()) oldFaces.push_back(face);
         }
     }
@@ -364,8 +429,8 @@ bool MeshData::bevel(
     }
 
     // 4. Swap in the new faces, then drop corners nothing uses anymore.
-    if (!replaceFaces(oldFaces, newFaces)) {
-        cancelBevel(session);
+    if (!replaceFaces(oldFaces, newFaces, nullptr, hasBorder)) {
+        cancelSlide(session);
         return false;
     }
 
@@ -378,7 +443,9 @@ bool MeshData::bevel(
 
 bool MeshData::replaceFaces(
     const std::vector<FaceHandle>& oldFaces,
-    const std::vector<std::vector<VertexHandle>>& newFaces
+    const std::vector<std::vector<VertexHandle>>& newFaces,
+    std::vector<FaceHandle>* createdFaces,
+    bool allowBorders
 ) {
     auto isOld = [&](FaceHandle face) {
         return std::find(oldFaces.begin(), oldFaces.end(), face) != oldFaces.end();
@@ -411,6 +478,7 @@ bool MeshData::replaceFaces(
         if (count < 3) return false;
 
         const FaceHandle face = m_faces.insert(Face{});
+        if (createdFaces) createdFaces->push_back(face);
         std::vector<EdgeHandle> halves;
 
         for (u32 i = 0; i < count; ++i) {
@@ -433,8 +501,9 @@ bool MeshData::replaceFaces(
         m_faces.get(face).edge = halves[0];
     }
 
-    // 4. Pair every new half-edge, with another new one or with the outside.
-    u32 outsideUsed = 0;
+    // 4. Pair every new half-edge: with another new one, with the outside, or (allowBorders) with a new border half-edge.
+    std::vector<u64> usedOutside;
+    bool bordersChanged = false;
 
     for (const auto& [key, handle] : created) {
         const u64 reverse = (key << 32) | (key >> 32);
@@ -446,12 +515,48 @@ bool MeshData::replaceFaces(
         }
 
         auto outer = outside.find(key);
-        if (outer == outside.end()) return false;
+        if (outer != outside.end()) {
+            m_edges.get(handle).pair = outer->second;
+            m_edges.get(outer->second).pair = handle;
+            usedOutside.push_back(key);
+            continue;
+        }
 
-        m_edges.get(handle).pair = outer->second;
-        m_edges.get(outer->second).pair = handle;
-        ++outsideUsed;
+        if (!allowBorders) return false;
+
+        Edge border;
+        border.tip = m_edges.get(m_edges.get(handle).prev).tip;
+        border.pair = handle;
+
+        m_edges.get(handle).pair = m_edges.insert(border);
+        bordersChanged = true;
     }
 
-    return outsideUsed == outside.size();
+    // 5. Outside half-edges nothing pairs with anymore: border edges go away, anything else is an error.
+    for (const auto& [key, edge] : outside) {
+        if (std::find(usedOutside.begin(), usedOutside.end(), key) != usedOutside.end()) continue;
+        if (!allowBorders || !isBorder(edge)) return false;
+
+        m_edges.remove(edge);
+        bordersChanged = true;
+    }
+
+    if (bordersChanged) relinkBorders();
+    return true;
+}
+
+void MeshData::relinkBorders() {
+    std::map<u32, EdgeHandle> leaving;
+    std::vector<EdgeHandle> borders;
+
+    for (EdgeHandle edge : m_edges.getActiveHandles()) {
+        if (!isBorder(edge)) continue;
+        leaving[getEdgeOrigin(edge).index] = edge;
+        borders.push_back(edge);
+    }
+
+    for (EdgeHandle edge : borders) {
+        const auto next = leaving.find(m_edges.get(edge).tip.index);
+        if (next != leaving.end()) link(edge, next->second);
+    }
 }

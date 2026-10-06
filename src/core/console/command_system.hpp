@@ -22,7 +22,14 @@ public:
         CommandCallback callback
     );
 
-    void execute(const std::string& command);
+    // False only for a command name nobody registered (an empty line is fine)
+    bool execute(const std::string& command);
+
+    // Every command with its description, sorted by name
+    std::vector<std::pair<std::string, std::string>> list() const;
+
+    // The first word of a command line
+    static std::string commandName(const std::string& command);
 
 private:
     std::unordered_map<std::string, Command> commands;

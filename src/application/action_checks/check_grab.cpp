@@ -16,8 +16,13 @@ void checkGrabContext(AppContext& ctx) {
     const auto& selections = ctx.scene.selection.getVertices();
     const auto& lights = ctx.scene.selection.getLights();
     const auto& lightStarts = ctx.scene.selection.getLightStartPositions();
+    const auto& objects = ctx.scene.selection.getObjects();
+    const auto& objectStarts = ctx.scene.selection.getObjectStartTransforms();
 
-    if (selections.empty() && lights.empty()) return;
+    if (selections.empty() && lights.empty() && objects.empty()) return;
+
+    // Vertices live in their object's mesh space; the grab works in world space and converts
+    const ObjectSpace space(selections.empty() ? Transform() : ctx.scene.objects.get(selections[0].object).transform);
 
     const auto& starts =
         ctx.scene.selection.getSelectionStartPositions();
@@ -40,15 +45,27 @@ void checkGrabContext(AppContext& ctx) {
             else if (zJustActivated) { light->position.x = start.x; light->position.y = start.y; }
         }
 
+        // So do whole objects
+        for (u32 i = 0; i < static_cast<u32>(objects.size()) && i < static_cast<u32>(objectStarts.size()); ++i) {
+            Object* object = ctx.scene.objects.tryGet(objects[i]);
+            if (!object) continue;
+
+            Vec3& position = object->transform.position;
+            const Vec3& start = objectStarts[i].position;
+            if (xJustActivated) { position.y = start.y; position.z = start.z; }
+            else if (yJustActivated) { position.x = start.x; position.z = start.z; }
+            else if (zJustActivated) { position.x = start.x; position.y = start.y; }
+        }
+
         for (u32 i = 0; i < static_cast<u32>(selections.size()); ++i) {
             const VertexSelection& selection = selections[i];
-            const Vec3& start = starts[i];
+            const Vec3 start = space.pointToWorld(starts[i]);
 
             Object& obj =
-                ctx.scene.objects.get(selection.objectIndex);
+                ctx.scene.objects.get(selection.object);
 
             Vec3 currPos =
-                obj.meshData.getVertexPosition(selection.vertex);
+                space.pointToWorld(obj.meshData.getVertexPosition(selection.vertex));
 
             Vec3 newPos = currPos;
 
@@ -67,7 +84,7 @@ void checkGrabContext(AppContext& ctx) {
 
             obj.meshData.positionVertex(
                 selection.vertex,
-                newPos
+                space.pointToLocal(newPos)
             );
 
             obj.meshDirty = true;
@@ -105,19 +122,24 @@ void checkGrabContext(AppContext& ctx) {
         if (!zAxis) vertMove.z = 0.0f;
     }
 
-    // Move selected lights.
+    // Move selected lights and objects.
     for (LightHandle handle : lights) {
         if (Light* light = ctx.scene.lights.tryGet(handle)) light->position += vertMove;
     }
+    for (ObjectHandle handle : objects) {
+        if (Object* object = ctx.scene.objects.tryGet(handle)) object->transform.position += vertMove;
+    }
 
-    // Move selected vertices.
+    // Move selected vertices by the same world movement, in their mesh space.
+    const Vec3 localMove = space.directionToLocal(vertMove);
+
     for (const VertexSelection& vs : selections) {
         Object& obj =
-            ctx.scene.objects.get(vs.objectIndex);
+            ctx.scene.objects.get(vs.object);
 
         obj.meshData.translateVertex(
             vs.vertex,
-            vertMove
+            localMove
         );
 
         obj.meshDirty = true;
@@ -154,7 +176,7 @@ void checkGrabContext(AppContext& ctx) {
             const Vec3& start = starts[i];
 
             Object& obj =
-                ctx.scene.objects.get(selection.objectIndex);
+                ctx.scene.objects.get(selection.object);
 
             obj.meshData.positionVertex(
                 selection.vertex,
@@ -170,6 +192,10 @@ void checkGrabContext(AppContext& ctx) {
 
         for (u32 i = 0; i < static_cast<u32>(lights.size()) && i < static_cast<u32>(lightStarts.size()); ++i) {
             if (Light* light = ctx.scene.lights.tryGet(lights[i])) light->position = lightStarts[i];
+        }
+
+        for (u32 i = 0; i < static_cast<u32>(objects.size()) && i < static_cast<u32>(objectStarts.size()); ++i) {
+            if (Object* object = ctx.scene.objects.tryGet(objects[i])) object->transform = objectStarts[i];
         }
 
         ctx.history.cancel(ctx.scene);

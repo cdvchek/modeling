@@ -1,5 +1,6 @@
 #include "application/application.hpp"
 #include "application/action_checks/action_checks.hpp"
+#include "application/radial_menu.hpp"
 
 bool Application::checkActions(AppContext& ctx) {
     ContextManager& ictx = ctx.systems.input_ctx;
@@ -9,31 +10,27 @@ bool Application::checkActions(AppContext& ctx) {
         return false;
     }
 
+    // While the radial menu is open it takes all other input, so tools and the camera hold still
+    if (updateRadialMenu(ctx)) return true;
+
     if (ctx.systems.actions.wasActionPressedThisFrame(Action::ToggleConsole, ctx.systems.input, ictx.getContext())) {
         ctx.systems.input_ctx.toggleContext(InputContext_Console);
+
+        // Closing collapses what's there; anything printed after this shows open next time
+        if (!ictx.isActive(InputContext_Console)) ctx.systems.console.collapseEntries();
+        else ctx.consoleView.followNewest = true;
     }
 
     if (ictx.isActive(InputContext_Console)) {
         checkConsoleContext(ctx);
     }
     
-    if (ictx.isActive(InputContext_SelectionVertex | InputContext_SelectionEdge | InputContext_SelectionFace)) {
+    if (ictx.isActive(InputContext_AnySelection)) {
         checkSelectionContext(ctx);
     }
 
-    if (ictx.isActive(InputContext_Grab | InputContext_Scale | InputContext_Rotate)) {
-        if (ctx.systems.actions.wasActionPressedThisFrame(Action::XAxis, ctx.systems.input, ictx.getContext())) {
-            ictx.toggleContext(InputContext_XAxis);
-        }
-
-        if (ctx.systems.actions.wasActionPressedThisFrame(Action::YAxis, ctx.systems.input, ictx.getContext())) {
-            ictx.toggleContext(InputContext_YAxis);
-        }
-
-        if (ctx.systems.actions.wasActionPressedThisFrame(Action::ZAxis, ctx.systems.input, ictx.getContext())) {
-            ictx.toggleContext(InputContext_ZAxis);
-        }
-    }
+    // One-shot actions (modes, starting tools, operations, undo, axis locks) run through their handlers
+    ctx.systems.actions.dispatch(ctx.systems.input, ictx);
 
     if (ictx.isActive(InputContext_Grab)) {
         checkGrabContext(ctx);
@@ -49,6 +46,10 @@ bool Application::checkActions(AppContext& ctx) {
 
     if (ictx.isActive(InputContext_Bevel)) {
         checkBevelContext(ctx);
+    }
+
+    if (ictx.isActive(InputContext_Inset)) {
+        checkInsetContext(ctx);
     }
 
     return true;

@@ -2,6 +2,7 @@
 
 #include <vector>
 #include <array>
+#include <string>
 #include <types>
 
 #include "platform/keys/keys.hpp"
@@ -28,7 +29,15 @@ public:
     i32 getMouseDeltaY() const;
     i32 getScroll() const;
 
+    // Every key press this frame in order, including the OS's held-key repeats (which start after its repeat delay)
+    const std::vector<u16>& getKeyPresses() const { return m_keyPresses; }
+    bool wasKeyPressedOrRepeated(u16 key) const;
+
+    // Printable characters typed this frame, repeats included
+    const std::string& getTypedText() const { return m_typed; }
+
     void onKey(u16 key, bool pressed);
+    void onChar(char character);
     void onMouseButton(u16 button, bool pressed);
     void onScroll(i32 scroll);
     void onMouseMove(i32 x, i32 y);
@@ -49,4 +58,7 @@ private:
     i32 m_mouse_delta_y = 0;
 
     i32 m_scroll = 0;
+
+    std::vector<u16> m_keyPresses;
+    std::string m_typed;
 };

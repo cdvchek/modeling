@@ -1,5 +1,6 @@
 #include "core/input/input_state.hpp"
 
+#include <algorithm>
 #include <iostream>
 
 void InputState::beginFrame() {
@@ -10,6 +11,19 @@ void InputState::beginFrame() {
     m_mouse_delta_y = 0;
 
     m_scroll = 0;
+
+    m_keyPresses.clear();
+    m_typed.clear();
+}
+
+bool InputState::wasKeyPressedOrRepeated(u16 key) const {
+    return std::find(m_keyPresses.begin(), m_keyPresses.end(), key) != m_keyPresses.end();
+}
+
+void InputState::onChar(char character) {
+    // Control characters (Backspace, Enter, Ctrl+letter) arrive as key presses instead
+    const unsigned char c = static_cast<unsigned char>(character);
+    if (c >= 32 && c != 127) m_typed += character;
 }
 
 bool InputState::isKeyDown(u16 key) const {
@@ -66,6 +80,7 @@ i32 InputState::getScroll() const {
 
 void InputState::onKey(u16 key, bool pressed) {
     m_keys_is_down[key] = pressed;
+    if (pressed) m_keyPresses.push_back(key);
 }
 
 void InputState::onMouseButton(u16 button, bool pressed) {

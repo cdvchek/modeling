@@ -1,6 +1,7 @@
 #include "application/status_bar.hpp"
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <string>
 #include <string_view>
@@ -16,14 +17,19 @@ namespace {
     const Color DIVIDER_COLOR { 0.30f, 0.30f, 0.34f, 1.0f };
     const Color TEXT_COLOR { 0.86f, 0.86f, 0.88f, 1.0f };
     const Color DIM_TEXT_COLOR { 0.50f, 0.50f, 0.54f, 1.0f };
+    const Color ERROR_COLOR { 0.98f, 0.46f, 0.46f, 1.0f };
+
+    // A new error shows at the right end for a few seconds, fading out at the end
+    constexpr f64 ERROR_SHOWN = 4.0;
+    constexpr f64 ERROR_FADE = 0.6;
 
     // Same hues as the grid axes
     const Color X_AXIS_COLOR { 0.95f, 0.35f, 0.40f, 1.0f };
     const Color Y_AXIS_COLOR { 0.50f, 0.85f, 0.35f, 1.0f };
     const Color Z_AXIS_COLOR { 0.40f, 0.60f, 1.00f, 1.0f };
 
-    const std::vector<std::string_view> MODE_NAMES = { "Vertex", "Edge", "Face" };
-    const std::vector<std::string_view> TOOL_NAMES = { "Select", "Grab", "Scale", "Rotate", "Bevel" };
+    const std::vector<std::string_view> MODE_NAMES = { "Vertex", "Edge", "Face", "Object" };
+    const std::vector<std::string_view> TOOL_NAMES = { "Select", "Grab", "Scale", "Rotate", "Bevel", "Inset" };
     const std::vector<std::string_view> AXIS_VALUES = { "Free", "XYZ", "-" };
     constexpr std::string_view AXIS_LABEL = "Axis ";
     constexpr std::string_view FPS_LABEL = " FPS";
@@ -72,6 +78,7 @@ const char* selectionModeName(const ContextManager& contexts) {
     switch (contexts.getSelectionContext()) {
         case InputContext_SelectionEdge: return MODE_NAMES[1].data();
         case InputContext_SelectionFace: return MODE_NAMES[2].data();
+        case InputContext_SelectionObject: return MODE_NAMES[3].data();
     }
     return MODE_NAMES[0].data();
 }
@@ -81,6 +88,7 @@ const char* activeToolName(const ContextManager& contexts) {
     if (contexts.isActive(InputContext_Scale)) return TOOL_NAMES[2].data();
     if (contexts.isActive(InputContext_Rotate)) return TOOL_NAMES[3].data();
     if (contexts.isActive(InputContext_Bevel)) return TOOL_NAMES[4].data();
+    if (contexts.isActive(InputContext_Inset)) return TOOL_NAMES[5].data();
     return TOOL_NAMES[0].data();
 }
 
@@ -120,4 +128,30 @@ void drawStatusBar(const AppContext& ctx, UIDrawList& ui, f32 width, f32 height)
 
         x += std::max(chars, items[i].reservedChars) * font.glyphWidth + ITEM_GAP;
     }
+
+    // Errors that arrive while the console is closed flash here; the open console shows them itself
+    const Console& console = ctx.systems.console;
+    const bool consoleOpen = contexts.isActive(InputContext_Console);
+    const f64 time = std::chrono::duration<f64>(std::chrono::steady_clock::now().time_since_epoch()).count();
+    static u32 seenErrors = 0;
+    static f64 shownAt = -ERROR_SHOWN;
+
+    if (console.getErrorCount() != seenErrors) {
+        seenErrors = console.getErrorCount();
+        if (!consoleOpen) shownAt = time;
+    }
+
+    const f64 remaining = ERROR_SHOWN - (time - shownAt);
+    if (consoleOpen || remaining <= 0.0) return;
+
+    const std::string& error = console.getLatestError();
+    std::string text = "! " + error.substr(0, error.find('\n'));
+
+    // Cut it short rather than run into the other items
+    const std::size_t room = static_cast<std::size_t>(std::max(0.0f, (width - PADDING_X - x) / font.glyphWidth));
+    if (text.size() > room) text = room > 3 ? text.substr(0, room - 3) + "..." : std::string();
+
+    Color color = ERROR_COLOR;
+    color.a = static_cast<f32>(std::min(1.0, remaining / ERROR_FADE));
+    ui.text(Vec2(width - PADDING_X - static_cast<f32>(text.size()) * font.glyphWidth, top + PADDING_Y), text, font, color);
 }

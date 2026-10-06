@@ -16,5 +16,12 @@ enum InputContext : u32 {
     InputContext_XAxis           = 1 << 9,
     InputContext_YAxis           = 1 << 10,
     InputContext_ZAxis           = 1 << 11,
-    InputContext_Bevel           = 1 << 12
+    InputContext_Bevel           = 1 << 12,
+    InputContext_SelectionObject = 1 << 13,
+    InputContext_Inset           = 1 << 14
 };
+
+// Vertex, edge, and face mode edit the active object's mesh
+constexpr u32 InputContext_EditModes = InputContext_SelectionVertex | InputContext_SelectionEdge | InputContext_SelectionFace;
+// Any selection mode, object mode included
+constexpr u32 InputContext_AnySelection = InputContext_EditModes | InputContext_SelectionObject;

@@ -3,13 +3,15 @@
 void ContextManager::setContext(u32 ctx) {
     u32 selection = ctx & SelectionMask;
 
-    // Only one selection context can be active: Vertex > Edge > Face.
+    // Only one selection context can be active: Vertex > Edge > Face > Object.
     if (selection & InputContext_SelectionVertex) {
         selection = InputContext_SelectionVertex;
     } else if (selection & InputContext_SelectionEdge) {
         selection = InputContext_SelectionEdge;
     } else if (selection & InputContext_SelectionFace) {
         selection = InputContext_SelectionFace;
+    } else if (selection & InputContext_SelectionObject) {
+        selection = InputContext_SelectionObject;
     }
 
     // Remove all selection bits, then add back the chosen one.
@@ -28,13 +30,15 @@ void ContextManager::setContext(u32 ctx) {
 void ContextManager::setSelectionContext(u32 selectionCtx) {
     selectionCtx &= SelectionMask;
 
-    // Enforce exactly one selection context: Vertex > Edge > Face.
+    // Enforce exactly one selection context: Vertex > Edge > Face > Object.
     if (selectionCtx & InputContext_SelectionVertex) {
         selectionCtx = InputContext_SelectionVertex;
     } else if (selectionCtx & InputContext_SelectionEdge) {
         selectionCtx = InputContext_SelectionEdge;
     } else if (selectionCtx & InputContext_SelectionFace) {
         selectionCtx = InputContext_SelectionFace;
+    } else if (selectionCtx & InputContext_SelectionObject) {
+        selectionCtx = InputContext_SelectionObject;
     } else {
         return;
     }

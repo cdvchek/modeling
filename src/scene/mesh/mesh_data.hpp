@@ -1,5 +1,6 @@
 #pragma once
 
+#include <functional>
 #include <vector>
 #include <unordered_map>
 #include <types>
@@ -7,6 +8,7 @@
 #include "scene/mesh/mesh_types.hpp"
 #include "scene/mesh/mesh_handles.hpp"
 #include "core/math/vec2.hpp"
+#include "core/math/mat4.hpp"
 
 struct VertexData {
     std::vector<f32> vertices;
@@ -26,7 +28,7 @@ struct FaceData {
     std::vector<u32> indexMap;
 };
 
-struct BevelSession {
+struct SlideSession {
     DynamicArray<Vertex, VertexHandle> savedVertices;
     DynamicArray<Edge, EdgeHandle> savedEdges;
     DynamicArray<Face, FaceHandle> savedFaces;
@@ -37,6 +39,18 @@ struct BevelSession {
 
     f32 maxWidth = 0.0f;
 };
+
+// Why extrude or inset refused a face selection
+enum class RegionError : u8 {
+    None,
+    NoFaces,
+    CornerTouch,    // regions (or one region with itself) meet only at a vertex
+    NoBoundary,     // the region is a closed surface
+    Holes,          // the region's boundary is more than one loop
+    Failed          // rebuilding the faces failed; the mesh must be restored
+};
+
+const char* regionErrorText(RegionError error);
 
 class MeshData {
 public:
@@ -110,12 +124,21 @@ public:
 
     // ---- Bevel (mesh_data_bevel.cpp) ----
 
-    bool bevelVertex(VertexHandle handle, BevelSession& session);
-    bool bevelEdge(EdgeHandle handle, BevelSession& session);
-    bool bevelFace(FaceHandle handle, BevelSession& session);
+    // space is where the bevel is measured (e.g. the object's matrix for world space); widths are in its units
+    bool bevelVertex(VertexHandle handle, SlideSession& session, const Mat4& space = Mat4::identity());
+    bool bevelEdge(EdgeHandle handle, SlideSession& session, const Mat4& space = Mat4::identity());
+    bool bevelFace(FaceHandle handle, SlideSession& session, const Mat4& space = Mat4::identity());
 
-    void setBevelWidth(const BevelSession& session, f32 width);
-    void cancelBevel(const BevelSession& session);
+    // ---- Regions (mesh_data_region.cpp) ----
+
+    // Extrude and inset work on regions: selected faces joined by shared edges, each needing one simple boundary loop.
+    // Both duplicate each region's boundary, move the region's faces onto the copies, and join old and new boundaries with quads.
+    // Extrude leaves the copies in place (topFaces are the moved faces); inset slides them inward by a width (innerFaces).
+    RegionError extrudeRegions(const std::vector<FaceHandle>& faces, std::vector<FaceHandle>& topFaces);
+    RegionError insetRegions(const std::vector<FaceHandle>& faces, SlideSession& session, std::vector<FaceHandle>& innerFaces, const Mat4& space = Mat4::identity());
+
+    void setSlideWidth(const SlideSession& session, f32 width);
+    void cancelSlide(const SlideSession& session);
 
 
     // ---- GPU export (mesh_data_gpu.cpp) ----
@@ -169,12 +192,40 @@ private:
         const std::vector<VertexHandle>& corners,
         const std::vector<EdgeHandle>& edges,
         bool vertexOnly,
-        BevelSession& session
+        SlideSession& session
     );
 
+    // Runs op with every position moved into space, then brings positions and the session's slides back to mesh space
+    bool runInSpace(SlideSession& session, const Mat4& space, const std::function<bool()>& op);
+
+    // createdFaces, if given, receives the new faces in the order of newFaces.
+    // With allowBorders, a new edge with nothing on its other side becomes a mesh border, and old border edges
+    // that nothing uses anymore are removed; otherwise either case fails.
     bool replaceFaces(
         const std::vector<FaceHandle>& oldFaces,
-        const std::vector<std::vector<VertexHandle>>& newFaces
+        const std::vector<std::vector<VertexHandle>>& newFaces,
+        std::vector<FaceHandle>* createdFaces = nullptr,
+        bool allowBorders = false
+    );
+
+    // Links every border half-edge to the border half-edge leaving its tip
+    void relinkBorders();
+
+    // ---- Region helpers (mesh_data_region.cpp) ----
+
+    struct Region {
+        std::vector<FaceHandle> faces;
+        std::vector<EdgeHandle> boundary;   // one loop, in the region faces' winding
+    };
+
+    RegionError findRegions(const std::vector<FaceHandle>& faces, std::vector<Region>& regions) const;
+
+    // originals[i] is a boundary vertex and copies[i] the new vertex replacing it in the region's faces
+    bool ringRegions(
+        const std::vector<Region>& regions,
+        std::vector<FaceHandle>& topFaces,
+        std::vector<VertexHandle>& originals,
+        std::vector<VertexHandle>& copies
     );
 
     // ---- Dissolve helpers (mesh_data_dissolve.cpp) ----

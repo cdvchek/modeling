@@ -4,7 +4,7 @@
 #include <memory>
 
 #include "application/app_systems.hpp"
-#include "application/bevel_tool.hpp"
+#include "application/width_tool.hpp"
 #include "application/viewport_settings.hpp"
 #include "platform/window/window.hpp"
 #include "renderer/renderer.hpp"
@@ -14,6 +14,10 @@
 #include "core/font/font_library.hpp"
 #include "ui/ui_draw_list.hpp"
 #include "ui/ui_context.hpp"
+#include "application/object_meshes.hpp"
+#include "application/radial_menu_state.hpp"
+#include "application/console_view_state.hpp"
+#include "application/transform_tool.hpp"
 #include "core/time/frame_timer.hpp"
 
 struct AppContext {
@@ -22,13 +26,21 @@ struct AppContext {
     DebugRenderer debug_renderer;
     std::vector<std::unique_ptr<Window>> windows;
     Scene scene;
-    BevelTool bevel;
+    WidthTool widthTool;
+    TransformTool transformTool;
     History history;
     ViewportSettings viewport;
     FontLibrary fonts;
     UIDrawList uiDrawList;
     UIContext ui;
+    ObjectMeshCache objectMeshes;
     FrameTimer frameTimer;
+
+    RadialMenuState radialMenu;
+    ConsoleViewState consoleView;
+
+    // Where Tab returns to from object mode
+    u32 lastEditMode = InputContext_SelectionVertex;
 
     bool is_running = false;
 };

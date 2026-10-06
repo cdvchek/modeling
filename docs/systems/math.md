@@ -40,7 +40,9 @@ Transforms compose right to left: `projection * view * model * point`.
 
 ## Projection
 
-[projection.hpp](../../src/core/math/projection.hpp): `projectToScreen(viewProjection, point, width, height, out)` turns a world point into pixel coordinates (origin top-left, y down, matching the UI draw list). Returns false for points behind the camera. Used to place light markers.
+[projection.hpp](../../src/core/math/projection.hpp): `projectToScreen(viewProjection, point, width, height, out)` turns a world point into pixel coordinates (origin top-left, y down, matching the UI draw list). Returns false for points behind the camera. Used to place light markers and the scale/rotate pivot.
+
+[screen_drag.hpp](../../src/core/math/screen_drag.hpp): `screenAngle(pivot, point)` is the mouse's angle around a screen point, counterclockwise as seen on screen; `wrapAngle` wraps a difference into [−π, π]. Rotate sums wrapped per-frame differences so full turns add up.
 
 ## Utilities
 

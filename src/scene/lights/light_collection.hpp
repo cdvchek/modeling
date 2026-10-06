@@ -1,5 +1,6 @@
 #pragma once
 
+#include <string>
 #include <vector>
 #include "scene/lights/light.hpp"
 
@@ -20,6 +21,9 @@ public:
     std::vector<LightHandle> handles() const;
     LightHandle handleAt(u32 slot) const;
     u32 count() const;
+
+    // "Light N" with N one past the highest number in use, so names never repeat after deletions
+    std::string nextName() const;
 
     const AmbientLight& getAmbient() const;
     void setAmbientColor(const Vec3& color);

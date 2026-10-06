@@ -22,6 +22,6 @@ Developer documentation for the modeling application.
 
 These docs describe the code as it is. When a change adds, removes, or changes behavior:
 
-- Update [features.md](features.md): check off **Planned** items and add them to **Current** when they ship; add new limitations under **Gaps to close**.
+- Update [features.md](features.md): move **Planned** items to **Current** when they ship; add new limitations under **Gaps to close**.
 - Update the system doc for any public function, struct, keybind, command, or shader that changed.
 - Update [architecture.md](architecture.md) if a new system is added or a dependency between layers changes.

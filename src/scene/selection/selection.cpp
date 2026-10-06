@@ -10,6 +10,14 @@ void Selection::clear() {
     m_originalPositions.clear();
     m_lightStartPositions.clear();
     m_lightStartDirections.clear();
+    clearObjects();
+}
+
+void Selection::setActiveObject(ObjectHandle object) {
+    if (object == m_activeObject) return;
+
+    m_activeObject = object;
+    clearMeshElements();
 }
 
 void Selection::clearMeshElements() {
@@ -37,6 +45,31 @@ bool Selection::hasLight(LightHandle light) const {
     return std::find(m_selectedLights.begin(), m_selectedLights.end(), light) != m_selectedLights.end();
 }
 
+void Selection::selectObject(ObjectHandle object) {
+    if (!hasObject(object)) m_selectedObjects.push_back(object);
+}
+
+void Selection::deselectObject(ObjectHandle object) {
+    std::erase(m_selectedObjects, object);
+}
+
+bool Selection::hasObject(ObjectHandle object) const {
+    return std::find(m_selectedObjects.begin(), m_selectedObjects.end(), object) != m_selectedObjects.end();
+}
+
+bool Selection::hasObjects() const {
+    return !m_selectedObjects.empty();
+}
+
+const std::vector<ObjectHandle>& Selection::getObjects() const {
+    return m_selectedObjects;
+}
+
+void Selection::clearObjects() {
+    m_selectedObjects.clear();
+    m_objectStartTransforms.clear();
+}
+
 bool Selection::hasLights() const {
     return !m_selectedLights.empty();
 }
@@ -45,7 +78,7 @@ const std::vector<LightHandle>& Selection::getLights() const {
     return m_selectedLights;
 }
 
-void Selection::addVertex(u32 object, VertexHandle vertex) {
+void Selection::addVertex(ObjectHandle object, VertexHandle vertex) {
     if (hasVertex(object, vertex)) {
         return;
     }
@@ -56,12 +89,12 @@ void Selection::addVertex(u32 object, VertexHandle vertex) {
     });
 }
 
-void Selection::removeVertex(u32 object, VertexHandle vertex) {
+void Selection::removeVertex(ObjectHandle object, VertexHandle vertex) {
     auto it = std::remove_if(
         m_selectedVertices.begin(),
         m_selectedVertices.end(),
         [object, vertex](const VertexSelection& selection) {
-            return selection.objectIndex == object &&
+            return selection.object == object &&
                    selection.vertex == vertex;
         }
     );
@@ -69,7 +102,7 @@ void Selection::removeVertex(u32 object, VertexHandle vertex) {
     m_selectedVertices.erase(it, m_selectedVertices.end());
 }
 
-void Selection::addEdge(u32 object, EdgeHandle edge) {
+void Selection::addEdge(ObjectHandle object, EdgeHandle edge) {
     if (hasEdge(object, edge)) {
         return;
     }
@@ -80,12 +113,12 @@ void Selection::addEdge(u32 object, EdgeHandle edge) {
     });
 }
 
-void Selection::removeEdge(u32 object, EdgeHandle edge) {
+void Selection::removeEdge(ObjectHandle object, EdgeHandle edge) {
     auto it = std::remove_if(
         m_selectedEdges.begin(),
         m_selectedEdges.end(),
         [object, edge](const EdgeSelection& selection) {
-            return selection.objectIndex == object &&
+            return selection.object == object &&
                    selection.edge == edge;
         }
     );
@@ -93,7 +126,7 @@ void Selection::removeEdge(u32 object, EdgeHandle edge) {
     m_selectedEdges.erase(it, m_selectedEdges.end());
 }
 
-void Selection::addFace(u32 object, FaceHandle face) {
+void Selection::addFace(ObjectHandle object, FaceHandle face) {
     if (hasFace(object, face)) {
         return;
     }
@@ -104,12 +137,12 @@ void Selection::addFace(u32 object, FaceHandle face) {
     });
 }
 
-void Selection::removeFace(u32 object, FaceHandle face) {
+void Selection::removeFace(ObjectHandle object, FaceHandle face) {
     auto it = std::remove_if(
         m_selectedFaces.begin(),
         m_selectedFaces.end(),
         [object, face](const FaceSelection& selection) {
-            return selection.objectIndex == object &&
+            return selection.object == object &&
                    selection.face == face;
         }
     );
@@ -130,42 +163,42 @@ bool Selection::hasFaces() const {
 }
 
 bool Selection::hasVertex(
-    u32 object,
+    ObjectHandle object,
     VertexHandle vertex
 ) const {
     return std::any_of(
         m_selectedVertices.begin(),
         m_selectedVertices.end(),
         [object, vertex](const VertexSelection& selection) {
-            return selection.objectIndex == object &&
+            return selection.object == object &&
                    selection.vertex == vertex;
         }
     );
 }
 
 bool Selection::hasEdge(
-    u32 object,
+    ObjectHandle object,
     EdgeHandle edge
 ) const {
     return std::any_of(
         m_selectedEdges.begin(),
         m_selectedEdges.end(),
         [object, edge](const EdgeSelection& selection) {
-            return selection.objectIndex == object &&
+            return selection.object == object &&
                    selection.edge == edge;
         }
     );
 }
 
 bool Selection::hasFace(
-    u32 object,
+    ObjectHandle object,
     FaceHandle face
 ) const {
     return std::any_of(
         m_selectedFaces.begin(),
         m_selectedFaces.end(),
         [object, face](const FaceSelection& selection) {
-            return selection.objectIndex == object &&
+            return selection.object == object &&
                    selection.face == face;
         }
     );
@@ -274,4 +307,11 @@ const std::vector<Vec3>& Selection::getLightStartDirections() const {
 
 void Selection::setLightStartDirections(const std::vector<Vec3>& directions) {
     m_lightStartDirections = directions;
+}
+const std::vector<Transform>& Selection::getObjectStartTransforms() const {
+    return m_objectStartTransforms;
+}
+
+void Selection::setObjectStartTransforms(const std::vector<Transform>& transforms) {
+    m_objectStartTransforms = transforms;
 }

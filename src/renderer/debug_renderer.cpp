@@ -7,8 +7,8 @@ void DebugRenderer::render(
     const Scene& scene,
     const Mat4& vp
 ) {
-    for (const Object& object : scene.objects.all()) {
-        drawHalfEdges(renderer, object, vp);
+    for (ObjectHandle handle : scene.objects.handles()) {
+        drawHalfEdges(renderer, scene.objects.get(handle), vp);
     }
 }
 

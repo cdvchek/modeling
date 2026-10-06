@@ -1,4 +1,5 @@
 #include "core/console/command_system.hpp"
+#include <algorithm>
 #include <sstream>
 
 void CommandSystem::registerCommand(
@@ -15,13 +16,13 @@ void CommandSystem::registerCommand(
     );
 }
 
-void CommandSystem::execute(const std::string& command) {
+bool CommandSystem::execute(const std::string& command) {
     std::istringstream stream(command);
 
     std::string commandName;
     stream >> commandName;
 
-    if (commandName.empty()) return;
+    if (commandName.empty()) return true;
 
     CommandArgs args;
 
@@ -33,8 +34,23 @@ void CommandSystem::execute(const std::string& command) {
     auto it = commands.find(commandName);
 
     if (it == commands.end()) {
-        return;
+        return false;
     }
 
     it->second.callback(args);
+    return true;
+}
+
+std::vector<std::pair<std::string, std::string>> CommandSystem::list() const {
+    std::vector<std::pair<std::string, std::string>> result;
+    for (const auto& [name, command] : commands) result.emplace_back(name, command.description);
+    std::sort(result.begin(), result.end());
+    return result;
+}
+
+std::string CommandSystem::commandName(const std::string& command) {
+    std::istringstream stream(command);
+    std::string name;
+    stream >> name;
+    return name;
 }

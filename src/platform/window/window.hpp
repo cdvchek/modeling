@@ -11,7 +11,8 @@ enum class CursorShape : u8 {
     ResizeHorizontal,
     ResizeVertical,
     ResizeDiagonalDown,   // top-left to bottom-right
-    ResizeDiagonalUp      // bottom-left to top-right
+    ResizeDiagonalUp,     // bottom-left to top-right
+    Text
 };
 
 class Window {

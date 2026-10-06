@@ -10,6 +10,12 @@
 #include "core/math/vec4.hpp"
 #include "core/math/math_utils.hpp"
 
+// Picks can be limited to one object or skip one
+static bool skipObject(ObjectHandle object, ObjectHandle only, ObjectHandle exclude) {
+    if (!only.isNull() && object != only) return true;
+    return !exclude.isNull() && object == exclude;
+}
+
 static bool rayHitsPoint(
     const Ray& ray,
     const Vec3& point,
@@ -38,11 +44,13 @@ static bool rayHitsPoint(
     return true;
 }
 
-VertexHit pickVertex(const Scene& scene, const Ray& ray, f32 radius) {
+VertexHit pickVertex(const Scene& scene, const Ray& ray, f32 radius, ObjectHandle only) {
+    const ObjectHandle exclude = INVALID_OBJECT;
     VertexHit bestHit;
 
-    for (u32 objectIndex = 0; objectIndex < scene.objects.count(); ++objectIndex) {
-        const Object& object = scene.objects.get(objectIndex);
+    for (ObjectHandle objectHandle : scene.objects.handles()) {
+        if (skipObject(objectHandle, only, exclude)) continue;
+        const Object& object = scene.objects.get(objectHandle);
         const Mat4 model = object.transform.getMatrix();
 
         for (const VertexHandle& vertexHandle : object.meshData.getVertexHandles()) {
@@ -73,7 +81,7 @@ VertexHit pickVertex(const Scene& scene, const Ray& ray, f32 radius) {
 
             if (distance < bestHit.distance) {
                 bestHit.hit = true;
-                bestHit.objectIndex = objectIndex;
+                bestHit.object = objectHandle;
                 bestHit.vertex = vertexHandle;
                 bestHit.distance = distance;
             }
@@ -150,18 +158,13 @@ bool rayHitsEdge(
     return true;
 }
 
-EdgeHit pickEdge(
-    const Scene& scene,
-    const Ray& ray,
-    f32 radius
-) {
+EdgeHit pickEdge(const Scene& scene, const Ray& ray, f32 radius, ObjectHandle only) {
+    const ObjectHandle exclude = INVALID_OBJECT;
     EdgeHit bestHit;
 
-    for (u32 objectIndex = 0;
-         objectIndex < scene.objects.count();
-         ++objectIndex) {
-
-        const Object& object = scene.objects.get(objectIndex);
+    for (ObjectHandle objectHandle : scene.objects.handles()) {
+        if (skipObject(objectHandle, only, exclude)) continue;
+        const Object& object = scene.objects.get(objectHandle);
 
         const Mat4 model = object.transform.getMatrix();
 
@@ -218,7 +221,7 @@ EdgeHit pickEdge(
 
             if (distance < bestHit.distance) {
                 bestHit.hit = true;
-                bestHit.objectIndex = objectIndex;
+                bestHit.object = objectHandle;
                 bestHit.edge = edgeHandle;
                 bestHit.distance = distance;
             }
@@ -272,12 +275,13 @@ static bool rayHitsTriangle(
     return true;
 }
 
-FaceHit pickFace(const Scene& scene, const Ray& ray) {
+FaceHit pickFace(const Scene& scene, const Ray& ray, ObjectHandle only, ObjectHandle exclude) {
     FaceHit bestHit;
     bestHit.distance = FLT_MAX;
 
-    for (u32 objectIndex = 0; objectIndex < scene.objects.count(); ++objectIndex) {
-        const Object& object = scene.objects.get(objectIndex);
+    for (ObjectHandle objectHandle : scene.objects.handles()) {
+        if (skipObject(objectHandle, only, exclude)) continue;
+        const Object& object = scene.objects.get(objectHandle);
         Mat4 model = object.transform.getMatrix();
 
         for (const FaceHandle faceHandle : object.meshData.getFaceHandles()) {
@@ -316,7 +320,7 @@ FaceHit pickFace(const Scene& scene, const Ray& ray) {
 
                 if (distance < bestHit.distance) {
                     bestHit.hit = true;
-                    bestHit.objectIndex = objectIndex;
+                    bestHit.object = objectHandle;
                     bestHit.face = faceHandle;
                     bestHit.distance = distance;
                 }

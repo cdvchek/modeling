@@ -1,4 +1,5 @@
 #include "application/light_markers.hpp"
+#include "ui/ui_style.hpp"
 #include "core/math/projection.hpp"
 
 #include <algorithm>
@@ -29,8 +30,6 @@ namespace {
 
     const Color OUTLINE_COLOR { 0.06f, 0.06f, 0.08f, 0.9f };
     const Color DISABLED_COLOR { 0.55f, 0.55f, 0.58f, 0.9f };
-    const Color GROUND_LINE_COLOR { 0.70f, 0.70f, 0.75f, 0.30f };
-    const Color GROUND_DOT_COLOR { 0.70f, 0.70f, 0.75f, 0.55f };
     const Color SELECTED_COLOR { 1.0f, 0.76f, 0.30f, 1.0f };
     const Color SELECTED_GLOW_COLOR { 1.0f, 0.70f, 0.25f, 0.45f };
 
@@ -52,9 +51,9 @@ namespace {
         // Start at the orb's edge so the line doesn't show through a disabled light's hollow ring
         const Vec2 delta = ground - orb;
         if (delta.length() > ORB_RADIUS) {
-            ui.line(orb + delta.normalized() * ORB_RADIUS, ground, 1.0f, GROUND_LINE_COLOR);
+            ui.line(orb + delta.normalized() * ORB_RADIUS, ground, 1.0f, UIStyle::GUIDE_LINE);
         }
-        ui.roundedRect(circle(ground, GROUND_DOT_RADIUS), GROUND_DOT_RADIUS, GROUND_DOT_COLOR);
+        ui.roundedRect(circle(ground, GROUND_DOT_RADIUS), GROUND_DOT_RADIUS, UIStyle::GUIDE_DOT);
     }
 
     // Projects a world-space segment and draws it; skipped if either end is behind the camera

@@ -25,6 +25,16 @@ namespace UIStyle {
     constexpr f32 PANEL_MIN_WIDTH = 240.0f;
     constexpr f32 PANEL_MIN_HEIGHT = 160.0f;
 
+    constexpr f32 SCROLL_STEP = 48.0f;            // pixels per wheel notch
+    constexpr f32 SCROLLBAR_WIDTH = 4.0f;
+    constexpr f32 SCROLLBAR_INSET = 5.0f;         // clear of the resize grip, still inside the padding
+    constexpr f32 SCROLLBAR_MIN_THUMB = 24.0f;
+    constexpr f32 CHILD_PADDING = 4.0f;
+    constexpr f32 TAB_PADDING = 14.0f;
+    constexpr f32 TAB_INSET = 5.0f;              // gap above and beside the tabs inside the header
+    constexpr f32 TAB_UNDERLINE = 2.0f;
+    constexpr f32 POPUP_PADDING = 4.0f;
+
     const Color TEXT { 0.86f, 0.86f, 0.88f, 1.0f };
     const Color TEXT_DIM { 0.55f, 0.55f, 0.60f, 1.0f };
     const Color TEXT_ON_ACCENT { 0.10f, 0.08f, 0.05f, 1.0f };
@@ -47,6 +57,16 @@ namespace UIStyle {
     const Color PANEL_SHADOW { 0.0f, 0.0f, 0.0f, 0.5f };
     const Color PANEL_HEADER { 0.17f, 0.17f, 0.20f, 1.0f };
     const Color PANEL_HEADER_HOVER { 0.20f, 0.20f, 0.24f, 1.0f };
+    const Color LIST_BACKGROUND { 0.11f, 0.11f, 0.13f, 1.0f };
+    const Color SCROLLBAR_TRACK { 1.0f, 1.0f, 1.0f, 0.04f };
+    const Color SCROLLBAR_THUMB { 1.0f, 1.0f, 1.0f, 0.22f };
+    const Color SCROLLBAR_THUMB_HOVER { 1.0f, 1.0f, 1.0f, 0.35f };
+
+    // Faint viewport guides: light marker drop lines and the scale/rotate/bevel lines to the mouse
+    const Color GUIDE_LINE { 0.70f, 0.70f, 0.75f, 0.30f };
+    const Color GUIDE_DOT { 0.70f, 0.70f, 0.75f, 0.55f };
+    // Dark edge under tool guides so they read on light faces too
+    const Color GUIDE_HALO { 0.05f, 0.05f, 0.07f, 0.45f };
 
     // Same hues as the grid axes and status bar
     const Color AXIS_X { 0.95f, 0.35f, 0.40f, 1.0f };

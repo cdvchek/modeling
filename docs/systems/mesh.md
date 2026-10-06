@@ -8,7 +8,7 @@ Files: `src/scene/mesh/`
 |---|---|
 | [mesh_handles.hpp](../../src/scene/mesh/mesh_handles.hpp) | `VertexHandle`, `EdgeHandle`, `FaceHandle`, `INVALID_*` constants |
 | [mesh_types.hpp](../../src/scene/mesh/mesh_types.hpp) | `Vertex`, `Edge`, `Face`, `Triangle`, `PackagedMesh`, `PresetMesh` |
-| [mesh_data.hpp](../../src/scene/mesh/mesh_data.hpp) | `MeshData` class, GPU export structs, `BevelSession` |
+| [mesh_data.hpp](../../src/scene/mesh/mesh_data.hpp) | `MeshData` class, GPU export structs, `SlideSession` |
 | `mesh_data_access.cpp` | Element lookup, handle lists, `setMesh` |
 | `mesh_data_queries.cpp` | Topology traversal, loops and rings |
 | `mesh_data_geometry.cpp` | Positions, normals, triangulation, dirty flags |
@@ -16,7 +16,8 @@ Files: `src/scene/mesh/`
 | `mesh_data_ops.cpp` | Extrude, split, remove, fill, connect |
 | `mesh_data_merge.cpp` | Edge collapse and vertex merge |
 | `mesh_data_dissolve.cpp` | Dissolve edge / face |
-| `mesh_data_bevel.cpp` | Vertex / edge / face bevel |
+| `mesh_data_bevel.cpp` | Vertex / edge / face bevel; `replaceFaces`; `runInSpace` |
+| `mesh_data_region.cpp` | Region extrude and inset |
 | `mesh_data_validate.cpp` | Topology checker |
 | `mesh_data_gpu.cpp` | Flattening to vertex/index arrays for the renderer |
 | [mesh_factory.hpp](../../src/scene/mesh/mesh_factory.hpp), `presets/*.cpp` | Built-in meshes and the `fromPolygons` builder |
@@ -140,18 +141,39 @@ All return `false` / an invalid handle when they refuse, and leave the mesh unch
 
 **Edge collapse** (`canCollapseEdge`, `collapseEdge`, `collapseSide`, private) is shared by merge and dissolve. Triangles on either side of the edge collapse into a single edge. `canCollapseEdge` refuses collapses that would break the mesh: two triangles with the same apex, shared neighbors that aren't triangle apexes, a loop touching both ends other than through the edge, or pinching two borders together through the interior.
 
-### Bevel
+### Regions (extrude and inset)
 
-Bevel is interactive, so it's split into a setup call and a width call that runs every frame.
+Both work on **regions**: selected faces joined by shared edges. `findRegions` groups the faces, then checks each region and returns a `RegionError` (text from `regionErrorText`):
+
+| Error | When |
+|---|---|
+| `NoFaces` | Nothing valid selected |
+| `CornerTouch` | Two regions share a vertex, or one region pinches (two of its boundary edges leave the same vertex) |
+| `NoBoundary` | The region has no boundary edge (a closed surface) |
+| `Holes` | The region's boundary is more than one loop |
+| `Failed` | `replaceFaces` couldn't rebuild (shouldn't happen after the checks; the caller restores the mesh) |
+
+`ringRegions` then, for every region: copies each boundary vertex, rebuilds the region's faces on the copies (interior vertices stay), and adds a quad `[a, b, copy b, copy a]` on each boundary edge `a → b`, all through `replaceFaces`. Mesh-border edges are fine: the quad pairs with the open border.
 
 | Function | Description |
 |---|---|
-| `bevelVertex(vertex, session)` / `bevelEdge(edge, session)` / `bevelFace(face, session)` | Snapshot the mesh into `session`, then rebuild topology around the element with zero width. Fail on corners with fewer than 3 edges or any border edge. |
-| `setBevelWidth(session, width)` | Moves the new vertices to `start + direction × width`, clamped to `[0, session.maxWidth]`. `maxWidth` is set so vertices can't slide past neighboring geometry. |
-| `cancelBevel(session)` | Restores the snapshot. |
+| `extrudeRegions(faces, topFaces)` | Builds the rings with the copies at the old positions (zero-height walls). `topFaces` are the region faces on the copies; the app grabs them. |
+| `insetRegions(faces, session, innerFaces, space)` | Same rings, then fills a `SlideSession`: each copy slides into the region in the plane of its two boundary faces (the sum of both edges' inward directions, scaled so each edge moves in by exactly the width). `maxWidth` stops any copy halfway along a region edge leaving its corner. Runs in `space` like bevel, so widths are world units when the app passes the object's matrix. |
+
+`insertFaceRing(face)` (single face, below) is the older one-face version, still used by tests.
+
+### Bevel
+
+Bevel is interactive, so it's split into a setup call and a width call that runs every frame. Inset uses the same `SlideSession`, `setSlideWidth`, and `cancelSlide`.
+
+| Function | Description |
+|---|---|
+| `bevelVertex(vertex, session, space)` / `bevelEdge(edge, session, space)` / `bevelFace(face, session, space)` | Snapshot the mesh into `session`, then rebuild topology around the element with zero width. Fail on interior corners with fewer than 3 edges (border corners need 2) and on vertices with more than one border gap (two open edges pinched together). `space` (default identity) is the space the bevel is measured in: positions are moved into it, beveled, and brought back (`runInSpace`), with existing vertices restored from an exact copy so they don't drift. The session's starts and directions end up in mesh space, but widths and `maxWidth` are in `space` units. The app passes the object's matrix, so bevels are even in world space on scaled objects. |
+| `setSlideWidth(session, width)` | Moves the new vertices to `start + direction × width`, clamped to `[0, session.maxWidth]`. `maxWidth` is set so vertices can't slide past neighboring geometry. |
+| `cancelSlide(session)` | Restores the snapshot. |
 
 ```cpp
-struct BevelSession {
+struct SlideSession {
     DynamicArray<...> savedVertices, savedEdges, savedFaces;  // snapshot for cancel
     std::vector<VertexHandle> vertices;  // vertices that move with width
     std::vector<Vec3> starts;            // their positions at width 0
@@ -161,6 +183,12 @@ struct BevelSession {
 ```
 
 Internally, `bevel()` classifies each corner's spokes as beveled, sliding, or plain, computes slide and inset directions, then builds the new faces with `replaceFaces()`.
+
+**Border corners.** A vertex on a mesh border has an open fan: one outgoing spoke is the border half-edge with no face. `bevel()` rotates the spokes so that one comes first, which makes slot 0 the **gap** (no face) and the fan run from one border edge to the other:
+- Spokes on either side of the gap aren't neighbors, so beveling one doesn't make the other slide, and no inset vertex is ever created in the gap.
+- A border spoke next to a beveled spoke slides along the border, so cuts reach the outline.
+- If a border edge itself is beveled, the corner is kept and sits in the gap: it is the gap side of that edge's strip and part of the corner's fill face. The outline doesn't move; the strip is one-sided.
+- Whatever has no face on its other side (the gap side of a fill face, a chamfer with no fill) becomes new border: `replaceFaces(..., allowBorders = true)` gives such edges border twins, removes old border half-edges nothing uses anymore, and `relinkBorders()` relinks every border half-edge to the one leaving its tip. Without `allowBorders`, an unpaired edge is still an error (extrude, inset, and interior bevels keep that safety check).
 
 ### GPU export
 

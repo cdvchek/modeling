@@ -1,4 +1,6 @@
 #include "application/application.hpp"
+#include "application/editing_actions.hpp"
+#include "application/action_checks/action_checks.hpp"
 
 void Application::registerDefaultActions(AppContext& ctx) {
     auto& actions = ctx.systems.actions;
@@ -12,36 +14,78 @@ void Application::registerDefaultActions(AppContext& ctx) {
     actions.subscribe(Action::ConsoleCursorRight,  DefaultKeybinds::ConsoleCursorRight,  InputContext_Console);
     actions.subscribe(Action::ConsoleHistoryOlder, DefaultKeybinds::ConsoleHistoryOlder, InputContext_Console);
     actions.subscribe(Action::ConsoleHistoryNewer, DefaultKeybinds::ConsoleHistoryNewer, InputContext_Console);
-    actions.subscribe(Action::ViewportOrbit,       DefaultKeybinds::ViewportOrbit,       InputContext_SelectionVertex | InputContext_SelectionEdge | InputContext_SelectionFace);
-    actions.subscribe(Action::ViewportPan,         DefaultKeybinds::ViewportPan,         InputContext_SelectionVertex | InputContext_SelectionEdge | InputContext_SelectionFace);
-    actions.subscribe(Action::ViewportZoom,        DefaultKeybinds::ViewportZoom,        InputContext_SelectionVertex | InputContext_SelectionEdge | InputContext_SelectionFace);
-    actions.subscribe(Action::VertexMode,          DefaultKeybinds::VertexMode,          InputContext_SelectionVertex | InputContext_SelectionEdge | InputContext_SelectionFace);
-    actions.subscribe(Action::EdgeMode,            DefaultKeybinds::EdgeMode,            InputContext_SelectionVertex | InputContext_SelectionEdge | InputContext_SelectionFace);
-    actions.subscribe(Action::FaceMode,            DefaultKeybinds::FaceMode,            InputContext_SelectionVertex | InputContext_SelectionEdge | InputContext_SelectionFace);
-    actions.subscribe(Action::Select,              DefaultKeybinds::Select,              InputContext_SelectionVertex | InputContext_SelectionEdge | InputContext_SelectionFace);
-    actions.subscribe(Action::ToggleSelection,     DefaultKeybinds::ToggleSelection,     InputContext_SelectionVertex | InputContext_SelectionEdge | InputContext_SelectionFace);
+    actions.subscribe(Action::ViewportOrbit,       DefaultKeybinds::ViewportOrbit,       InputContext_AnySelection);
+    actions.subscribe(Action::ViewportPan,         DefaultKeybinds::ViewportPan,         InputContext_AnySelection);
+    actions.subscribe(Action::ViewportZoom,        DefaultKeybinds::ViewportZoom,        InputContext_AnySelection);
+    actions.subscribe(Action::VertexMode,          DefaultKeybinds::VertexMode,          InputContext_AnySelection);
+    actions.subscribe(Action::EdgeMode,            DefaultKeybinds::EdgeMode,            InputContext_AnySelection);
+    actions.subscribe(Action::FaceMode,            DefaultKeybinds::FaceMode,            InputContext_AnySelection);
+    actions.subscribe(Action::Select,              DefaultKeybinds::Select,              InputContext_AnySelection);
+    actions.subscribe(Action::ToggleSelection,     DefaultKeybinds::ToggleSelection,     InputContext_AnySelection);
     actions.subscribe(Action::SelectLoop,          DefaultKeybinds::SelectLoop,          InputContext_SelectionEdge | InputContext_SelectionFace);
     actions.subscribe(Action::SelectRing,          DefaultKeybinds::SelectRing,          InputContext_SelectionEdge);
-    actions.subscribe(Action::GrabSelection,       DefaultKeybinds::GrabSelection,       InputContext_SelectionVertex | InputContext_SelectionEdge | InputContext_SelectionFace);
+    actions.subscribe(Action::GrabSelection,       DefaultKeybinds::GrabSelection,       InputContext_AnySelection);
     actions.subscribe(Action::ConfirmGrab,         DefaultKeybinds::ConfirmGrab,         InputContext_Grab);
     actions.subscribe(Action::CancelGrab,          DefaultKeybinds::CancelGrab,          InputContext_Grab);
-    actions.subscribe(Action::ScaleSelection,      DefaultKeybinds::ScaleSelection,      InputContext_SelectionVertex | InputContext_SelectionEdge | InputContext_SelectionFace);
+    actions.subscribe(Action::ScaleSelection,      DefaultKeybinds::ScaleSelection,      InputContext_AnySelection);
     actions.subscribe(Action::ConfirmScale,        DefaultKeybinds::ConfirmScale,        InputContext_Scale);
     actions.subscribe(Action::CancelScale,         DefaultKeybinds::CancelScale,         InputContext_Scale);
     actions.subscribe(Action::ExtrudeSelection,    DefaultKeybinds::ExtrudeSelection,    InputContext_SelectionFace);
     actions.subscribe(Action::InsetSelection,      DefaultKeybinds::InsetSelection,      InputContext_SelectionFace);
-    actions.subscribe(Action::DeleteSelection,     DefaultKeybinds::DeleteSelection,     InputContext_SelectionVertex | InputContext_SelectionEdge | InputContext_SelectionFace);
+    actions.subscribe(Action::DeleteSelection,     DefaultKeybinds::DeleteSelection,     InputContext_AnySelection);
     actions.subscribe(Action::FillFaceLoop,        DefaultKeybinds::FillFaceLoop,        InputContext_SelectionEdge);
     actions.subscribe(Action::ConnectVertices,     DefaultKeybinds::ConnectVertices,     InputContext_SelectionVertex);
     actions.subscribe(Action::XAxis,               DefaultKeybinds::XAxis,               InputContext_Grab | InputContext_Scale | InputContext_Rotate);
     actions.subscribe(Action::YAxis,               DefaultKeybinds::YAxis,               InputContext_Grab | InputContext_Scale | InputContext_Rotate);
     actions.subscribe(Action::ZAxis,               DefaultKeybinds::ZAxis,               InputContext_Grab | InputContext_Scale | InputContext_Rotate);
-    actions.subscribe(Action::RotateSelection,     DefaultKeybinds::RotateSelection,     InputContext_SelectionVertex | InputContext_SelectionEdge | InputContext_SelectionFace);
+    actions.subscribe(Action::RotateSelection,     DefaultKeybinds::RotateSelection,     InputContext_AnySelection);
     actions.subscribe(Action::RotateConfirm,       DefaultKeybinds::RotateConfirm,       InputContext_Rotate);
     actions.subscribe(Action::RotateCancel,        DefaultKeybinds::RotateCancel,        InputContext_Rotate);
-    actions.subscribe(Action::BevelSelection,      DefaultKeybinds::BevelSelection,      InputContext_SelectionVertex | InputContext_SelectionEdge | InputContext_SelectionFace);
+    actions.subscribe(Action::BevelSelection,      DefaultKeybinds::BevelSelection,      InputContext_EditModes);
     actions.subscribe(Action::ConfirmBevel,        DefaultKeybinds::ConfirmBevel,        InputContext_Bevel);
     actions.subscribe(Action::CancelBevel,         DefaultKeybinds::CancelBevel,         InputContext_Bevel);
-    actions.subscribe(Action::Undo,                DefaultKeybinds::Undo,                InputContext_SelectionVertex | InputContext_SelectionEdge | InputContext_SelectionFace);
-    actions.subscribe(Action::Redo,                DefaultKeybinds::Redo,                InputContext_SelectionVertex | InputContext_SelectionEdge | InputContext_SelectionFace);
+    actions.subscribe(Action::ConfirmInset,        DefaultKeybinds::ConfirmInset,        InputContext_Inset);
+    actions.subscribe(Action::CancelInset,         DefaultKeybinds::CancelInset,         InputContext_Inset);
+    actions.subscribe(Action::Undo,                DefaultKeybinds::Undo,                InputContext_AnySelection);
+    actions.subscribe(Action::Redo,                DefaultKeybinds::Redo,                InputContext_AnySelection);
+    actions.subscribe(Action::RadialMenu,          DefaultKeybinds::RadialMenu,          InputContext_Global);
+    actions.subscribe(Action::ObjectMode,          DefaultKeybinds::ObjectMode,          InputContext_AnySelection);
+    actions.subscribe(Action::ToggleObjectMode,    DefaultKeybinds::ToggleObjectMode,    InputContext_AnySelection);
+
+    auto always = [] { return true; };
+
+    actions.setHandler(Action::VertexMode, { "Vertex", always, [&ctx] { setSelectionMode(ctx, InputContext_SelectionVertex); } });
+    actions.setHandler(Action::EdgeMode, { "Edge", always, [&ctx] { setSelectionMode(ctx, InputContext_SelectionEdge); } });
+    actions.setHandler(Action::FaceMode, { "Face", always, [&ctx] { setSelectionMode(ctx, InputContext_SelectionFace); } });
+    actions.setHandler(Action::ObjectMode, { "Object", always, [&ctx] { setSelectionMode(ctx, InputContext_SelectionObject); } });
+    actions.setHandler(Action::TogglePanel, { "Panel", always, [&ctx] { togglePanel(ctx); } });
+    actions.setHandler(Action::ToggleHeadlight, { "Headlight", always, [&ctx] { toggleHeadlight(ctx); } });
+    actions.setHandler(Action::ToggleDebug, { "Debug", always, [&ctx] { toggleDebugView(ctx); } });
+    actions.setHandler(Action::ToggleObjectMode, { "Object/Edit", always, [&ctx] { toggleObjectMode(ctx); } });
+
+    actions.setHandler(Action::GrabSelection, { "Grab", [&ctx] { return canGrab(ctx); }, [&ctx] { startGrab(ctx); } });
+    actions.setHandler(Action::ScaleSelection, { "Scale", [&ctx] { return canScale(ctx); }, [&ctx] { startScale(ctx); } });
+    actions.setHandler(Action::ExtrudeSelection, { "Extrude", [&ctx] { return canExtrude(ctx); }, [&ctx] { extrudeSelection(ctx); } });
+    actions.setHandler(Action::InsetSelection, { "Inset", [&ctx] { return canExtrude(ctx); }, [&ctx] { beginInset(ctx); } });
+    actions.setHandler(Action::DeleteSelection, { "Delete", [&ctx] { return canDelete(ctx); }, [&ctx] { deleteSelection(ctx); } });
+    actions.setHandler(Action::FillFaceLoop, { "Fill", [&ctx] { return canFillFaceLoop(ctx); }, [&ctx] { fillFaceLoop(ctx); } });
+    actions.setHandler(Action::ConnectVertices, { "Connect", [&ctx] { return canConnectVertices(ctx); }, [&ctx] { connectVertices(ctx); } });
+    actions.setHandler(Action::RotateSelection, { "Rotate", [&ctx] { return canRotate(ctx); }, [&ctx] { startRotate(ctx); } });
+    actions.setHandler(Action::BevelSelection, { "Bevel", [&ctx] { return canBevel(ctx); }, [&ctx] { beginBevel(ctx); } });
+
+    actions.setHandler(Action::MergeVertices, { "Merge", [&ctx] { return canMergeVertices(ctx); }, [&ctx] { mergeVertices(ctx); } });
+    actions.setHandler(Action::DissolveSelection, { "Dissolve", [&ctx] { return canDissolve(ctx); }, [&ctx] { dissolveSelection(ctx); } });
+
+    actions.setHandler(Action::Undo, { "Undo", [&ctx] { return ctx.history.canUndo(); }, [&ctx] { undo(ctx); } });
+    actions.setHandler(Action::Redo, { "Redo", [&ctx] { return ctx.history.canRedo(); }, [&ctx] { redo(ctx); } });
+
+    actions.setHandler(Action::XAxis, { "X", always, [&ctx] { toggleAxis(ctx, InputContext_XAxis); } });
+    actions.setHandler(Action::YAxis, { "Y", always, [&ctx] { toggleAxis(ctx, InputContext_YAxis); } });
+    actions.setHandler(Action::ZAxis, { "Z", always, [&ctx] { toggleAxis(ctx, InputContext_ZAxis); } });
+    actions.setHandler(Action::AxisFree, { "Free", [&ctx] { return canChangeAxis(ctx); }, [&ctx] { clearAxes(ctx); } });
+
+    actions.setHandler(Action::LightPoint, { "Point", [&ctx] { return canSetLightType(ctx, LightType::Point); }, [&ctx] { setLightType(ctx, LightType::Point); } });
+    actions.setHandler(Action::LightSpot, { "Spot", [&ctx] { return canSetLightType(ctx, LightType::Spot); }, [&ctx] { setLightType(ctx, LightType::Spot); } });
+    actions.setHandler(Action::LightDirectional, { "Directional", [&ctx] { return canSetLightType(ctx, LightType::Directional); }, [&ctx] { setLightType(ctx, LightType::Directional); } });
+    actions.setHandler(Action::ToggleLights, { "On/Off", [&ctx] { return canToggleLights(ctx); }, [&ctx] { toggleLights(ctx); } });
 }

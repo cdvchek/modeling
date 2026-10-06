@@ -12,7 +12,7 @@ struct UIVertex {
     f32 radius;
     f32 borderWidth;
     f32 blur;           // > 0 draws a soft shadow instead of a solid shape
-    f32 mode;           // UIDrawList::MODE_SHAPE or MODE_GLYPH
+    f32 mode;           // UIDrawList::MODE_SHAPE, MODE_GLYPH, or MODE_RING_SLICE
     u32 fill;           // packed RGBA
     u32 border;         // packed RGBA
 };
@@ -31,6 +31,7 @@ class UIDrawList {
 public:
     static constexpr f32 MODE_SHAPE = 0.0f;
     static constexpr f32 MODE_GLYPH = 1.0f;
+    static constexpr f32 MODE_RING_SLICE = 2.0f;
 
     void clear();
 
@@ -38,6 +39,8 @@ public:
     void roundedRect(const Rect& rect, f32 radius, Color fill, Color border = {}, f32 borderWidth = 0.0f);
     void shadow(const Rect& rect, f32 radius, f32 blur, Color color);
     void line(Vec2 start, Vec2 end, f32 width, Color color);
+    // A wedge of a ring centered on angle (radians, counterclockwise from right); gap is the pixel space between neighbors
+    void ringSlice(Vec2 center, f32 innerRadius, f32 outerRadius, f32 angle, f32 halfAngle, f32 gap, Color fill, Color border = {}, f32 borderWidth = 0.0f);
     void text(Vec2 position, std::string_view text, const UIFont& font, Color color);
 
     // Nested clips intersect with the current one

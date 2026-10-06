@@ -1,6 +1,7 @@
 #pragma once
 
 #include <types>
+#include <string>
 #include <vector>
 #include "platform/keys/keys.hpp"
 
@@ -40,6 +41,9 @@ inline Input axis() {
     };
 }
 
+// Short text for a keybind, like "Ctrl+Z" or "M+V"
+std::string keybindLabel(const Keybind& keybind);
+
 namespace DefaultKeybinds {   
     inline Keybind Quit {
         {
@@ -50,7 +54,7 @@ namespace DefaultKeybinds {
 
     inline Keybind ToggleConsole {
         {
-            key(Key::Tab)
+            key(Key::Forwardslash)
         }
     };
 
@@ -293,6 +297,39 @@ namespace DefaultKeybinds {
     inline Keybind CancelBevel {
         {
             mouse(MouseButton::Right)
+        }
+    };
+
+    inline Keybind ObjectMode {
+        {
+            key(Key::M),
+            key(Key::O)
+        }
+    };
+
+    // Switches between object mode and the last edit mode
+    inline Keybind ToggleObjectMode {
+        {
+            key(Key::Tab)
+        }
+    };
+
+    inline Keybind ConfirmInset {
+        {
+            mouse(MouseButton::Left)
+        }
+    };
+
+    inline Keybind CancelInset {
+        {
+            mouse(MouseButton::Right)
+        }
+    };
+
+    // The thumb side button (back)
+    inline Keybind RadialMenu {
+        {
+            mouse(MouseButton::B4)
         }
     };
 }

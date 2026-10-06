@@ -1,6 +1,8 @@
 #include "ui/ui_draw_list.hpp"
 #include "core/font/font_atlas.hpp"
 
+#include <cmath>
+
 void UIDrawList::clear() {
     m_vertices.clear();
     m_indices.clear();
@@ -26,6 +28,30 @@ void UIDrawList::line(Vec2 start, Vec2 end, f32 width, Color color) {
     if (length <= 0.0f) return;
 
     addShape((start + end) * 0.5f, Vec2(length * 0.5f, width * 0.5f), delta / length, 0.0f, 0.0f, 0.0f, color, {});
+}
+
+void UIDrawList::ringSlice(Vec2 center, f32 innerRadius, f32 outerRadius, f32 angle, f32 halfAngle, f32 gap, Color fill, Color border, f32 borderWidth) {
+    // Local coordinates run along the slice's middle so the shader only handles a slice pointing right
+    const Vec2 axis(std::cos(angle), -std::sin(angle));
+    const Vec2 perpendicular(-axis.y, axis.x);
+    const f32 extent = outerRadius + 1.0f;
+
+    const u32 packedFill = fill.packed();
+    const u32 packedBorder = border.packed();
+
+    const Vec2 offsets[4] = { Vec2(-extent, -extent), Vec2(extent, -extent), Vec2(extent, extent), Vec2(-extent, extent) };
+
+    UIVertex corners[4];
+    for (u32 i = 0; i < 4; ++i) {
+        const Vec2 local(Vec2::dot(offsets[i], axis), Vec2::dot(offsets[i], perpendicular));
+        corners[i] = {
+            center + offsets[i], Vec2(), local, Vec2(innerRadius, outerRadius),
+            halfAngle, borderWidth, gap, MODE_RING_SLICE,
+            packedFill, packedBorder
+        };
+    }
+
+    addQuad(corners, false, FontId::UI);
 }
 
 void UIDrawList::text(Vec2 position, std::string_view text, const UIFont& font, Color color) {

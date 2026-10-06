@@ -3,9 +3,12 @@
 #include "platform/window/window.hpp"
 #include "platform/platform.hpp"
 #include "application/action_checks/action_checks.hpp"
+#include "application/radial_menu.hpp"
+#include "application/tool_guides.hpp"
 #include "application/status_bar.hpp"
 #include "application/light_markers.hpp"
 #include "application/main_panel.hpp"
+#include "application/console_view.hpp"
 #include "core/math/vec4.hpp"
 
 #include <algorithm>
@@ -20,6 +23,7 @@ namespace {
             case UICursor::ResizeVertical: return CursorShape::ResizeVertical;
             case UICursor::ResizeDiagonalDown: return CursorShape::ResizeDiagonalDown;
             case UICursor::ResizeDiagonalUp: return CursorShape::ResizeDiagonalUp;
+            case UICursor::Text: return CursorShape::Text;
             default: return CursorShape::Arrow;
         }
     }
@@ -40,6 +44,31 @@ namespace {
             result.released[i] = input.wasMouseReleasedThisFrame(buttons[i]);
         }
 
+        auto held = [&](Key a, Key b) { return input.isKeyDown(static_cast<u16>(a)) || input.isKeyDown(static_cast<u16>(b)); };
+        const bool ctrl = held(Key::LeftCtrl, Key::RightCtrl);
+        result.shift = held(Key::LeftShift, Key::RightShift);
+        result.text = input.getTypedText();
+
+        // Key presses include the OS's repeats, so held keys repeat in text fields too
+        for (u16 code : input.getKeyPresses()) {
+            switch (static_cast<Key>(code)) {
+                case Key::ArrowLeft: result.keys.push_back(UIKey::Left); break;
+                case Key::ArrowRight: result.keys.push_back(UIKey::Right); break;
+                case Key::Home: result.keys.push_back(UIKey::Home); break;
+                case Key::End: result.keys.push_back(UIKey::End); break;
+                case Key::Backspace: result.keys.push_back(UIKey::Backspace); break;
+                case Key::Delete: result.keys.push_back(UIKey::Delete); break;
+                case Key::Enter: result.keys.push_back(UIKey::Enter); break;
+                case Key::Escape: result.keys.push_back(UIKey::Escape); break;
+                case Key::A: if (ctrl) result.keys.push_back(UIKey::SelectAll); break;
+                case Key::C: if (ctrl) result.keys.push_back(UIKey::Copy); break;
+                case Key::X: if (ctrl) result.keys.push_back(UIKey::Cut); break;
+                case Key::V: if (ctrl) result.keys.push_back(UIKey::Paste); break;
+                default: break;
+            }
+        }
+
+        result.time = std::chrono::duration<f64>(std::chrono::steady_clock::now().time_since_epoch()).count();
         return result;
     }
 }
@@ -49,6 +78,7 @@ bool Application::initialize(AppContext& ctx) {
     if (!setupRenderer(ctx)) return false;
 
     registerInputEvents(ctx);
+    ctx.ui.setClipboard(&Platform::getClipboardText, &Platform::setClipboardText);
     registerDefaultActions(ctx);
     registerCommands(ctx);
 
@@ -69,9 +99,10 @@ void Application::run(AppContext& ctx) {
 
         // The UI decides first whether it owns the mouse this frame, then the viewport handles the rest
         const ContextManager& contexts = ctx.systems.input_ctx;
-        const bool uiInteractive = !contexts.isActive(InputContext_Console) && contexts.isActive(InputContext_SelectionVertex | InputContext_SelectionEdge | InputContext_SelectionFace);
+        const bool uiInteractive = !ctx.radialMenu.open && !contexts.isActive(InputContext_Console) && contexts.isActive(InputContext_AnySelection);
         ctx.ui.beginFrame(makeUIInput(ctx.systems.input), uiInteractive);
         ctx.systems.actions.setMouseBlocked(ctx.ui.wantsMouse());
+        ctx.systems.actions.setKeyboardBlocked(ctx.ui.wantsKeyboard());
 
         checkActions(ctx);
         Application::renderFrame(ctx);
@@ -131,22 +162,6 @@ namespace {
     }
 }
 
-void Application::drawConsole(AppContext& ctx, UIDrawList& ui, f32 width, f32 height) {
-    const UIFont font = makeUIFont(FontId::Console, ctx.fonts.get(FontId::Console));
-    const Color textColor { 1.0f, 1.0f, 1.0f, 1.0f };
-
-    ui.rect({ 0.0f, 0.0f, width, height }, { 0.15f, 0.15f, 0.15f, 0.7f });
-
-    // History grows upward from just above the input line
-    const std::vector<std::string>& history = ctx.systems.console.getHistory();
-    u32 line = 1;
-    for (u32 i = static_cast<u32>(history.size()); i-- > 0;) {
-        ui.text(Vec2(25.0f, height - (84.0f + 28.0f * line++)), history[i], font, textColor);
-    }
-
-    ui.text(Vec2(25.0f, height - 49.0f), ctx.systems.console.getCurrentCommand(), font, textColor);
-}
-
 void Application::renderFrame(AppContext& ctx) {
     u32 width = 0;
     u32 height = 0;
@@ -168,13 +183,10 @@ void Application::renderFrame(AppContext& ctx) {
 
     ctx.renderer->setLighting(buildLightingState(ctx.scene.lights, ctx.viewport.headlight, ctx.scene.camera));
 
-    for (u32 i = 0; i < ctx.scene.objects.count(); i++) {
-        Object& object = ctx.scene.objects.get(i);
+    ctx.objectMeshes.prune(ctx.scene.objects);
 
-        if (object.meshDirty) {
-            object.gpuMesh.update(object.meshData);
-            object.meshDirty = false;
-        }
+    for (ObjectHandle handle : ctx.scene.objects.handles()) {
+        Object& object = ctx.scene.objects.get(handle);
 
         Mat4 model = object.transform.getMatrix();
         Mat4 mvp = viewProjection * model;
@@ -183,24 +195,32 @@ void Application::renderFrame(AppContext& ctx) {
         
         DrawCommand cmd;
 
-        u32 selectionContext = ctx.systems.input_ctx.getSelectionContext();
+        // Only the object being edited shows its wireframe and selection; the others show just their faces
+        const bool active = handle == selection.getActiveObject();
+        const u32 selectionContext = ctx.systems.input_ctx.getSelectionContext();
+        const bool objectMode = selectionContext == InputContext_SelectionObject;
 
-        cmd.showVerts = selectionContext & InputContext_SelectionVertex;
-        cmd.showEdges = true;
+        cmd.showVerts = active && (selectionContext & InputContext_SelectionVertex);
+        cmd.showEdges = objectMode ? selection.hasObject(handle) : active;
         cmd.showFaces = true;
 
-        cmd.highlightedVerts = selection.getVertexHandles();
-        cmd.highlightedEdges = selection.getEdgeHandles();
-        cmd.highlightedFaces = selection.getFaceHandles();
+        // In object mode a selected object is outlined: every edge in the selection color
+        if (objectMode) {
+            if (selection.hasObject(handle)) cmd.highlightedEdges = object.meshData.getEdgeHandles();
+        } else if (active) {
+            cmd.highlightedVerts = selection.getVertexHandles();
+            cmd.highlightedEdges = selection.getEdgeHandles();
+            cmd.highlightedFaces = selection.getFaceHandles();
 
-        // Selected faces are outlined with the same treatment as selected edges
-        for (FaceHandle face : cmd.highlightedFaces) {
-            const Face* data = object.meshData.getFace(face);
-            if (!data) continue;
-            for (EdgeHandle edge : object.meshData.getLoopEdges(data->edge)) cmd.highlightedEdges.push_back(edge);
+            // Selected faces are outlined with the same treatment as selected edges
+            for (FaceHandle face : cmd.highlightedFaces) {
+                const Face* data = object.meshData.getFace(face);
+                if (!data) continue;
+                for (EdgeHandle edge : object.meshData.getLoopEdges(data->edge)) cmd.highlightedEdges.push_back(edge);
+            }
         }
         
-        cmd.mesh = &object.gpuMesh;
+        cmd.mesh = ctx.objectMeshes.sync(handle, object);
         cmd.model = model;
         cmd.mvp = mvp;
 
@@ -227,6 +247,7 @@ void Application::renderFrame(AppContext& ctx) {
     ui.clear();
 
     drawLightMarkers(ctx, ui, viewProjection, static_cast<f32>(width), static_cast<f32>(height));
+    drawToolGuides(ctx, ui);
     drawStatusBar(ctx, ui, static_cast<f32>(width), static_cast<f32>(height));
 
     ctx.ui.setDrawList(&ui);
@@ -235,8 +256,10 @@ void Application::renderFrame(AppContext& ctx) {
     if (ctx.viewport.showPanel) drawMainPanel(ctx, { 0.0f, 0.0f, static_cast<f32>(width), static_cast<f32>(height) - statusBarHeight(ctx) });
     ctx.ui.endDraw();
 
+    drawRadialMenu(ctx, ui);
+
     if (ctx.systems.input_ctx.isActive(InputContext_Console)) {
-        drawConsole(ctx, ui, static_cast<f32>(width), static_cast<f32>(height));
+        drawConsole(ctx, ui, { 0.0f, 0.0f, static_cast<f32>(width), static_cast<f32>(height) - statusBarHeight(ctx) });
     }
 
     ctx.renderer->drawUI(ui);

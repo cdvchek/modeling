@@ -1,9 +1,23 @@
 #include "core/console/console.hpp"
 
-void Console::enterCurrentCommand(CommandSystem& commands) {
-        commands.execute(m_command);
+#include <iostream>
+#include <sstream>
 
-    if (!m_command.empty()) m_history.push_back(m_command);
+void Console::enterCurrentCommand(CommandSystem& commands) {
+    if (!m_command.empty()) {
+        m_history.push_back(m_command);
+        addEntry(ConsoleEntryKind::Command, m_command);
+        m_entries.back().historyIndex = static_cast<i32>(m_history.size()) - 1;
+    }
+
+    // Everything the command prints lands in one entry under it
+    std::ostringstream captured;
+    std::streambuf* original = std::cout.rdbuf(captured.rdbuf());
+    const bool known = commands.execute(m_command);
+    std::cout.rdbuf(original);
+
+    print(captured.str());
+    if (!known) printError("unknown command: " + CommandSystem::commandName(m_command) + " (type help to list commands)");
 
     m_command.clear();
     m_commandIndex = static_cast<u32>(m_history.size());
@@ -16,6 +30,38 @@ const std::string& Console::getCurrentCommand() {
 
 const std::vector<std::string>& Console::getHistory() {
     return m_history;
+}
+
+void Console::print(const std::string& text) {
+    addEntry(ConsoleEntryKind::Output, text);
+}
+
+void Console::printError(const std::string& text) {
+    addEntry(ConsoleEntryKind::Error, text);
+}
+
+void Console::addEntry(ConsoleEntryKind kind, const std::string& text) {
+    std::string trimmed = text;
+    while (!trimmed.empty() && (trimmed.back() == '\n' || trimmed.back() == '\r')) trimmed.pop_back();
+    if (trimmed.empty()) return;
+
+    if (m_echo) std::cout << (kind == ConsoleEntryKind::Command ? "> " : "") << trimmed << std::endl;
+    m_entries.push_back({ kind, trimmed });
+
+    if (kind == ConsoleEntryKind::Error) {
+        ++m_errorCount;
+        m_latestError = trimmed;
+    }
+}
+
+void Console::toggleEntry(u32 index) {
+    if (index < m_entries.size() && m_entries[index].collapsible()) m_entries[index].expanded = !m_entries[index].expanded;
+}
+
+void Console::collapseEntries() {
+    for (ConsoleEntry& entry : m_entries) {
+        if (entry.collapsible()) entry.expanded = false;
+    }
 }
 
 void Console::viewNewerCommand() {

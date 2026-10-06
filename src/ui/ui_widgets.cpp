@@ -4,6 +4,8 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
+#include <string>
 
 namespace {
     const Color& frameColor(bool hovered, bool held) {
@@ -14,6 +16,48 @@ namespace {
 
     Color toColor(const Vec3& rgb) {
         return { rgb.x, rgb.y, rgb.z, 1.0f };
+    }
+
+    // Under this much mouse movement, pressing and releasing a drag field is a click
+    constexpr f32 DRAG_THRESHOLD = 3.0f;
+    constexpr f32 TEXT_INSET = 6.0f;
+    constexpr f64 CARET_BLINK = 0.5;   // seconds on, then off
+
+    std::string trim(std::string_view text) {
+        const auto begin = text.find_first_not_of(" \t");
+        if (begin == std::string_view::npos) return {};
+        const auto end = text.find_last_not_of(" \t");
+        return std::string(text.substr(begin, end - begin + 1));
+    }
+
+    // Shortest text that reads back as the same value, for typing over
+    std::string editableNumber(f32 value) {
+        char text[32];
+        std::snprintf(text, sizeof(text), "%g", static_cast<double>(value));
+        return text;
+    }
+
+    bool parseNumber(const std::string& text, f32& value) {
+        const std::string trimmed = trim(text);
+        if (trimmed.empty()) return false;
+
+        char* end = nullptr;
+        const f32 parsed = std::strtof(trimmed.c_str(), &end);
+        if (end != trimmed.c_str() + trimmed.size() || !std::isfinite(parsed)) return false;
+
+        value = parsed;
+        return true;
+    }
+
+    // Clipboard text can hold anything; keep one line of characters the font can draw
+    std::string printable(const std::string& text) {
+        std::string result;
+        for (char character : text) {
+            if (character == '\n' || character == '\r') break;
+            const unsigned char c = static_cast<unsigned char>(character);
+            if (c >= 32 && c < 127) result += character;
+        }
+        return result;
     }
 }
 
@@ -39,7 +83,125 @@ bool UIContext::button(std::string_view label) {
     return interaction.clicked;
 }
 
-bool UIContext::selectable(std::string_view label, bool selected) {
+bool UIContext::button(std::string_view label, const Rect& rect, bool enabled) {
+    // A disabled button is drawn dim and ignores the mouse
+    const Interaction interaction = enabled ? interact(makeId(label), rect) : Interaction {};
+
+    m_drawList->roundedRect(rect, UIStyle::CORNER_RADIUS, enabled ? frameColor(interaction.hovered, interaction.held) : UIStyle::FRAME, UIStyle::FRAME_BORDER, 1.0f);
+
+    const f32 textWidth = measureText(m_font, label).x;
+    drawLabelText({ rect.x + std::floor((rect.width - textWidth) * 0.5f), rect.y, textWidth, rect.height }, label, enabled ? UIStyle::TEXT : UIStyle::TEXT_DIM);
+
+    finishItem(interaction, false);
+    return interaction.clicked;
+}
+
+bool UIContext::segmented(std::string_view label, i32& index, const std::vector<std::string_view>& options) {
+    const Rect row = nextRow();
+    Rect labelRect;
+    Rect controlRect = row;
+    if (!label.empty()) {
+        splitLabeledRow(row, labelRect, controlRect);
+        drawLabelText(labelRect, label, UIStyle::TEXT_DIM);
+    }
+
+    m_drawList->roundedRect(controlRect, UIStyle::CORNER_RADIUS, UIStyle::FRAME, UIStyle::FRAME_BORDER, 1.0f);
+
+    // Each segment fits its text, and leftover width is shared evenly
+    const u32 count = static_cast<u32>(options.size());
+    std::vector<f32> widths(count);
+    f32 total = 0.0f;
+    for (u32 i = 0; i < count; ++i) {
+        widths[i] = measureText(m_font, options[i]).x + UIStyle::TEXT_PADDING * 2.0f;
+        total += widths[i];
+    }
+    const f32 extra = (controlRect.width - total) / static_cast<f32>(count);
+    for (f32& width : widths) width += extra;
+
+    Interaction combined;
+    bool changed = false;
+    f32 x = controlRect.x;
+
+    pushId(label.empty() ? std::string_view("segmented") : label);
+    for (u32 i = 0; i < count; ++i) {
+        const Rect segment { x, controlRect.y, widths[i], controlRect.height };
+        x += widths[i];
+        const Interaction interaction = interact(makeId(options[i]), segment);
+
+        // Picks on release, like a button
+        if (interaction.clicked && index != static_cast<i32>(i)) {
+            index = static_cast<i32>(i);
+            changed = true;
+        }
+
+        const bool selected = index == static_cast<i32>(i);
+        if (selected) {
+            m_drawList->roundedRect(segment, UIStyle::CORNER_RADIUS, UIStyle::ACCENT_FILL);
+        } else if (interaction.hovered || interaction.held) {
+            m_drawList->roundedRect(segment, UIStyle::CORNER_RADIUS, interaction.held ? UIStyle::FRAME_ACTIVE : UIStyle::FRAME_HOVER);
+        }
+
+        // Clipped so a label can never spill into its neighbor
+        const f32 textWidth = measureText(m_font, options[i]).x;
+        m_drawList->pushClip(segment);
+        drawLabelText({ segment.x + std::floor((segment.width - textWidth) * 0.5f), segment.y, textWidth, segment.height }, options[i],
+                      selected ? UIStyle::TEXT : UIStyle::TEXT_DIM);
+        m_drawList->popClip();
+
+        combined.hovered |= interaction.hovered;
+        combined.activated |= interaction.activated;
+        combined.held |= interaction.held;
+        combined.deactivated |= interaction.deactivated;
+    }
+    popId();
+
+    finishItem(combined, changed);
+    return changed;
+}
+
+bool UIContext::dropdown(std::string_view label, const Rect& rect, i32& index, const std::vector<std::string_view>& options) {
+    const UIId id = makeId(label);
+    const bool ownsPopup = m_popup.open && m_popup.owner == id;
+    if (ownsPopup) m_popupOwnerSeen = true;
+
+    // A pick made in the list last frame lands here and closes it
+    bool changed = false;
+    if (ownsPopup && m_popup.picked >= 0) {
+        if (index != m_popup.picked) {
+            index = m_popup.picked;
+            changed = true;
+        }
+        m_popup.open = false;
+    }
+
+    const Interaction interaction = interact(id, rect);
+    if (interaction.clicked) {
+        if (m_popup.open && m_popup.owner == id) {
+            m_popup.open = false;
+        } else {
+            m_popup = { true, id, rect, std::vector<std::string>(options.begin(), options.end()), index, -1 };
+            m_popupOwnerSeen = true;
+        }
+    }
+
+    const bool open = m_popup.open && m_popup.owner == id;
+    m_drawList->roundedRect(rect, UIStyle::CORNER_RADIUS, frameColor(interaction.hovered || open, interaction.held), open ? UIStyle::ACCENT : UIStyle::FRAME_BORDER, 1.0f);
+
+    const std::string_view text = index >= 0 && index < static_cast<i32>(options.size()) ? options[index] : std::string_view();
+    m_drawList->pushClip({ rect.x, rect.y, rect.width - 18.0f, rect.height });
+    drawLabelText({ rect.x + UIStyle::TEXT_PADDING, rect.y, rect.width, rect.height }, text, UIStyle::TEXT);
+    m_drawList->popClip();
+
+    // Small chevron on the right
+    const Vec2 tip(rect.right() - 11.0f, rect.y + rect.height * 0.5f + 2.0f);
+    m_drawList->line(Vec2(tip.x - 4.0f, tip.y - 4.0f), tip, 1.5f, UIStyle::TEXT_DIM);
+    m_drawList->line(tip, Vec2(tip.x + 4.0f, tip.y - 4.0f), 1.5f, UIStyle::TEXT_DIM);
+
+    finishItem(interaction, changed);
+    return changed;
+}
+
+bool UIContext::selectable(std::string_view label, bool selected, std::string_view detail) {
     const Rect row = nextRow();
     const Interaction interaction = interact(makeId(label), row);
 
@@ -51,6 +213,11 @@ bool UIContext::selectable(std::string_view label, bool selected) {
     }
 
     drawLabelText({ row.x + UIStyle::TEXT_PADDING, row.y, row.width - UIStyle::TEXT_PADDING, row.height }, label, UIStyle::TEXT);
+
+    if (!detail.empty()) {
+        const f32 detailWidth = measureText(m_font, detail).x;
+        drawLabelText({ row.right() - UIStyle::TEXT_PADDING - detailWidth, row.y, detailWidth, row.height }, detail, UIStyle::TEXT_DIM);
+    }
 
     finishItem(interaction, false);
     return interaction.clicked;
@@ -150,12 +317,34 @@ bool UIContext::dragFloat3(std::string_view label, Vec3& value, f32 speed, const
     pushId(label);
     for (u32 i = 0; i < 3; ++i) {
         const Rect part { controlRect.x + i * (componentWidth + UIStyle::COMPONENT_GAP), controlRect.y, componentWidth, controlRect.height };
-        const Interaction interaction = interact(makeId(axisNames[i]), part);
+        const UIId id = makeId(axisNames[i]);
 
-        // Dragging left/right nudges the value; it isn't tied to where in the box you click
-        if (interaction.held && !interaction.activated && m_input.mouseDelta.x != 0.0f) {
+        // Being typed into: one undo step when the typed value is kept
+        if (m_textEdit.id == id) {
+            std::string typed;
+            if (textEditBox(part, typed) == TextEditResult::Committed) {
+                f32 parsed = 0.0f;
+                if (parseNumber(typed, parsed) && parsed != *components[i]) {
+                    *components[i] = parsed;
+                    changed = true;
+                }
+                combined.activated = true;
+                combined.deactivated = true;
+            }
+            continue;
+        }
+
+        const Interaction interaction = interact(id, part);
+
+        // Dragging left/right nudges the value once the mouse has moved past the threshold; it isn't tied to where in the box you click
+        if (interaction.held && !interaction.activated && m_activeTravel >= DRAG_THRESHOLD && m_input.mouseDelta.x != 0.0f) {
             *components[i] += m_input.mouseDelta.x * speed;
             changed = true;
+        }
+
+        // A click without a drag opens the value for typing
+        if (interaction.deactivated && interaction.clicked && m_activeTravel < DRAG_THRESHOLD) {
+            beginTextEdit(id, editableNumber(*components[i]));
         }
 
         m_drawList->roundedRect(part, UIStyle::CORNER_RADIUS, frameColor(interaction.hovered, interaction.held));
@@ -232,4 +421,202 @@ bool UIContext::colorEdit(std::string_view label, Vec3& color) {
 
     finishItem(combined, changed);
     return changed;
+}
+
+bool UIContext::textField(std::string_view label, std::string& text, bool allowEmpty) {
+    const UIId id = makeId(label);
+    const Rect row = nextRow();
+    Rect labelRect;
+    Rect controlRect;
+    splitLabeledRow(row, labelRect, controlRect);
+
+    drawLabelText(labelRect, label, UIStyle::TEXT_DIM);
+
+    Interaction interaction;
+    bool changed = false;
+
+    if (m_textEdit.id == id) {
+        std::string typed;
+        if (textEditBox(controlRect, typed) == TextEditResult::Committed) {
+            const std::string kept = trim(typed);
+            if ((allowEmpty || !kept.empty()) && kept != text) {
+                text = kept;
+                changed = true;
+            }
+
+            // The whole edit counts as one press-to-release interaction, so it's one undo step
+            interaction.activated = true;
+            interaction.deactivated = true;
+        }
+    } else {
+        const Interaction pressed = interact(id, controlRect);
+        interaction.hovered = pressed.hovered;
+        if (pressed.hovered) m_cursor = UICursor::Text;
+
+        m_drawList->roundedRect(controlRect, UIStyle::CORNER_RADIUS, frameColor(pressed.hovered, false), UIStyle::FRAME_BORDER, 1.0f);
+
+        const Rect inner { controlRect.x + TEXT_INSET, controlRect.y, std::max(0.0f, controlRect.width - TEXT_INSET * 2.0f), controlRect.height };
+        m_drawList->pushClip(inner);
+        drawLabelText(inner, text, UIStyle::TEXT);
+        m_drawList->popClip();
+
+        // Editing starts on the press, with everything selected so typing replaces it
+        if (pressed.activated) beginTextEdit(id, text);
+    }
+
+    finishItem(interaction, changed);
+    return changed;
+}
+
+void UIContext::beginTextEdit(UIId id, const std::string& text) {
+    m_textEdit = {};
+    m_textEdit.id = id;
+    m_textEdit.buffer = text;
+    m_textEdit.anchor = 0;
+    m_textEdit.caret = static_cast<u32>(text.size());
+    m_textEdit.lastInput = m_input.time;
+    m_textEdit.seen = true;
+    m_textEdit.justStarted = true;
+}
+
+UIContext::TextEditResult UIContext::textEditBox(const Rect& rect, std::string& committed) {
+    TextEdit& edit = m_textEdit;
+    edit.seen = true;
+    edit.rect = rect;
+
+    std::string& buffer = edit.buffer;
+    const f32 glyph = m_font.glyphWidth;
+    const Rect inner { rect.x + TEXT_INSET, rect.y, std::max(0.0f, rect.width - TEXT_INSET * 2.0f), rect.height };
+
+    auto finish = [&](TextEditResult result) {
+        if (result == TextEditResult::Committed) committed = buffer;
+        m_textEdit = {};
+        return result;
+    };
+
+    auto selectionStart = [&] { return std::min(edit.caret, edit.anchor); };
+    auto selectionEnd = [&] { return std::max(edit.caret, edit.anchor); };
+
+    auto eraseSelection = [&] {
+        const u32 start = selectionStart();
+        buffer.erase(start, selectionEnd() - start);
+        edit.caret = edit.anchor = start;
+    };
+
+    auto insert = [&](const std::string& text) {
+        if (edit.caret != edit.anchor) eraseSelection();
+        buffer.insert(edit.caret, text);
+        edit.caret += static_cast<u32>(text.size());
+        edit.anchor = edit.caret;
+    };
+
+    auto caretAtMouse = [&] {
+        const f32 offset = (m_input.mouse.x - inner.x + edit.scroll) / glyph;
+        return static_cast<u32>(std::clamp(std::lround(offset), 0l, static_cast<long>(buffer.size())));
+    };
+
+    // 1. Mouse: a press anywhere else keeps the edit; inside, it places the caret and drags a selection
+    const bool hovered = m_interactive && rect.contains(m_input.mouse);
+    if (hovered) m_cursor = UICursor::Text;
+
+    if (!edit.justStarted) {
+        if (m_input.anyPressed() && !rect.contains(m_input.mouse)) return finish(TextEditResult::Committed);
+
+        if (m_input.pressed[UIInput::LEFT] && hovered) {
+            edit.caret = caretAtMouse();
+            if (!m_input.shift) edit.anchor = edit.caret;
+            edit.dragging = true;
+        }
+    }
+
+    if (edit.dragging && m_input.down[UIInput::LEFT] && !m_input.pressed[UIInput::LEFT]) edit.caret = caretAtMouse();
+    if (!m_input.down[UIInput::LEFT]) edit.dragging = false;
+    edit.justStarted = false;
+
+    // 2. Keys, in the order they were pressed
+    for (UIKey key : m_input.keys) {
+        const bool selected = edit.caret != edit.anchor;
+        edit.lastInput = m_input.time;
+
+        switch (key) {
+            case UIKey::Left:
+                if (selected && !m_input.shift) edit.caret = selectionStart();
+                else if (edit.caret > 0) --edit.caret;
+                if (!m_input.shift) edit.anchor = edit.caret;
+                break;
+            case UIKey::Right:
+                if (selected && !m_input.shift) edit.caret = selectionEnd();
+                else if (edit.caret < buffer.size()) ++edit.caret;
+                if (!m_input.shift) edit.anchor = edit.caret;
+                break;
+            case UIKey::Home:
+                edit.caret = 0;
+                if (!m_input.shift) edit.anchor = edit.caret;
+                break;
+            case UIKey::End:
+                edit.caret = static_cast<u32>(buffer.size());
+                if (!m_input.shift) edit.anchor = edit.caret;
+                break;
+            case UIKey::Backspace:
+                if (selected) {
+                    eraseSelection();
+                } else if (edit.caret > 0) {
+                    buffer.erase(--edit.caret, 1);
+                    edit.anchor = edit.caret;
+                }
+                break;
+            case UIKey::Delete:
+                if (selected) eraseSelection();
+                else if (edit.caret < buffer.size()) buffer.erase(edit.caret, 1);
+                break;
+            case UIKey::Enter:
+                return finish(TextEditResult::Committed);
+            case UIKey::Escape:
+                return finish(TextEditResult::Cancelled);
+            case UIKey::SelectAll:
+                edit.anchor = 0;
+                edit.caret = static_cast<u32>(buffer.size());
+                break;
+            case UIKey::Copy:
+            case UIKey::Cut:
+                if (selected && m_setClipboard) m_setClipboard(buffer.substr(selectionStart(), selectionEnd() - selectionStart()));
+                if (selected && key == UIKey::Cut) eraseSelection();
+                break;
+            case UIKey::Paste:
+                if (m_getClipboard) insert(printable(m_getClipboard()));
+                break;
+        }
+    }
+
+    if (!m_input.text.empty()) {
+        insert(m_input.text);
+        edit.lastInput = m_input.time;
+    }
+
+    // 3. Scroll sideways so the caret stays in view
+    const f32 caretX = static_cast<f32>(edit.caret) * glyph;
+    if (caretX - edit.scroll > inner.width) edit.scroll = caretX - inner.width;
+    if (caretX - edit.scroll < 0.0f) edit.scroll = caretX;
+    edit.scroll = std::clamp(edit.scroll, 0.0f, std::max(0.0f, static_cast<f32>(buffer.size()) * glyph - inner.width + 1.0f));
+
+    // 4. Draw: field, selection, text, caret
+    m_drawList->roundedRect(rect, UIStyle::CORNER_RADIUS, UIStyle::FRAME_ACTIVE, UIStyle::ACCENT, 1.0f);
+    m_drawList->pushClip(inner);
+
+    const f32 textY = std::round(inner.y + (inner.height - m_font.glyphHeight) * 0.5f);
+    const f32 originX = inner.x - edit.scroll;
+
+    if (edit.caret != edit.anchor) {
+        const f32 left = originX + static_cast<f32>(selectionStart()) * glyph;
+        const f32 width = static_cast<f32>(selectionEnd() - selectionStart()) * glyph;
+        m_drawList->rect({ left, textY, width, m_font.glyphHeight }, UIStyle::ACCENT_FILL);
+    }
+
+    m_drawList->text(Vec2(originX, textY), buffer, m_font, UIStyle::TEXT);
+
+    const bool caretOn = std::fmod(m_input.time - edit.lastInput, CARET_BLINK * 2.0) < CARET_BLINK;
+    if (caretOn) m_drawList->rect({ std::round(originX + caretX), textY, 1.0f, m_font.glyphHeight }, UIStyle::TEXT);
+
+    m_drawList->popClip();
+    return TextEditResult::Editing;
 }

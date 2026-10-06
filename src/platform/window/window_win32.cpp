@@ -130,6 +130,7 @@ namespace {
             case CursorShape::ResizeVertical: return LoadCursor(nullptr, IDC_SIZENS);
             case CursorShape::ResizeDiagonalDown: return LoadCursor(nullptr, IDC_SIZENWSE);
             case CursorShape::ResizeDiagonalUp: return LoadCursor(nullptr, IDC_SIZENESW);
+            case CursorShape::Text: return LoadCursor(nullptr, IDC_IBEAM);
             default: return LoadCursor(nullptr, IDC_ARROW);
         }
     }
