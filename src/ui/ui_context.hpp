@@ -68,14 +68,20 @@ public:
     void beginPanel(std::string_view name, UIPanelState& state, const Rect& bounds, const std::vector<std::string_view>& tabs);
     void endPanel();
 
+    // A window centered in viewport over a dimmed backdrop. The backdrop is a region covering the whole viewport,
+    // so while it's drawn (last, after every panel) nothing under it can be hovered or clicked. Widgets go inside
+    // as in a panel. The window isn't moved or resized; height is its full height, header included.
+    void beginModal(std::string_view name, const Rect& viewport, f32 width, f32 height, std::string_view title);
+    void endModal();
+
     // Widgets with the same label need different scopes (e.g. one per light)
     void pushId(std::string_view name);
     void pushId(u32 number);
     void popId();
     UIId makeId(std::string_view label) const;
 
-    // A fixed-height box that scrolls its own content (wheel over it scrolls the box, not the panel)
-    void beginChild(std::string_view name, f32 height);
+    // A fixed-height box that scrolls its own content (wheel over it scrolls the box, not the panel); returns the box
+    Rect beginChild(std::string_view name, f32 height);
     void endChild();
 
     // Layout
@@ -91,6 +97,8 @@ public:
     bool button(std::string_view label);
     bool button(std::string_view label, const Rect& rect, bool enabled = true);
     bool segmented(std::string_view label, i32& index, const std::vector<std::string_view>& options);
+    // Same control in a given rect, no label; id tells same-looking switches apart
+    bool segmented(std::string_view id, const Rect& rect, i32& index, const std::vector<std::string_view>& options);
 
     // A button showing options[index]; clicking it opens a list on top of everything to pick from
     bool dropdown(std::string_view label, const Rect& rect, i32& index, const std::vector<std::string_view>& options);
@@ -98,10 +106,28 @@ public:
     // Area popups are kept inside (the viewport)
     void setViewport(const Rect& viewport) { m_viewport = viewport; }   // empty label = full row
     bool selectable(std::string_view label, bool selected, std::string_view detail = {});   // detail is dim, right-aligned
+    // A selectable row in a tree: indented by depth, with an arrow that folds its children away (open toggles
+    // on a click on the arrow) when it has any. Returns true when the row itself is clicked.
+    bool treeRow(std::string_view label, bool selected, std::string_view detail, u32 depth, bool hasChildren, bool& open);
+
+    // Drag and drop. Right after a widget, dragSource starts a drag carrying payload once the widget has been
+    // pressed and moved past the drag threshold; a label follows the mouse while it lasts. On the release,
+    // the first acceptDrop whose rect is under the mouse takes the payload; the drag then ends either way.
+    bool dragSource(u32 payload, std::string_view label);
+    bool acceptDrop(const Rect& rect, u32& payload);
+    bool isDragging() const { return m_drag.active; }
+    u32 dragPayload() const { return m_drag.payload; }
+    // The rect of the last widget that handled the mouse, e.g. to outline a row as a drop target
+    const Rect& lastItemRect() const { return m_lastRect; }
+    bool mouseIn(const Rect& rect) const;
     bool checkbox(std::string_view label, bool& value);
+    // Just the box, at the left of rect and centered in its height; the whole rect is clickable
+    bool checkbox(std::string_view id, const Rect& rect, bool& value);
     bool sliderFloat(std::string_view label, f32& value, f32 min, f32 max, const char* format = "%.2f");
     // Drag a component left/right to change it; click it without dragging to type a value
     bool dragFloat3(std::string_view label, Vec3& value, f32 speed, const char* format = "%.2f");
+    // One value, dragged or typed the same way
+    bool dragFloat(std::string_view label, f32& value, f32 speed, const char* format = "%.2f");
 
     // Click to edit (all text selected). Enter or a click anywhere else keeps the edit, Escape restores the old text.
     // Returns true once, when an edit is kept that changed the text; without allowEmpty, an empty edit is dropped
@@ -185,6 +211,17 @@ private:
     bool m_editedSinceActivation = false;
     bool m_activeSeen = false;
     ItemState m_last;
+    UIId m_lastItemId = 0;
+    Rect m_lastRect;
+
+    struct Drag {
+        bool active = false;
+        bool dropping = false;   // released this frame; acceptDrop can take it until endDraw
+        u32 payload = 0;
+        std::string label;
+    };
+    Drag m_drag;
+    void drawDragLabel();
 
     // How far the mouse has moved since the active widget was pressed; under the threshold, a release is a click
     f32 m_activeTravel = 0.0f;
@@ -252,6 +289,11 @@ private:
 
     void beginPanelHeader(std::string_view name, UIPanelState& state, const Rect& bounds, const std::vector<std::string_view>& tabs, bool showTabs);
     void drawPopup();
+    bool segmentedControl(std::string_view id, const Rect& rect, i32& index, const std::vector<std::string_view>& options);
+    // dragFloat3 and dragFloat: count boxes side by side, each with its axis letter (none when the name is empty)
+    bool dragFloats(std::string_view label, f32* const* components, const char* const* axisNames, const Color* const* axisColors,
+                    u32 count, f32 speed, const char* format);
+    void drawCheckbox(const Rect& box, bool value, const Interaction& interaction);
 
     Popup m_popup;
     bool m_popupOwnerSeen = false;

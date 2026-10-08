@@ -1,6 +1,7 @@
 #include "application/project_actions.hpp"
 #include "application/application.hpp"
 #include "application/editing_actions.hpp"
+#include "application/modal_windows.hpp"
 #include "platform/platform.hpp"
 
 #include <chrono>
@@ -21,21 +22,13 @@ namespace {
         return ctx.project.path.empty() ? UNTITLED : displayName(ctx.project.path);
     }
 
-    void* nativeWindow(AppContext& ctx) {
-        return ctx.windows.empty() ? nullptr : ctx.windows[0]->getNativeHandle();
-    }
-
-    // A dialog takes the key-ups for keys held when it opened (like Ctrl), so forget them
-    void afterDialog(AppContext& ctx) {
-        ctx.systems.input.releaseAll();
-    }
-
     std::string millisecondsSince(std::chrono::steady_clock::time_point start) {
         const auto elapsed = std::chrono::duration<f64, std::milli>(std::chrono::steady_clock::now() - start).count();
         return std::to_string(static_cast<i64>(elapsed + 0.5)) + " ms";
     }
 
-    ProjectFile::View captureView(const AppContext& ctx) {
+    // projectFile: where the project is being saved, so the export folder can be stored relative to it
+    ProjectFile::View captureView(const AppContext& ctx, const std::filesystem::path& projectFile) {
         ProjectFile::View view;
         view.selectionMode = ctx.systems.input_ctx.getSelectionContext();
         view.lastEditMode = ctx.lastEditMode;
@@ -47,6 +40,8 @@ namespace {
         view.showPanel = ctx.viewport.showPanel;
         view.panelRect = ctx.viewport.panel.rect;
         view.panelTab = ctx.viewport.panel.activeTab;
+        view.showOrigins = ctx.viewport.showOrigins;
+        view.exportFolder = ProjectFile::storeFolder(ctx.project.exportFolder, projectFile);
         return view;
     }
 
@@ -55,6 +50,7 @@ namespace {
         ctx.viewport.headlight.enabled = view.headlightEnabled;
         ctx.viewport.headlight.color = view.headlightColor;
         ctx.viewport.headlight.strength = view.headlightStrength;
+        ctx.viewport.showOrigins = view.showOrigins;
         if (ctx.renderer) ctx.renderer->setBackFaceTint(view.backFaceTint);
 
         if (view.debug) ctx.systems.input_ctx.addContext(InputContext_Debug);
@@ -76,6 +72,27 @@ namespace {
     void markSaved(AppContext& ctx) {
         ctx.project.savedState = ctx.history.stateId();
     }
+
+    void startNewProject(AppContext& ctx) {
+        ctx.scene = Scene();
+        Application::initializeCamera(ctx);
+        Application::loadTestScene(ctx);
+        ctx.history.clear();
+        applyView(ctx, ctx.project.startingView, false);
+
+        ctx.project.path.clear();
+        ctx.project.exportFolder.clear();
+        markSaved(ctx);
+        ctx.systems.console.print("New project");
+    }
+}
+
+void* nativeWindow(AppContext& ctx) {
+    return ctx.windows.empty() ? nullptr : ctx.windows[0]->getNativeHandle();
+}
+
+void afterDialog(AppContext& ctx) {
+    ctx.systems.input.releaseAll();
 }
 
 bool canUseProjectFiles(const AppContext& ctx) {
@@ -115,7 +132,7 @@ bool saveProjectTo(AppContext& ctx, const std::filesystem::path& path) {
     const std::filesystem::path target = std::filesystem::absolute(path);
 
     std::string error;
-    if (!ProjectFile::save(target, ctx.scene, captureView(ctx), error)) {
+    if (!ProjectFile::save(target, ctx.scene, captureView(ctx, target), error)) {
         ctx.systems.console.printError("Couldn't save: " + error);
         return false;
     }
@@ -159,7 +176,9 @@ bool openProjectFrom(AppContext& ctx, const std::filesystem::path& path) {
 
     // Read into a separate scene, so a bad file leaves the current one alone
     Scene scene;
-    ProjectFile::View view = captureView(ctx);
+    // Anything the file doesn't hold keeps the current view; the export folder goes back to the default
+    ProjectFile::View view = captureView(ctx, target);
+    view.exportFolder.clear();
     std::string error;
 
     if (!ProjectFile::load(target, scene, view, error)) {
@@ -172,47 +191,44 @@ bool openProjectFrom(AppContext& ctx, const std::filesystem::path& path) {
     applyView(ctx, view, true);
 
     ctx.project.path = target;
+    ctx.project.exportFolder = ProjectFile::resolveFolder(view.exportFolder, target);
     markSaved(ctx);
+    const u32 images = ctx.scene.references.count();
     ctx.systems.console.print("Opened " + displayName(target) + " (" + std::to_string(ctx.scene.objects.count()) + " objects, "
-        + std::to_string(ctx.scene.lights.count()) + " lights) in " + millisecondsSince(start));
+        + std::to_string(ctx.scene.lights.count()) + " lights" + (images > 0 ? ", " + std::to_string(images) + " images" : "")
+        + ") in " + millisecondsSince(start));
     return true;
 }
 
 void openProject(AppContext& ctx) {
-    if (!canUseProjectFiles(ctx) || !confirmDiscardChanges(ctx)) return;
+    if (!canUseProjectFiles(ctx)) return;
 
-    const std::filesystem::path folder = ctx.project.path.empty() ? projectsFolder() : ctx.project.path.parent_path();
-    const std::filesystem::path path = Platform::chooseOpenFile(nativeWindow(ctx), FILE_TYPE, ProjectFile::EXTENSION, folder);
-    afterDialog(ctx);
+    confirmDiscardChanges(ctx, [&ctx] {
+        const std::filesystem::path folder = ctx.project.path.empty() ? projectsFolder() : ctx.project.path.parent_path();
+        const std::filesystem::path path = Platform::chooseOpenFile(nativeWindow(ctx), FILE_TYPE, ProjectFile::EXTENSION, folder);
+        afterDialog(ctx);
 
-    if (!path.empty()) openProjectFrom(ctx, path);
+        if (!path.empty()) openProjectFrom(ctx, path);
+    });
 }
 
 void newProject(AppContext& ctx) {
-    if (!canUseProjectFiles(ctx) || !confirmDiscardChanges(ctx)) return;
-
-    ctx.scene = Scene();
-    Application::initializeCamera(ctx);
-    Application::loadTestScene(ctx);
-    ctx.history.clear();
-    applyView(ctx, ctx.project.startingView, false);
-
-    ctx.project.path.clear();
-    markSaved(ctx);
-    ctx.systems.console.print("New project");
+    if (!canUseProjectFiles(ctx)) return;
+    confirmDiscardChanges(ctx, [&ctx] { startNewProject(ctx); });
 }
 
-bool confirmDiscardChanges(AppContext& ctx) {
-    if (!hasUnsavedChanges(ctx)) return true;
-
-    const Platform::SaveChoice choice = Platform::askToSaveChanges(nativeWindow(ctx), APP_NAME, projectName(ctx));
-    afterDialog(ctx);
-
-    switch (choice) {
-        case Platform::SaveChoice::Save: return saveProject(ctx);
-        case Platform::SaveChoice::DontSave: return true;
-        default: return false;
+void confirmDiscardChanges(AppContext& ctx, std::function<void()> then) {
+    if (!hasUnsavedChanges(ctx)) {
+        then();
+        return;
     }
+
+    // Save carries on only if the save worked (and wasn't cancelled in the Save As dialog)
+    showPrompt(ctx, "Unsaved changes", "Save changes to " + projectName(ctx) + "?", { "Save", "Don't Save", "Cancel" }, 0, 2,
+        [&ctx, then](i32 button) {
+            if (button == 0 && saveProject(ctx)) then();
+            else if (button == 1) then();
+        });
 }
 
 void updateWindowTitle(AppContext& ctx) {
@@ -224,7 +240,7 @@ void updateWindowTitle(AppContext& ctx) {
 }
 
 void initializeProject(AppContext& ctx) {
-    ctx.project.startingView = captureView(ctx);
+    ctx.project.startingView = captureView(ctx, {});
     markSaved(ctx);
     updateWindowTitle(ctx);
 }

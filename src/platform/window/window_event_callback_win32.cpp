@@ -173,9 +173,14 @@ LRESULT WindowCallback::handleMouseWheel(Window::Impl* impl, WPARAM w_param, LPA
 // Capture was taken away (e.g. Alt+Tab mid-drag): any button that isn't physically down anymore is released
 LRESULT WindowCallback::handleCaptureChanged(Window::Impl* impl, WPARAM w_param, LPARAM l_param) {
     if (impl && impl->events) {
+        // Released where the cursor is now, since button events also move the app's mouse position
+        POINT cursor {};
+        GetCursorPos(&cursor);
+        ScreenToClient(impl->hwnd, &cursor);
+
         const int buttons[3] = { VK_LBUTTON, VK_RBUTTON, VK_MBUTTON };
         for (u16 i = 0; i < 3; ++i) {
-            if (GetKeyState(buttons[i]) >= 0) impl->events->trigger(Event::MouseButtonUp{ static_cast<u16>(i + 1), 0, 0 });
+            if (GetKeyState(buttons[i]) >= 0) impl->events->trigger(Event::MouseButtonUp{ static_cast<u16>(i + 1), cursor.x, cursor.y });
         }
     }
 

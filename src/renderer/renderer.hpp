@@ -92,6 +92,14 @@ struct DrawText3DCommand {
     const Mat4& mvp;
 };
 
+// A picture on the unit square (-0.5 to 0.5 in X and Y) placed by mvp
+struct DrawImageCommand {
+    u32 texture = 0;
+    Mat4 mvp;
+    f32 opacity = 1.0f;
+    bool depthTest = true;      // false draws it over whatever is there
+};
+
 struct DrawGridCommand {
     Mat4 viewProjection;
     Vec3 cameraPosition;
@@ -121,6 +129,11 @@ public:
     virtual void draw(const DrawCommand& command) = 0;
     virtual void drawText3D(const DrawText3DCommand& command) = 0;
     virtual void drawGrid(const DrawGridCommand& command) = 0;
+    virtual void drawImage(const DrawImageCommand& command) = 0;
+
+    // A texture from 8-bit RGBA pixels, rows from the top, with mipmaps; 0 if it couldn't be made (too large)
+    virtual u32 createTexture(const u8* pixels, u32 width, u32 height) = 0;
+    virtual void destroyTexture(u32 texture) = 0;
     virtual void drawDebugLine(const Vec3& start, const Vec3& end, const Mat4& mvp) = 0;
     virtual void drawUI(const UIDrawList& list) = 0;
     virtual void endMainPass() = 0;

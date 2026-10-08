@@ -23,6 +23,14 @@ void MeshData::setMesh(PresetMesh meshType) {
     m_dirty = true;
 }
 
+void MeshData::setMesh(const PackagedMesh& mesh) {
+    m_vertices = mesh.vertices;
+    m_edges = mesh.edges;
+    m_faces = mesh.faces;
+
+    m_dirty = true;
+}
+
 const Vertex* MeshData::getVertex(VertexHandle handle) const {
     if (!m_vertices.isValid(handle))
         return nullptr;

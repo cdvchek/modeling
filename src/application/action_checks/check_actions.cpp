@@ -1,6 +1,9 @@
 #include "application/application.hpp"
 #include "application/action_checks/action_checks.hpp"
 #include "application/radial_menu.hpp"
+#include "application/modal_windows.hpp"
+#include "application/asset_actions.hpp"
+#include "application/reference_images.hpp"
 
 bool Application::checkActions(AppContext& ctx) {
     ContextManager& ictx = ctx.systems.input_ctx;
@@ -8,6 +11,23 @@ bool Application::checkActions(AppContext& ctx) {
     if (ctx.systems.actions.isActionDown(Action::Quit, ctx.systems.input, ictx.getContext())) {
         ctx.systems.events.trigger(Event::Quit{});
         return false;
+    }
+
+    // A modal window takes all input: only Enter and Escape reach it as actions, the rest is its own buttons
+    if (isModalOpen(ctx)) {
+        ctx.systems.actions.dispatch(ctx.systems.input, ictx);
+        updateModal(ctx);
+        return true;
+    }
+
+    if (ctx.importRequested) {
+        ctx.importRequested = false;
+        importAssets(ctx);
+    }
+
+    if (ctx.referenceRequested) {
+        ctx.referenceRequested = false;
+        chooseReferenceImages(ctx);
     }
 
     // While the radial menu is open it takes all other input, so tools and the camera hold still

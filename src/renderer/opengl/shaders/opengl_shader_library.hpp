@@ -10,6 +10,7 @@ enum class ShaderId : u32 {
     Background,
     Grid,
     UI,
+    Image,
     Count
 };
 

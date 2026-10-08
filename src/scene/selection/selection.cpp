@@ -11,6 +11,8 @@ void Selection::clear() {
     m_lightStartPositions.clear();
     m_lightStartDirections.clear();
     clearObjects();
+    clearOrigin();
+    clearReferences();
 }
 
 void Selection::setActiveObject(ObjectHandle object) {
@@ -18,6 +20,37 @@ void Selection::setActiveObject(ObjectHandle object) {
 
     m_activeObject = object;
     clearMeshElements();
+    if (m_selectedOrigin != object) clearOrigin();
+}
+
+void Selection::selectOrigin(ObjectHandle object) {
+    setActiveObject(object);
+    clearMeshElements();
+    clearLights();
+    clearObjects();
+    clearReferences();
+    m_selectedOrigin = object;
+}
+
+void Selection::addReference(ReferenceHandle reference) {
+    clearMeshElements();
+    clearLights();
+    clearObjects();
+    clearOrigin();
+    if (!hasReference(reference)) m_selectedReferences.push_back(reference);
+}
+
+void Selection::removeReference(ReferenceHandle reference) {
+    std::erase(m_selectedReferences, reference);
+}
+
+bool Selection::hasReference(ReferenceHandle reference) const {
+    return std::find(m_selectedReferences.begin(), m_selectedReferences.end(), reference) != m_selectedReferences.end();
+}
+
+void Selection::clearReferences() {
+    m_selectedReferences.clear();
+    m_referenceStartTransforms.clear();
 }
 
 void Selection::clearMeshElements() {
@@ -34,6 +67,8 @@ void Selection::clearLights() {
 }
 
 void Selection::addLight(LightHandle light) {
+    clearOrigin();
+    clearReferences();
     if (!hasLight(light)) m_selectedLights.push_back(light);
 }
 
@@ -46,6 +81,8 @@ bool Selection::hasLight(LightHandle light) const {
 }
 
 void Selection::selectObject(ObjectHandle object) {
+    clearOrigin();
+    clearReferences();
     if (!hasObject(object)) m_selectedObjects.push_back(object);
 }
 
@@ -79,6 +116,8 @@ const std::vector<LightHandle>& Selection::getLights() const {
 }
 
 void Selection::addVertex(ObjectHandle object, VertexHandle vertex) {
+    clearOrigin();
+    clearReferences();
     if (hasVertex(object, vertex)) {
         return;
     }
@@ -103,6 +142,8 @@ void Selection::removeVertex(ObjectHandle object, VertexHandle vertex) {
 }
 
 void Selection::addEdge(ObjectHandle object, EdgeHandle edge) {
+    clearOrigin();
+    clearReferences();
     if (hasEdge(object, edge)) {
         return;
     }
@@ -127,6 +168,8 @@ void Selection::removeEdge(ObjectHandle object, EdgeHandle edge) {
 }
 
 void Selection::addFace(ObjectHandle object, FaceHandle face) {
+    clearOrigin();
+    clearReferences();
     if (hasFace(object, face)) {
         return;
     }

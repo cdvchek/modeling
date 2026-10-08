@@ -84,3 +84,12 @@ TEST_CASE(ui_color_packs_rgba_bytes) {
     CHECK((Color { 1.0f, 0.0f, 0.0f, 1.0f }).packed() == 0xFF0000FFu);
     CHECK((Color { 0.0f, 0.0f, 1.0f, 0.5f }).packed() == 0x80FF0000u);
 }
+
+TEST_CASE(fit_text_shortens_with_dots) {
+    // 8 px per character
+    CHECK(fitText(FONT, "Cube", 80.0f) == "Cube");
+    CHECK(fitText(FONT, "averyverylongname", 80.0f) == "averyve...");
+    CHECK(measureText(FONT, fitText(FONT, "averyverylongname", 80.0f)).x <= 80.0f);
+    CHECK(fitText(FONT, "Position", 30.0f) == "...");
+    CHECK(fitText(FONT, "Position", 10.0f).empty());
+}

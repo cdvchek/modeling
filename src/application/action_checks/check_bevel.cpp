@@ -5,7 +5,7 @@
 #include <iostream>
 
 namespace {
-    bool projectToScreen(AppContext& ctx, const Object& object, Vec3 point, f32& x, f32& y, f32& worldPerPixel) {
+    bool projectToScreen(AppContext& ctx, const Mat4& model, Vec3 point, f32& x, f32& y, f32& worldPerPixel) {
         u32 width = 0;
         u32 height = 0;
         ctx.windows[0]->getDimensions(width, height);
@@ -18,7 +18,7 @@ namespace {
         const Mat4 mvp =
             camera.getProjectionMatrix(aspectRatio) *
             camera.getViewMatrix() *
-            object.transform.getMatrix();
+            model;
 
         const Vec4 clip = mvp * Vec4(point.x, point.y, point.z, 1.0f);
 
@@ -57,7 +57,7 @@ void beginBevel(AppContext& ctx) {
         bevel.object = selected.object;
         bevel.pivot = mesh.getVertexPosition(selected.vertex);
         ctx.history.begin(ctx.scene);
-        started = mesh.bevelVertex(selected.vertex, bevel.session, ctx.scene.objects.get(selected.object).transform.getMatrix());
+        started = mesh.bevelVertex(selected.vertex, bevel.session, ctx.scene.objects.worldMatrix(selected.object));
     } else if (mode == InputContext_SelectionEdge) {
         if (selection.getEdges().size() != 1) return;
 
@@ -69,7 +69,7 @@ void beginBevel(AppContext& ctx) {
             (mesh.getVertexPosition(mesh.getEdgeOrigin(selected.edge)) +
              mesh.getVertexPosition(mesh.getEdgeTip(selected.edge))) / 2.0f;
         ctx.history.begin(ctx.scene);
-        started = mesh.bevelEdge(selected.edge, bevel.session, ctx.scene.objects.get(selected.object).transform.getMatrix());
+        started = mesh.bevelEdge(selected.edge, bevel.session, ctx.scene.objects.worldMatrix(selected.object));
     } else if (mode == InputContext_SelectionFace) {
         if (selection.getFaces().size() != 1) return;
 
@@ -83,7 +83,7 @@ void beginBevel(AppContext& ctx) {
         bevel.object = selected.object;
         bevel.pivot = center / static_cast<f32>(corners.size());
         ctx.history.begin(ctx.scene);
-        started = mesh.bevelFace(selected.face, bevel.session, ctx.scene.objects.get(selected.object).transform.getMatrix());
+        started = mesh.bevelFace(selected.face, bevel.session, ctx.scene.objects.worldMatrix(selected.object));
     }
 
     if (!started) {
@@ -117,7 +117,7 @@ void updateWidthTool(AppContext& ctx, Action confirm, Action cancel) {
     f32 y = 0.0f;
     f32 worldPerPixel = 0.0f;
 
-    if (projectToScreen(ctx, object, bevel.pivot, x, y, worldPerPixel)) {
+    if (projectToScreen(ctx, ctx.scene.objects.worldMatrix(bevel.object), bevel.pivot, x, y, worldPerPixel)) {
         const f32 width = mouseDistance(ctx, bevel.startMouseX, bevel.startMouseY) * worldPerPixel;
 
         object.meshData.setSlideWidth(bevel.session, width);

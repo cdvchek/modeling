@@ -169,6 +169,20 @@ TEST_CASE(ui_drag_float3_moves_by_mouse_delta) {
     CHECK(value.z == 3.0f);
 }
 
+TEST_CASE(ui_drag_float_is_one_box_across_the_control) {
+    Harness h;
+    f32 value = 2.0f;
+    const auto widgets = [&]() { h.ui.dragFloat("Size", value, 0.01f); };
+
+    // One box fills the control column, so a press near its right end still drags it
+    h.frame(Vec2(270, 20), false, false, widgets);
+    h.frame(Vec2(270, 20), true, false, widgets);
+    h.frame(Vec2(220, 20), true, true, widgets);
+    h.frame(Vec2(220, 20), false, true, widgets);
+
+    CHECK(std::abs(value - 1.5f) < 1e-4f);
+}
+
 TEST_CASE(ui_ids_differ_by_scope) {
     UIContext ui;
     ui.pushId(1u);
@@ -574,4 +588,53 @@ TEST_CASE(ui_dropdown_closes_on_outside_click_without_passing_it_on) {
     h.frame(Vec2(600, 500), false, false, widgets);
     CHECK(!h.ui.wantsMouse());
     CHECK(index == 0);
+}
+
+TEST_CASE(ui_tree_row_drags_onto_another_row) {
+    Harness h;
+    bool openA = true, openB = true;
+    bool dragging = false, dropped = false, clickedA = false;
+    u32 payload = 0;
+    Rect rowB;
+
+    const auto widgets = [&]() {
+        clickedA = h.ui.treeRow("A", false, {}, 0, true, openA);
+        dragging = h.ui.dragSource(7, "A");
+        h.ui.treeRow("B", false, {}, 1, false, openB);
+        rowB = h.ui.lastItemRect();
+        dropped = h.ui.acceptDrop(rowB, payload);
+    };
+
+    // Press on A's name, then move past the drag threshold: a drag carrying A's payload starts
+    h.frame(Vec2(80, 20), false, false, widgets);
+    h.frame(Vec2(80, 20), true, false, widgets);
+    CHECK(!dragging);
+    h.frame(Vec2(80, 30), true, true, widgets);
+    CHECK(dragging && h.ui.isDragging() && h.ui.dragPayload() == 7);
+
+    // Released over B: B takes it, the drag ends, and A wasn't clicked
+    h.frame(Vec2(80, 50), true, true, widgets);
+    h.frame(Vec2(80, 50), false, true, widgets);
+    CHECK(dropped && payload == 7);
+    CHECK(!clickedA);
+    CHECK(!h.ui.isDragging());
+}
+
+TEST_CASE(ui_tree_row_arrow_folds_without_selecting) {
+    Harness h;
+    bool open = true;
+    bool clicked = false;
+    const auto widgets = [&]() { clicked = h.ui.treeRow("Parent", false, "2 faces", 0, true, open); };
+
+    // The arrow sits at the start of the row
+    h.frame(Vec2(16, 20), false, false, widgets);
+    h.frame(Vec2(16, 20), true, false, widgets);
+    h.frame(Vec2(16, 20), false, true, widgets);
+    CHECK(!open);
+    CHECK(!clicked);
+
+    // The rest of the row selects
+    h.frame(Vec2(120, 20), true, false, widgets);
+    h.frame(Vec2(120, 20), false, true, widgets);
+    CHECK(clicked && !open);
 }

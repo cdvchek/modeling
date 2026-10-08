@@ -513,6 +513,65 @@ void OpenGLRenderer::drawGrid(const DrawGridCommand& command) {
     glDisable(GL_BLEND);
 }
 
+void OpenGLRenderer::drawImage(const DrawImageCommand& command) {
+    if (!m_initialized || command.texture == 0) return;
+
+    OpenGLShader& shader = m_shaders.get(ShaderId::Image);
+    if (!shader.bind()) return;
+
+    shader.setMat4("u_MVP", command.mvp.m);
+    shader.setFloat("u_Opacity", command.opacity);
+    shader.setInt("u_Texture", 0);
+
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, command.texture);
+
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    if (!command.depthTest) glDisable(GL_DEPTH_TEST);
+    // A see-through image doesn't hide what's drawn after it
+    glDepthMask(command.depthTest && command.opacity >= 0.999f ? GL_TRUE : GL_FALSE);
+
+    glBindVertexArray(m_fullscreenVAO);
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+    glBindVertexArray(0);
+
+    glDepthMask(GL_TRUE);
+    glEnable(GL_DEPTH_TEST);
+    glDisable(GL_BLEND);
+    glBindTexture(GL_TEXTURE_2D, 0);
+}
+
+u32 OpenGLRenderer::createTexture(const u8* pixels, u32 width, u32 height) {
+    if (!m_initialized || !pixels || width == 0 || height == 0) return 0;
+
+    GLint maxSize = 0;
+    glGetIntegerv(GL_MAX_TEXTURE_SIZE, &maxSize);
+    if (width > static_cast<u32>(maxSize) || height > static_cast<u32>(maxSize)) return 0;
+
+    GLuint texture = 0;
+    glGenTextures(1, &texture);
+    glBindTexture(GL_TEXTURE_2D, texture);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, static_cast<GLsizei>(width), static_cast<GLsizei>(height), 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+    glGenerateMipmap(GL_TEXTURE_2D);
+
+    // Mipmaps keep a big picture smooth when it's far away
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    return texture;
+}
+
+void OpenGLRenderer::destroyTexture(u32 texture) {
+    if (!m_initialized || texture == 0) return;
+    const GLuint name = texture;
+    glDeleteTextures(1, &name);
+}
+
 void OpenGLRenderer::drawDebugLine(
     const Vec3& start,
     const Vec3& end,

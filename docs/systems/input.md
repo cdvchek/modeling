@@ -16,15 +16,16 @@ There are five pieces:
 
 ## InputState
 
-Filled by event subscribers in `application_events.cpp`. `beginFrame()` runs at the top of every frame: it copies current state into "previous" and zeroes mouse delta and scroll.
+Filled by event subscribers in `application_events.cpp`. `beginFrame()` runs at the top of every frame: it copies current state into "previous", zeroes mouse delta and scroll, and clears the frame's button presses and releases. Button events also carry the click's position, which is applied first: Windows can deliver the move to a spot after the click there.
 
 | Method | Description |
 |---|---|
 | `isKeyDown(key)` / `wasKeyDown(key)` | Held this frame / held last frame |
 | `wasKeyPressedThisFrame(key)` / `wasKeyReleasedThisFrame(key)` | Edge detection: down now but not last frame, and vice versa |
-| `isMouseDown`, `wasMouseDown`, `wasMousePressedThisFrame`, `wasMouseReleasedThisFrame` | Same, for mouse buttons |
+| `isMouseDown`, `wasMouseDown` | Held this frame / last frame, for mouse buttons |
+| `wasMousePressedThisFrame` / `wasMouseReleasedThisFrame` | A press or release happened this frame, recorded as it arrived, so a click that goes down and up within one frame reports both (and `ActionMap` counts it as a press) |
 | `getMouseX/Y()` | Cursor position in client pixels (origin top-left) |
-| `getMouseDeltaX/Y()` | Movement since the start of this frame |
+| `getMouseDeltaX/Y()` | Movement since the start of this frame, every move added up |
 | `getScroll()` | Wheel delta this frame (0 if none) |
 | `getKeyPresses()` / `wasKeyPressedOrRepeated(key)` | Every key press this frame in order, including the OS's repeats while a key is held (they start after the system repeat delay). Used for text fields and console editing keys. |
 | `getTypedText()` | Printable characters typed this frame (from `Event::Char`; control characters such as Backspace, Enter, and Ctrl+letters are left out) |
@@ -49,6 +50,7 @@ Defaults live in `namespace DefaultKeybinds`.
 |---|---|
 | `Global` | Always on |
 | `Console` | Console is open. **While on, only actions that list `Console` can fire.** |
+| `Modal` | A modal window is open (Export window, prompt). **While on, only actions that list `Modal` can fire**, even over the console: Enter (`ModalConfirm`) and Escape (`ModalCancel`). |
 | `Debug` | Half-edge debug overlay is visible |
 | `SelectionVertex` / `SelectionEdge` / `SelectionFace` / `SelectionObject` | Current selection mode. Exactly one is on, unless a modal tool replaced it. `InputContext_EditModes` is the first three; `InputContext_AnySelection` is all four. |
 | `Grab` / `Scale` / `Rotate` / `Bevel` / `Inset` | A modal tool is running |
@@ -76,7 +78,7 @@ Defaults live in `namespace DefaultKeybinds`.
 | `wasActionPressedOrRepeated(action, input, context)` | Like `wasActionPressedThisFrame`, and also true on each OS repeat of a single-key binding that's held. The console's editing keys use it. |
 | `setMouseBlocked(bool)` | While set, actions whose binding includes a mouse button or the scroll wheel never fire. Set every frame from `ctx.ui.wantsMouse()` so clicks and scrolling over UI don't reach the viewport. |
 
-Both return false if none of the action's contexts are active, or if the console is open and the action isn't a console action.
+Both return false if none of the action's contexts are active, or if something owns the input and the action isn't one of its own: a modal window (`Modal`), then the console (`Console`) (`ownerAllows`).
 
 **Modifiers:** a binding made only of keys doesn't fire while Ctrl or Alt is held unless it includes it, so Ctrl+S saves without also starting scale (S). Shift only counts for bindings that have Ctrl or Alt, so Ctrl+S and Ctrl+Shift+S stay apart while Shift+key bindings could still be added. Either side's modifier counts as held. Bindings with a mouse button or the wheel are unaffected (Shift/Ctrl/Alt + click are separate actions checked by the selection code).
 
@@ -84,7 +86,7 @@ All bindings are registered in [application_actions.cpp](../../src/application/a
 
 ### Handlers (the action registry)
 
-One-shot actions also have a handler, so the keyboard and (later) the radial menu run them the same way:
+One-shot actions also have a handler, so the keyboard and the radial menu run them the same way:
 
 ```cpp
 struct ActionHandler {
@@ -103,7 +105,7 @@ struct ActionHandler {
 | `getKeybind(action)` | The binding, or `nullptr` for actions with none (shown as key hints in the radial menu). |
 | `dispatch(input, contextManager)` | Runs the handler of every action pressed this frame whose `canRun` passes, in `Action` enum order. The context is read again before each action, so an action that starts a tool stops the ones after it that only work outside the tool. |
 
-Some actions have a handler but no binding (merge, dissolve, Free, light type, light on/off, panel, headlight, debug view); they only run from the radial menu.
+Some actions have a handler but no binding (merge, dissolve, Free, light type, light on/off, panel, headlight, debug view, origins on/off, and the origin commands); they only run from the radial menu.
 
 `keybindLabel(keybind)` ([keybinds.cpp](../../src/core/input/keybinds.cpp)) turns a binding into short text such as `Ctrl+Z`, `M+V`, `Del`, or `Mouse4`.
 
@@ -131,6 +133,10 @@ Handlers are registered in `registerDefaultActions`; their lambdas capture the `
 | SelectRing | Alt + left click | Edge |
 | Undo | Ctrl + Z | Selection |
 | Redo | Ctrl + Y | Selection |
+| ExportAssets | Ctrl + E (the Export window) | Selection |
+| ParentToActive / ClearParents | Ctrl + P / Alt + P | Object |
+| ImportAssets | Ctrl + I | Selection |
+| ModalConfirm / ModalCancel | Enter / Escape | Modal |
 | SaveProject | Ctrl + S | Selection |
 | SaveProjectAs | Ctrl + Shift + S | Selection |
 | OpenProject | Ctrl + O | Selection |

@@ -12,7 +12,7 @@ void beginInset(AppContext& ctx) {
     // Measured in world space, so the width matches the mouse on scaled objects
     ctx.history.begin(ctx.scene);
     std::vector<FaceHandle> inner;
-    const RegionError error = object->meshData.insetRegions(selection.getFaceHandles(), inset.session, inner, object->transform.getMatrix());
+    const RegionError error = object->meshData.insetRegions(selection.getFaceHandles(), inset.session, inner, ctx.scene.objects.worldMatrix(ctx.scene.selection.getActiveObject()));
 
     if (error != RegionError::None) {
         ctx.history.cancel(ctx.scene);

@@ -89,6 +89,7 @@ Every operator must leave the mesh passing `validate()`, including when it fails
 | Function | Description |
 |---|---|
 | `setMesh(PresetMesh)` | Replaces the mesh with a preset at its default settings (see [Presets](#presets)). |
+| `setMesh(PackagedMesh)` | Replaces the mesh with one built elsewhere (`MeshFactory::fromPolygons`, an imported asset). |
 | `getVertex` / `getEdge` / `getFace(handle)` | Pointer to the element, or `nullptr` if the handle is invalid. |
 | `getVertices()` / `getFaces()` | Copies of all live elements. |
 | `getVertexHandles()` / `getEdgeHandles()` / `getFaceHandles()` | Handles of all live elements. Edge handles include both halves. |
@@ -243,7 +244,7 @@ Each preset is a `MeshFactory` function in `presets/` that returns a `PackagedMe
 | `IcoSphere` | `icoSphere(radius 0.5, subdivisions 1)` | 80 triangles (icosahedron split once) |
 | `Torus` | `torus(major 0.4, minor 0.15, segments 24, sides 12)` | 288 quads; every loop wraps around |
 
-`setMesh` always uses the defaults; the parameters are there for a future add-object command.
+`setMesh` always uses the defaults; the parameters are there for preset options later (see [Ideas](../features.md#good-next-picks)).
 
 ### fromPolygons
 

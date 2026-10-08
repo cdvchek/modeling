@@ -11,7 +11,7 @@ Files: `src/renderer/`, plus [opengl_renderer_win32.cpp](../../src/platform/rend
 | [gpu_mesh.hpp](../../src/renderer/gpu_mesh.hpp) | `IMesh` interface |
 | [shader.hpp](../../src/renderer/shader.hpp) | `Shader` interface |
 | `opengl/opengl_renderer.hpp` | `OpenGLRenderer` class |
-| `opengl/opengl_renderer_common.cpp` | Portable GL code: `createResources`/`destroyResources`, and drawing objects, grid, world text, debug lines |
+| `opengl/opengl_renderer_common.cpp` | Portable GL code: `createResources`/`destroyResources`, textures, and drawing objects, images, grid, world text, debug lines |
 | `opengl/opengl_ui_renderer.*` | `OpenGLUIRenderer`: draws a `UIDrawList` (see [ui.md](ui.md)) |
 | `opengl/opengl_mesh.*` | `OpenGLMesh`: GPU buffers for one `MeshData` |
 | `opengl/shaders/opengl_shader.*` | `OpenGLShader`: compile, bind, set uniforms |
@@ -31,12 +31,14 @@ Files: `src/renderer/`, plus [opengl_renderer_win32.cpp](../../src/platform/rend
 | `beginFrame()` / `beginMainPass(ClearState)` | Start a frame, clear, and draw the gradient background (when `clearColor` is set). The gradient covers the clear color, which only shows if the background shader fails to load. |
 | `setBackground(BackgroundGradient)` / `getBackground()` | Top and bottom background colors. Default top 0.20/0.22/0.28 (Dracula `#343746`), bottom 0.10/0.10/0.13 (`#191a21`). |
 | `setLighting(LightingState)` | Lighting for the following `draw` calls. Call once per frame before drawing objects. |
-| `setBackFaceTint(color)` / `getBackFaceTint()` | Color back faces are multiplied by. Default 0.8/0.4/0.4. Set by the `backface tint` command. |
+| `setBackFaceTint(color)` / `getBackFaceTint()` | Color back faces are multiplied by. Default 0.95/0.45/0.70 (pink). Set by the `backface tint` command. |
 | `draw(DrawCommand)` | Draws one mesh's faces, edges, and vertices. |
 | `drawGrid(DrawGridCommand)` | Ground grid and axes. |
+| `drawImage(DrawImageCommand)` | A textured unit square (reference images): blended, with an opacity on top of the texture's alpha. Writes depth only when depth tested and fully opaque, so see-through images don't hide what's drawn after them. |
+| `createTexture(pixels, width, height)` / `destroyTexture(texture)` | An RGBA8 texture (rows from the top) with mipmaps, trilinear filtering, and clamped edges; returns 0 if it's larger than `GL_MAX_TEXTURE_SIZE`. |
 | `drawText3D(DrawText3DCommand)` | Text on a quad in world space. |
 | `drawDebugLine(start, end, mvp)` | One white line. |
-| `drawUI(UIDrawList)` | All 2D UI for the frame (console, later the status line and panel) in one call. See [ui.md](ui.md). |
+| `drawUI(UIDrawList)` | All 2D UI for the frame (markers, status bar, panel, windows, menus, console) in one call. See [ui.md](ui.md). |
 | `endMainPass()` / `endFrame()` / `present()` | Resolve the MSAA framebuffer to the window, finish, and swap buffers. |
 
 ### Draw commands
@@ -44,12 +46,19 @@ Files: `src/renderer/`, plus [opengl_renderer_win32.cpp](../../src/platform/rend
 ```cpp
 struct DrawCommand {
     bool showVerts, showEdges, showFaces;
-    std::vector<VertexHandle> highlightedVerts;   // drawn yellow
+    std::vector<VertexHandle> highlightedVerts;   // drawn in the selection purple
     std::vector<EdgeHandle> highlightedEdges;
     std::vector<FaceHandle> highlightedFaces;
     IMesh* mesh;
     Mat4 model;           // for the normal matrix
     Mat4 mvp;
+};
+
+struct DrawImageCommand {
+    u32 texture;           // from createTexture
+    Mat4 mvp;              // places the unit square (-0.5 to 0.5 in X and Y)
+    f32 opacity;
+    bool depthTest;        // false draws it over whatever is there
 };
 
 struct DrawGridCommand {
@@ -127,8 +136,9 @@ Programs are looked up by `ShaderId` through `OpenGLShaderLibrary`:
 | `Background` | `fullscreen.vert` | `background.frag` | Viewport gradient, drawn first with depth test and writes off. Blends `u_BottomColor` → `u_TopColor` by `gl_FragCoord.y / u_ViewportHeight` and adds ±½/255 noise to break up 8-bit banding. | `u_TopColor`, `u_BottomColor`, `u_ViewportHeight` |
 | `UI` | `ui.vert` | `ui.frag` | All 2D UI: rounded rects, borders, shadows, lines, ring slices, glyphs (see [ui.md](ui.md#shader)) | `u_ViewportSize`, `u_Texture` |
 | `Grid` | `grid.vert` | `grid.frag` | Ground grid and axes | see [Grid](#grid) |
+| `Image` | `image.vert` | `image.frag` | Reference images: a unit square from `gl_VertexID` (6 vertices, the empty VAO), the texture's first row at the top; fragments under 0.4% alpha are discarded so they leave the depth buffer alone | `u_MVP`, `u_Opacity`, `u_Texture` |
 
-Naming in GLSL: `a_` vertex inputs, `v_` values passed to the fragment stage, `u_` uniforms. `fullscreen.vert` and `grid.vert` take positions from `gl_VertexID` and are drawn with the empty `m_fullscreenVAO`.
+Naming in GLSL: `a_` vertex inputs, `v_` values passed to the fragment stage, `u_` uniforms. `fullscreen.vert`, `grid.vert`, and `image.vert` take positions from `gl_VertexID` and are drawn with the empty `m_fullscreenVAO`.
 
 `OpenGLShader` methods: `create(name, vert, frag)`, `destroy()`, `bind()`, `setMat4`, `setVec3`, `setVec3Array`, `setFloat`, `setFloatArray`, `setInt` (use for samplers). Array setters take the name of element 0, e.g. `"u_Lights[0]"`. Uniform locations are cached per name. Matrices are uploaded column-major without transposing. Compile and link errors are printed to stderr with the shader's name. A program that fails to load is skipped: `bind()` returns false and the draws that use it return early. The rest of the app keeps running.
 
@@ -148,7 +158,7 @@ Naming in GLSL: `a_` vertex inputs, `v_` values passed to the fragment stage, `u
   ```
   The shader draws lines at `spacing` (thin, fading out with `blend`), `5 × spacing` (thick, thinning as `blend` → 1), and `25 × spacing` (thick, fading in). At `blend = 1` this matches the next level at `blend = 0`, so zooming never pops.
 - **Line quality:** lines are a fixed pixel width using `fwidth`, and fade out when the grid cells get smaller than a few pixels.
-- **Axes:** the X axis (`z = 0`) is drawn red and the Z axis (`x = 0`) blue, 2 px wide.
+- **Axes:** the X axis (`z = 0`) is drawn red and the Z axis (`x = 0`) cyan, 2 px wide.
 - **Fade:** alpha falls off between 50% and 100% of `farPlane` from the camera.
 - **State:** drawn after objects with blending on and depth writes off; both are restored afterward.
 

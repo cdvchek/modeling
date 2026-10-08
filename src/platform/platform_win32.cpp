@@ -3,6 +3,7 @@
 #include <windows.h>
 #include <commdlg.h>
 #include <shlobj.h>
+#include <shobjidl.h>
 
 void Platform::pollEvents() {
     static MSG msg{};
@@ -73,7 +74,7 @@ namespace {
         return filter;
     }
 
-    std::filesystem::path runFileDialog(void* window, const std::string& typeName, const std::string& extension, const std::filesystem::path& folderPath, const std::filesystem::path& fileName, bool save) {
+    std::vector<std::filesystem::path> runFileDialog(void* window, const std::string& typeName, const std::string& extension, const std::filesystem::path& folderPath, const std::filesystem::path& fileName, bool save, bool multiple = false) {
         const std::wstring filter = fileFilter(typeName, extension);
         const std::wstring defaultExtension = widen(extension.size() > 1 ? extension.substr(1) : extension);
 
@@ -93,21 +94,65 @@ namespace {
         dialog.lpstrDefExt = defaultExtension.c_str();
         // NOCHANGEDIR: otherwise the dialog moves the app's working directory
         dialog.Flags = OFN_EXPLORER | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR
-                     | (save ? OFN_OVERWRITEPROMPT : OFN_FILEMUSTEXIST);
+                     | (save ? OFN_OVERWRITEPROMPT : OFN_FILEMUSTEXIST) | (multiple ? OFN_ALLOWMULTISELECT : 0);
 
         const BOOL chosen = save ? GetSaveFileNameW(&dialog) : GetOpenFileNameW(&dialog);
         if (!chosen) return {};
 
-        return std::filesystem::path(std::wstring(buffer.c_str()));
+        // Several files come back as the folder, then each name, each ending in a null, the list in two
+        std::vector<std::filesystem::path> paths;
+        const std::wstring first(buffer.c_str());
+        const wchar_t* name = buffer.c_str() + first.size() + 1;
+        if (!multiple || *name == L'\0') return { std::filesystem::path(first) };
+
+        for (; *name != L'\0'; name += std::wcslen(name) + 1) paths.push_back(std::filesystem::path(first) / name);
+        return paths;
     }
 }
 
 std::filesystem::path Platform::chooseOpenFile(void* window, const std::string& typeName, const std::string& extension, const std::filesystem::path& folder) {
-    return runFileDialog(window, typeName, extension, folder, {}, false);
+    const std::vector<std::filesystem::path> paths = runFileDialog(window, typeName, extension, folder, {}, false);
+    return paths.empty() ? std::filesystem::path() : paths.front();
+}
+
+std::vector<std::filesystem::path> Platform::chooseOpenFiles(void* window, const std::string& typeName, const std::string& extension, const std::filesystem::path& folder) {
+    return runFileDialog(window, typeName, extension, folder, {}, false, true);
 }
 
 std::filesystem::path Platform::chooseSaveFile(void* window, const std::string& typeName, const std::string& extension, const std::filesystem::path& folder, const std::filesystem::path& fileName) {
-    return runFileDialog(window, typeName, extension, folder, fileName, true);
+    const std::vector<std::filesystem::path> paths = runFileDialog(window, typeName, extension, folder, fileName, true);
+    return paths.empty() ? std::filesystem::path() : paths.front();
+}
+
+std::filesystem::path Platform::chooseFolder(void* window, const std::filesystem::path& folder) {
+    // The folder picker is a COM object; initializing again on this thread is fine
+    const HRESULT com = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
+    std::filesystem::path result;
+
+    IFileOpenDialog* dialog = nullptr;
+    if (SUCCEEDED(CoCreateInstance(CLSID_FileOpenDialog, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&dialog)))) {
+        DWORD options = 0;
+        dialog->GetOptions(&options);
+        dialog->SetOptions(options | FOS_PICKFOLDERS | FOS_FORCEFILESYSTEM | FOS_NOCHANGEDIR);
+
+        IShellItem* start = nullptr;
+        if (!folder.empty() && SUCCEEDED(SHCreateItemFromParsingName(folder.wstring().c_str(), nullptr, IID_PPV_ARGS(&start)))) {
+            dialog->SetFolder(start);
+            start->Release();
+        }
+
+        IShellItem* picked = nullptr;
+        if (SUCCEEDED(dialog->Show(static_cast<HWND>(window))) && SUCCEEDED(dialog->GetResult(&picked))) {
+            PWSTR path = nullptr;
+            if (SUCCEEDED(picked->GetDisplayName(SIGDN_FILESYSPATH, &path))) result = path;
+            CoTaskMemFree(path);
+            picked->Release();
+        }
+        dialog->Release();
+    }
+
+    if (SUCCEEDED(com)) CoUninitialize();
+    return result;
 }
 
 std::filesystem::path Platform::documentsFolder() {
@@ -118,11 +163,3 @@ std::filesystem::path Platform::documentsFolder() {
     return result;
 }
 
-Platform::SaveChoice Platform::askToSaveChanges(void* window, const std::string& title, const std::string& name) {
-    const std::wstring text = L"Save changes to " + widen(name) + L"?";
-    const int answer = MessageBoxW(static_cast<HWND>(window), text.c_str(), widen(title).c_str(), MB_YESNOCANCEL | MB_ICONWARNING);
-
-    if (answer == IDYES) return SaveChoice::Save;
-    if (answer == IDNO) return SaveChoice::DontSave;
-    return SaveChoice::Cancel;
-}

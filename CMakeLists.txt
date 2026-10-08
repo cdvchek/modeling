@@ -48,12 +48,18 @@ set(CORE_SRC
     src/scene/mesh/mesh_data_gpu.cpp
     src/scene/mesh/mesh_data_serialize.cpp
     src/scene/lights/light_collection.cpp
+    src/scene/references/reference_collection.cpp
     src/scene/objects/object_collection.cpp
+    src/scene/objects/origin.cpp
     src/scene/selection/selection.cpp
+    src/scene/selection/ray.cpp
+    src/scene/selection/scene_queries.cpp
     src/scene/transform.cpp
     src/scene/camera.cpp
     src/scene/history.cpp
     src/project/project_file.cpp
+    src/asset/asset_file.cpp
+    src/asset/export_plan.cpp
 )
 
 set(APP_SRC
@@ -69,14 +75,20 @@ set(APP_SRC
     src/application/application_actions.cpp
     src/application/editing_actions.cpp
     src/application/radial_menu.cpp
+    src/application/reference_images.cpp
+    src/application/reference_commands.cpp
     src/application/console_view.cpp
     src/application/tool_guides.cpp
     src/application/application_commands.cpp
     src/application/light_commands.cpp
     src/application/object_commands.cpp
     src/application/project_actions.cpp
+    src/application/modal_windows.cpp
+    src/application/asset_actions.cpp
     src/application/status_bar.cpp
     src/application/light_markers.cpp
+    src/application/origin_markers.cpp
+    src/application/origin_actions.cpp
     src/application/main_panel.cpp
     src/application/object_meshes.cpp
     src/application/application_events.cpp
@@ -96,15 +108,22 @@ set(APP_SRC
     src/renderer/opengl/shaders/opengl_shader_library.cpp
     src/renderer/debug_renderer.cpp
     src/renderer/renderer.cpp
-    src/scene/selection/ray.cpp
-    src/scene/selection/scene_queries.cpp
 )
 
 set(C_SRC
     ${CMAKE_SOURCE_DIR}/lib/glad/glad.c
 )
 
+# The .vlmobj asset format, shared with the Aevora engine; depends on nothing in this app
+add_library(vlmobj STATIC shared/vlmobj/vlmobj.cpp)
+target_include_directories(vlmobj PUBLIC ${CMAKE_SOURCE_DIR}/shared)
+
+# Image files (PNG), shared the same way
+add_library(image STATIC shared/image/png.cpp shared/image/inflate.cpp)
+target_include_directories(image PUBLIC ${CMAKE_SOURCE_DIR}/shared)
+
 add_library(modeling_core STATIC ${CORE_SRC})
+target_link_libraries(modeling_core PUBLIC vlmobj image)
 
 target_include_directories(modeling_core PUBLIC
     ${CMAKE_SOURCE_DIR}/src
@@ -129,9 +148,12 @@ set_target_properties(modeling PROPERTIES
 
 enable_testing()
 
-file(GLOB TEST_SRC CONFIGURE_DEPENDS ${CMAKE_SOURCE_DIR}/tests/*.cpp)
+file(GLOB TEST_SRC CONFIGURE_DEPENDS ${CMAKE_SOURCE_DIR}/tests/*.cpp ${CMAKE_SOURCE_DIR}/shared/*/tests/*.cpp)
 
 add_executable(tests ${TEST_SRC})
 target_link_libraries(tests PRIVATE modeling_core)
+target_include_directories(tests PRIVATE ${CMAKE_SOURCE_DIR}/tests)
+# Lets tests find checked-in reference files
+target_compile_definitions(tests PRIVATE SOURCE_DIR="${CMAKE_SOURCE_DIR}")
 
 add_test(NAME tests COMMAND tests)

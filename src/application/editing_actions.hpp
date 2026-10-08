@@ -37,6 +37,14 @@ void mergeVertices(AppContext& ctx, u8 mergeType = 0);
 bool canDissolve(const AppContext& ctx);
 void dissolveSelection(AppContext& ctx);
 
+// Ctrl+P (object mode): the selected objects become children of the active object, staying where they are.
+// One that would become its own parent's parent is skipped, with a console error.
+bool canParentToActive(const AppContext& ctx);
+void parentToActive(AppContext& ctx);
+// Alt+P (object mode): the selected objects lose their parents, staying where they are
+bool canClearParents(const AppContext& ctx);
+void clearParents(AppContext& ctx);
+
 // Removes every selected object as one undo step
 void deleteSelectedObjects(AppContext& ctx);
 

@@ -18,7 +18,8 @@ enum InputContext : u32 {
     InputContext_ZAxis           = 1 << 11,
     InputContext_Bevel           = 1 << 12,
     InputContext_SelectionObject = 1 << 13,
-    InputContext_Inset           = 1 << 14
+    InputContext_Inset           = 1 << 14,
+    InputContext_Modal           = 1 << 15   // a modal window is open; only its bindings work
 };
 
 // Vertex, edge, and face mode edit the active object's mesh

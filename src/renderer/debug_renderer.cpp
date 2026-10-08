@@ -8,7 +8,7 @@ void DebugRenderer::render(
     const Mat4& vp
 ) {
     for (ObjectHandle handle : scene.objects.handles()) {
-        drawHalfEdges(renderer, scene.objects.get(handle), vp);
+        drawHalfEdges(renderer, scene.objects.get(handle), vp * scene.objects.worldMatrix(handle));
     }
 }
 
@@ -16,13 +16,11 @@ void DebugRenderer::render(
 void DebugRenderer::drawHalfEdges(
     IRenderer& renderer,
     const Object& object,
-    const Mat4& vp
+    const Mat4& mvp
 ) {
     const MeshData& mesh = object.meshData;
 
     const std::vector<EdgeHandle> edges = mesh.getEdgeHandles();
-
-    const Mat4 mvp = vp * object.transform.getMatrix();
 
     for (const EdgeHandle edge : edges) {
         drawHalfEdge(renderer, mesh, edge, mvp);

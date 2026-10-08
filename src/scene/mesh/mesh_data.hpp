@@ -58,6 +58,8 @@ public:
     // ---- Access (mesh_data_access.cpp) ----
 
     void setMesh(PresetMesh meshType);
+    // Takes a mesh built elsewhere (MeshFactory::fromPolygons, an imported asset)
+    void setMesh(const PackagedMesh& mesh);
 
     const Vertex* getVertex(VertexHandle handle) const;
     const Edge* getEdge(EdgeHandle handle) const;

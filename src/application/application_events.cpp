@@ -1,5 +1,6 @@
 #include "application/application.hpp"
 #include "application/project_actions.hpp"
+#include "application/modal_windows.hpp"
 
 void Application::registerInputEvents(AppContext& ctx) {
     ctx.systems.events.subscribe<Event::KeyDown>(
@@ -31,6 +32,8 @@ void Application::registerInputEvents(AppContext& ctx) {
 
     ctx.systems.events.subscribe<Event::MouseButtonDown>(
         [&ctx](const Event::MouseButtonDown& event) -> bool {
+            // The click's own position: the move to it can arrive after the click (e.g. after the cursor jumps)
+            ctx.systems.input.onMouseMove(event.x, event.y);
             ctx.systems.input.onMouseButton(event.button, true);
             return false;
         }
@@ -38,6 +41,7 @@ void Application::registerInputEvents(AppContext& ctx) {
 
     ctx.systems.events.subscribe<Event::MouseButtonUp>(
         [&ctx](const Event::MouseButtonUp& event) -> bool {
+            ctx.systems.input.onMouseMove(event.x, event.y);
             ctx.systems.input.onMouseButton(event.button, false);
             return false;
         }
@@ -72,9 +76,9 @@ void Application::registerInputEvents(AppContext& ctx) {
 
     ctx.systems.events.subscribe<Event::Quit>(
         [&ctx](const Event::Quit&) -> bool {
-            // Closing with unsaved changes asks first; Cancel keeps the app open
-            if (!confirmDiscardChanges(ctx)) return true;
-            ctx.is_running = false;
+            // Closing with unsaved changes asks first (once, however often Alt+F4 repeats); Cancel keeps the app open
+            if (ctx.modal.kind == ModalKind::Prompt) return true;
+            confirmDiscardChanges(ctx, [&ctx] { ctx.is_running = false; });
             return true;
         }
     );

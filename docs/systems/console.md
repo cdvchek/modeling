@@ -6,7 +6,7 @@ Files: `src/core/console/`, commands in [application_commands.cpp](../../src/app
 
 Press **/** to open or close it (the `/` itself is never typed into the command). While it's open, the `Console` input context is on and only console keybinds work (see [input.md](input.md)). Typed characters arrive through `Event::Char`. Backspace, Delete, the arrow keys, and history Up/Down repeat while held, after the system repeat delay (`ActionMap::wasActionPressedOrRepeated`); Enter doesn't.
 
-**Look** ([console_view.cpp](../../src/application/console_view.cpp), `drawConsole`): a panel docked at the bottom of the viewport above the status bar (45% of the height, at most 420 px), styled like the floating panel. A header shows "Console" and dim key hints. The list above the input shows **entries**, newest at the bottom: commands (dim green `>`, fading as they get older), their output (grey), and errors (red, with a `!`). Output and errors longer than one line show a small arrow: click the row to collapse it to its first line plus "(+N lines)", or expand it again; the clicked row stays in view and the expanded lines appear below it. The mouse wheel scrolls the list (three lines a notch); new entries jump back to the newest. While Up/Down is recalling a command (`Console::getBrowsedIndex()`, -1 once you edit or go past the newest), that entry is highlighted like a selected list row, and the list scrolls only as far as needed to keep it in view; a thin scrollbar appears when there's more than fits. Scroll position, the rows that can be clicked, and the last frame's list rect live in `ctx.consoleView` ([console_view_state.hpp](../../src/application/console_view_state.hpp)); `updateConsoleView` (called from `checkConsoleContext`) handles the wheel and clicks.
+**Look** ([console_view.cpp](../../src/application/console_view.cpp), `drawConsole`): a panel docked at the bottom of the viewport above the status bar (45% of the height, at most 420 px), styled like the floating panel. A header shows "Console" and dim key hints. The list above the input shows **entries**, newest at the bottom: commands (dim green `>`, fading as they get older), their output (grey), and errors (red, with a `!`). Lines too long for the panel wrap onto further rows (after a space when there is one), indented under the text, without a new prompt. Output and errors longer than one line show a small arrow: click the row to collapse it to its first line plus "(+N lines)", or expand it again; the clicked row stays in view and the expanded lines appear below it. The mouse wheel scrolls the list (three lines a notch); new entries jump back to the newest. While Up/Down is recalling a command (`Console::getBrowsedIndex()`, -1 once you edit or go past the newest), that entry is highlighted like a selected list row, and the list scrolls only as far as needed to keep it in view; a thin scrollbar appears when there's more than fits. Scroll position, the rows that can be clicked, and the last frame's list rect live in `ctx.consoleView` ([console_view_state.hpp](../../src/application/console_view_state.hpp)); `updateConsoleView` (called from `checkConsoleContext`) handles the wheel and clicks.
 
 **Collapsing rule:** closing the console calls `Console::collapseEntries()`, so every multi-line entry already there opens collapsed next time. Entries added after that (even while the console is closed, like a tool's error) stay expanded until the next close. One-line entries and commands never collapse. The input line is an outlined field with a green `>` prompt; the command scrolls sideways to keep the caret in view. The caret (`Console::getCursor()`) is a 2 px green bar that stays solid while the command or cursor changes and then blinks every 0.5 s. Sizes and colors are constants at the top of the file.
 
@@ -34,7 +34,7 @@ Holds the line being typed, the cursor, the history of entered lines (for Up/Dow
 
 | Method | Description |
 |---|---|
-| `registerCommand(name, description, callback)` | Adds a command. `callback` is `void(const CommandArgs&)`, where `CommandArgs` is `std::vector<std::string>`. Descriptions are shown by `help`; keep them as "what it does: usage" with no trailing period and `<value>` placeholders, short enough to fit on one console line (about 100 characters). |
+| `registerCommand(name, description, callback)` | Adds a command. `callback` is `void(const CommandArgs&)`, where `CommandArgs` is `std::vector<std::string>`. Descriptions are shown by `help`; keep them as "what it does: usage" with no trailing period and `<value>` placeholders, ideally short enough to fit on one console line (about 100 characters; longer ones wrap). |
 | `execute(line)` | Splits on whitespace; the first word is the command name and the rest are arguments. Returns false for an unknown name (an empty line is fine). |
 | `list()` | Every command and its description, sorted by name (used by `help`). |
 | `commandName(line)` | The first word of a line. |
@@ -47,12 +47,15 @@ Holds the line being typed, the cursor, the history of entered lines (for Up/Dow
 | `save` | none / `<path>` | Saves the project to its file (the Save As dialog the first time), or to the path. `.vlm` is added when there's no extension, and a relative path goes in `Documents\Valuma Studio`. See [project.md](project.md). |
 | `open` | none / `<path>` | Opens a project (the Open dialog without a path). Asks to save unsaved changes first. |
 | `new` | — | Starts a new project with the default scene. Asks to save unsaved changes first. |
+| `origin` | `geometry` / `bottom` / `world` / `rotation` / `selection` | Moves an origin while the mesh stays put: to the middle of the bounding box, the middle of its bottom, the world's 0, 0, 0, back in line with the world's axes, or the average of the selected vertices. Acts on the selected origin's object, else the active object (`selection` always the active object). Undoable; prints where the origin ended up. |
+| `import` | none / `<path>` | Adds a `.vlmobj` asset as a new object (the file dialog without a path). `.vlmobj` is added when there's no extension; a relative path starts in the export folder. See [vlmobj.md](vlmobj.md#in-the-app). |
 | `fileinfo` | none / `<path>` | Lists a project file's header and sections (type, version, offset, size, checksum, object names and counts). Without a path, the current project's file. |
 | `debug` | `on` / `off` / none (toggle) | Shows the half-edge debug overlay. |
 | `validate` | — | Runs `MeshData::validate()` on the active object. Prints counts if OK, or the first broken invariant. |
 | `merge` | `center` (default) / `first` / `last` | Vertex mode, exactly 2 selected, connected by an edge: collapses them into one vertex at the chosen position. Undoable. |
 | `dissolve` | — | Edge mode with 1 edge: collapses it to its midpoint. Face mode with 1 face: collapses it to its center. Undoable. |
 | `light` | see [below](#light-command) | Lists, adds, removes, and edits scene lights and the ambient light. Undoable. |
+| `reference` | see [below](#reference-command) | Lists, adds, removes, and edits reference images. Undoable. |
 | `headlight` | none / `on` / `off` / `color <r> <g> <b>` / `strength <s>` | Prints or changes the camera headlight (values 0 to 1). A viewport setting, not undoable. |
 | `backface` | `tint` / `tint <r> <g> <b>` | Prints or sets the color back faces are multiplied by (each 0 to 1; `1 1 1` turns the tint off). A display setting stored on the renderer, so not undoable. |
 | `ui` | `panel` | Shows or hides the floating panel (shown by default). |
@@ -84,23 +87,44 @@ A light's `<id>` is its slot index, shown by `light list` and printed by `light 
 
 Every change goes through `history.begin`/`commit`, so Ctrl+Z undoes it. Bad input prints the usage for that property and changes nothing.
 
+## Reference command
+
+An image's `<id>` is its slot index, shown by `reference list`.
+
+| Form | Description |
+|---|---|
+| `reference list` | Prints every reference image: name, file and size in pixels, shown or hidden, locked, opacity, depth, position, rotation (degrees), and size. |
+| `reference add` / `reference add <file.png>` | Adds images from the file dialog, or one file. `.png` is added when there's no extension; a relative path starts in `Documents\Valuma Studio`. Placed facing the view at the camera's target, selected. Not while a tool runs. |
+| `reference <id>` | Prints one image. |
+| `reference <id> remove` | Removes it. |
+| `reference <id> show` / `hide` | Shows or hides it. |
+| `reference <id> lock` / `unlock` | A locked image ignores clicks in the viewport. |
+| `reference <id> name <n>` | Renames it (one word). |
+| `reference <id> opacity <0 to 1>` | How see-through it is, on top of the picture's own transparency. |
+| `reference <id> depth <behind \| scene \| front>` | Under everything, among the meshes, or over everything. |
+| `reference <id> position <x> <y> <z>` / `rotation <x> <y> <z>` | Rotation in degrees. |
+| `reference <id> size <s>` | Its height in units; the width follows the picture. |
+
+Every change is one undo step; bad input prints the usage for that property and changes nothing.
+
 ## Object command
 
 An object's `<id>` is its slot index, shown by `object list`.
 
 | Form | Description |
 |---|---|
-| `object list` | Prints every object: name, `(editing)` for the active one, vertex and face counts, position, rotation (degrees), scale. |
+| `object list` | Prints every object: name, `(editing)` for the active one, vertex and face counts, position, rotation (degrees), scale (relative to the parent), and its parent if it has one. |
 | `object add <preset> [name]` | Adds a preset (`cube`, `plane`, `grid`, `circle`, `cylinder`, `cone`, `uvsphere`, `icosphere`, `torus`), 1.5 units further along X than the last, and makes it the active object. The name defaults to the preset's name, numbered if taken ("Cube 2"). |
 | `object <id>` | Prints one object. |
 | `object <id> edit` | Makes it the active object. |
 | `object <id> remove` | Removes it. If it was active, the first remaining object becomes active. |
 | `object <id> name <n>` | Renames it (one word). |
+| `object <id> parent <id \| none>` | Gives it a parent, or none, keeping it where it is in the world. Refused if the parent is the object or one of its children. |
 | `object <id> position <x> <y> <z>` | Moves it. |
 | `object <id> rotation <x> <y> <z>` | Rotation in degrees. |
 | `object <id> scale <x> <y> <z>` | Scale; no component may be zero. |
 
-Add, remove, and edits are undoable. The editing tools work in the mesh's own space, so they behave as expected on moved objects; on rotated or scaled objects, grab moves vertices along the mesh's axes rather than the screen's.
+Add, remove, and edits are undoable.
 
 ## Adding a command
 
@@ -109,7 +133,7 @@ Register it in `Application::registerCommands`:
 ```cpp
 ctx.systems.commands.registerCommand(
     "name",
-    "What it does.",
+    "What it does: name <value>",
     [&ctx](const CommandArgs& args) {
         ctx.history.begin(ctx.scene);
         // ... edit, then commit or cancel

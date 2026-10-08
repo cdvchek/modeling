@@ -51,6 +51,15 @@ namespace {
         , 0
     };
 
+    const unsigned char imageVert[] = {
+        #embed "glsl/image.vert"
+        , 0
+    };
+    const unsigned char imageFrag[] = {
+        #embed "glsl/image.frag"
+        , 0
+    };
+
     struct ShaderSource {
         ShaderId id;
         const char* name;
@@ -65,6 +74,7 @@ namespace {
         { ShaderId::Background, "background", fullscreenVert, backgroundFrag },
         { ShaderId::Grid,       "grid",       gridVert,       gridFrag },
         { ShaderId::UI,         "ui",         uiVert,         uiFrag },
+        { ShaderId::Image,      "image",      imageVert,      imageFrag },
     };
 
     static_assert(std::size(SOURCES) == static_cast<u32>(ShaderId::Count), "every ShaderId needs a source");

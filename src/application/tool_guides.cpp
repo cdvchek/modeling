@@ -23,6 +23,15 @@ namespace {
         const std::vector<Vec3>& starts = selection.getSelectionStartPositions();
         const std::vector<Transform>& objectStarts = selection.getObjectStartTransforms();
 
+        if (selection.hasOrigin()) return ctx.originEdit.start.world.position;
+
+        const std::vector<Transform>& referenceStarts = selection.getReferenceStartTransforms();
+        if (selection.hasReferences() && !referenceStarts.empty()) {
+            Vec3 center(0.0f);
+            for (const Transform& start : referenceStarts) center += start.position;
+            return center / static_cast<f32>(referenceStarts.size());
+        }
+
         if (!objectStarts.empty()) {
             Vec3 center(0.0f);
             for (const Transform& start : objectStarts) center += start.position;
@@ -34,10 +43,10 @@ namespace {
             for (const Vec3& start : starts) center += start;
             center = center / static_cast<f32>(starts.size());
 
-            const Object* object = ctx.scene.objects.tryGet(selection.getVertices()[0].object);
-            if (!object) return center;
+            const ObjectHandle object = selection.getVertices()[0].object;
+            if (!ctx.scene.objects.isValid(object)) return center;
 
-            const Vec4 world = object->transform.getMatrix() * Vec4(center.x, center.y, center.z, 1.0f);
+            const Vec4 world = ctx.scene.objects.worldMatrix(object) * Vec4(center.x, center.y, center.z, 1.0f);
             return Vec3(world.x, world.y, world.z);
         }
 

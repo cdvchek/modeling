@@ -400,3 +400,79 @@ TEST_CASE(history_state_id_tracks_undo_and_redo) {
     CHECK(!history.canUndo());
     CHECK(history.stateId() != added && history.stateId() != start);
 }
+
+TEST_CASE(project_export_folder_is_stored_relative_when_nearby) {
+    const std::filesystem::path project = "D:/Art/rocks.vlm";
+
+    // Inside or next to the project's folder: relative, so it moves with the project
+    CHECK(ProjectFile::storeFolder("D:/Art/Exports", project) == "Exports");
+    CHECK(ProjectFile::storeFolder("D:/Art/Exports/props", project) == "Exports/props");
+    CHECK(ProjectFile::storeFolder("D:/Art", project) == ".");
+    CHECK(ProjectFile::storeFolder("D:/Shared", project) == "../Shared");
+
+    // Further away, another drive, or no project file yet: the full path
+    CHECK(ProjectFile::storeFolder("D:/Games/Aevora/assets", "D:/Art/props/rocks.vlm") == "D:/Games/Aevora/assets");
+    CHECK(ProjectFile::storeFolder("C:/Games/assets", project) == "C:/Games/assets");
+    CHECK(ProjectFile::storeFolder("D:/Art/Exports", {}) == "D:/Art/Exports");
+    CHECK(ProjectFile::storeFolder({}, project).empty());
+
+    // Back again, wherever the project is now
+    CHECK(ProjectFile::resolveFolder("Exports", "E:/Backup/Art/rocks.vlm") == std::filesystem::path("E:/Backup/Art/Exports"));
+    CHECK(ProjectFile::resolveFolder("../Shared", project) == std::filesystem::path("D:/Shared"));
+    CHECK(ProjectFile::resolveFolder("C:/Games/assets", project) == std::filesystem::path("C:/Games/assets"));
+    CHECK(ProjectFile::resolveFolder("", project).empty());
+}
+
+TEST_CASE(project_saves_the_export_folder) {
+    ProjectFile::View view = sampleView();
+    view.exportFolder = "Exports/props";
+
+    Scene loaded;
+    ProjectFile::View loadedView;
+    std::string error;
+    CHECK(ProjectFile::read(ProjectFile::write(sampleScene(), view), loaded, loadedView, error));
+    CHECK(loadedView.exportFolder == "Exports/props");
+}
+
+TEST_CASE(project_saves_whether_origins_show) {
+    ProjectFile::View view = sampleView();
+    view.showOrigins = false;
+
+    Scene loaded;
+    ProjectFile::View loadedView;
+    std::string error;
+    CHECK(ProjectFile::read(ProjectFile::write(sampleScene(), view), loaded, loadedView, error));
+    CHECK(!loadedView.showOrigins);
+}
+
+TEST_CASE(project_saves_object_parents) {
+    Scene scene = sampleScene();
+    const std::vector<ObjectHandle> handles = scene.objects.handles();
+    scene.objects.setParent(handles[1], handles[0]);
+    const Transform world = scene.objects.worldTransform(handles[1]);
+
+    const std::vector<u8> bytes = ProjectFile::write(scene, sampleView());
+    Scene loaded;
+    ProjectFile::View view;
+    std::string error;
+    CHECK(ProjectFile::read(bytes, loaded, view, error));
+
+    const std::vector<ObjectHandle> loadedHandles = loaded.objects.handles();
+    CHECK(loaded.objects.parentOf(loadedHandles[1]) == loadedHandles[0]);
+    CHECK(loaded.objects.parentOf(loadedHandles[0]).isNull());
+    const Transform back = loaded.objects.worldTransform(loadedHandles[1]);
+    CHECK(sameVec3(back.position, world.position) && sameVec3(back.scale, world.scale));
+
+    // A file whose parents loop back around is refused: point the first object at the second, which points back
+    std::vector<u8> looped = bytes;
+    const u32 count = getU32(bytes, 8);
+    std::vector<u32> objectEntries;
+    for (u32 i = 0; i < count; ++i) if (std::memcmp(bytes.data() + entryAt(i), "OBJC", 4) == 0) objectEntries.push_back(i);
+    const u64 first = getU64(bytes, entryAt(objectEntries[0]) + 8);
+    const u32 nameLength = getU32(bytes, first);
+    setU32(looped, first + 4 + nameLength + 36, 1);
+    const u64 size = getU64(bytes, entryAt(objectEntries[0]) + 16);
+    setU32(looped, entryAt(objectEntries[0]) + 24, crc32(looped.data() + first, size));
+    resealDirectory(looped);
+    CHECK(readFails(looped, "loops back"));
+}

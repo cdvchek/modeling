@@ -2,6 +2,7 @@
 #include "core/math/math_utils.hpp"
 #include "ui/ui_style.hpp"
 
+#include <algorithm>
 #include <string>
 
 namespace {
@@ -12,6 +13,7 @@ namespace {
     // Moving this far toward a submenu opens it, re-centered at the cursor
     constexpr f32 SUBMENU_RADIUS = 104.0f;
     constexpr f32 LABEL_RADIUS = 106.0f;
+    constexpr f32 LABEL_RADIUS_PER_EXTRA = 14.0f;
     constexpr f32 LABEL_PADDING_X = 10.0f;
     constexpr f32 LABEL_PADDING_Y = 6.0f;
     constexpr f32 CENTER_DOT = 5.0f;
@@ -43,7 +45,9 @@ namespace {
 
     RadialMenuId rootMenu(const AppContext& ctx) {
         const bool toolRunning = ctx.systems.input_ctx.isActive(InputContext_Grab | InputContext_Scale | InputContext_Rotate | InputContext_Bevel | InputContext_Inset);
-        return toolRunning ? RadialMenuId::Tool : RadialMenuId::Main;
+        if (toolRunning) return RadialMenuId::Tool;
+        // A selected origin gets its own commands, as a running tool gets its axis locks
+        return ctx.scene.selection.hasOrigin() ? RadialMenuId::Origin : RadialMenuId::Main;
     }
 
     Vec2 mousePosition(const AppContext& ctx) {
@@ -83,6 +87,7 @@ RadialMenu buildRadialMenu(const AppContext& ctx, RadialMenuId id) {
                 item(actions, Action::MergeVertices),
                 item(actions, Action::ConnectVertices),
                 item(actions, Action::BevelSelection),
+                item(actions, Action::OriginToSelection),
             };
 
         case RadialMenuId::Light:
@@ -107,6 +112,7 @@ RadialMenu buildRadialMenu(const AppContext& ctx, RadialMenuId id) {
                 toggle(Action::TogglePanel, ctx.viewport.showPanel ? "Hide panel" : "Show panel"),
                 toggle(Action::ToggleHeadlight, ctx.viewport.headlight.enabled ? "Headlight off" : "Headlight on"),
                 toggle(Action::ToggleDebug, ctx.systems.input_ctx.isActive(InputContext_Debug) ? "Debug off" : "Debug on"),
+                toggle(Action::ToggleOrigins, ctx.viewport.showOrigins ? "Hide origins" : "Show origins"),
             };
 
         case RadialMenuId::Tool:
@@ -115,6 +121,18 @@ RadialMenu buildRadialMenu(const AppContext& ctx, RadialMenuId id) {
                 item(actions, Action::ZAxis),
                 item(actions, Action::AxisFree),
                 item(actions, Action::XAxis),
+            };
+
+        case RadialMenuId::Origin:
+            return {
+                item(actions, Action::GrabSelection),
+                item(actions, Action::OriginToGeometry),
+                item(actions, Action::OriginToBottom),
+                submenu("View", RadialMenuId::View),
+                submenu("Mode", RadialMenuId::Mode),
+                item(actions, Action::OriginToWorld),
+                item(actions, Action::OriginResetRotation),
+                item(actions, Action::RotateSelection),
             };
 
         case RadialMenuId::None:
@@ -213,7 +231,9 @@ void drawRadialMenu(const AppContext& ctx, UIDrawList& ui) {
 
         // Anchored on the slice's direction so labels grow away from the ring
         const Vec2 direction = RadialLayout::sliceDirection(slice, count);
-        const Vec2 anchor = menu.center + direction * LABEL_RADIUS;
+        // Past eight items neighboring labels crowd, so they sit a little further out
+        const f32 labelRadius = LABEL_RADIUS + static_cast<f32>(std::max(0, static_cast<i32>(count) - 8)) * LABEL_RADIUS_PER_EXTRA;
+        const Vec2 anchor = menu.center + direction * labelRadius;
         const Rect box {
             anchor.x - size.x * 0.5f + direction.x * size.x * 0.5f,
             anchor.y - size.y * 0.5f + direction.y * size.y * 0.5f,

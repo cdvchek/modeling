@@ -33,6 +33,9 @@ public:
     void draw(const DrawCommand& command) override;
     void drawText3D(const DrawText3DCommand& command) override;
     void drawGrid(const DrawGridCommand& command) override;
+    void drawImage(const DrawImageCommand& command) override;
+    u32 createTexture(const u8* pixels, u32 width, u32 height) override;
+    void destroyTexture(u32 texture) override;
     void drawDebugLine(const Vec3& start, const Vec3& end, const Mat4& mvp) override;
     void drawUI(const UIDrawList& list) override;
     void endMainPass() override;

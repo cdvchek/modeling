@@ -355,6 +355,46 @@ namespace DefaultKeybinds {
         }
     };
 
+    inline Keybind ExportAssets {
+        {
+            key(Key::LeftCtrl),
+            key(Key::E)
+        }
+    };
+
+    inline Keybind ImportAssets {
+        {
+            key(Key::LeftCtrl),
+            key(Key::I)
+        }
+    };
+
+    inline Keybind ModalConfirm {
+        {
+            key(Key::Enter)
+        }
+    };
+
+    inline Keybind ModalCancel {
+        {
+            key(Key::Escape)
+        }
+    };
+
+    inline Keybind ParentToActive {
+        {
+            key(Key::LeftCtrl),
+            key(Key::P)
+        }
+    };
+
+    inline Keybind ClearParents {
+        {
+            key(Key::LeftAlt),
+            key(Key::P)
+        }
+    };
+
     // The thumb side button (back)
     inline Keybind RadialMenu {
         {

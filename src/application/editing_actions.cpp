@@ -1,5 +1,7 @@
 #include "application/editing_actions.hpp"
 #include "application/light_commands.hpp"
+#include "application/origin_actions.hpp"
+#include "application/reference_images.hpp"
 
 #include <iostream>
 #include <vector>
@@ -24,10 +26,24 @@ namespace {
     void saveObjectStarts(AppContext& ctx) {
         std::vector<Transform> starts;
         for (ObjectHandle handle : ctx.scene.selection.getObjects()) {
-            const Object* object = ctx.scene.objects.tryGet(handle);
-            starts.push_back(object ? object->transform : Transform());
+            starts.push_back(ctx.scene.objects.worldTransform(handle));
         }
         ctx.scene.selection.setObjectStartTransforms(starts);
+    }
+
+    // Reference images keep their size in scale.y
+    void saveReferenceStarts(AppContext& ctx) {
+        std::vector<Transform> starts;
+        for (ReferenceHandle handle : ctx.scene.selection.getReferences()) {
+            Transform start;
+            if (const ReferenceImage* image = ctx.scene.references.tryGet(handle)) {
+                start.position = image->position;
+                start.rotation = image->rotation;
+                start.scale = Vec3(image->size);
+            }
+            starts.push_back(start);
+        }
+        ctx.scene.selection.setReferenceStartTransforms(starts);
     }
 
 }
@@ -65,7 +81,8 @@ void redo(AppContext& ctx) {
 }
 
 bool canGrab(const AppContext& ctx) {
-    return ctx.scene.selection.hasVertices() || ctx.scene.selection.hasLights() || ctx.scene.selection.hasObjects();
+    const Selection& selection = ctx.scene.selection;
+    return selection.hasVertices() || selection.hasLights() || selection.hasObjects() || selection.hasOrigin() || selection.hasReferences();
 }
 
 void startGrab(AppContext& ctx) {
@@ -79,26 +96,30 @@ void startGrab(AppContext& ctx) {
         lightStarts.push_back(data ? data->position : Vec3());
     }
     ctx.scene.selection.setLightStartPositions(lightStarts);
+    saveReferenceStarts(ctx);
+    beginOriginEdit(ctx);
 
     ctx.history.begin(ctx.scene);
     ctx.systems.input_ctx.setContext(InputContext_Grab);
 }
 
 bool canScale(const AppContext& ctx) {
-    return ctx.scene.selection.getVertices().size() >= 2 || ctx.scene.selection.hasObjects();
+    return ctx.scene.selection.getVertices().size() >= 2 || ctx.scene.selection.hasObjects() || ctx.scene.selection.hasReferences();
 }
 
 void startScale(AppContext& ctx) {
     ctx.systems.input_ctx.removeContext(AXIS_CONTEXTS);
     saveVertexStarts(ctx);
     saveObjectStarts(ctx);
+    saveReferenceStarts(ctx);
     ctx.history.begin(ctx.scene);
     ctx.transformTool = {};
     ctx.systems.input_ctx.setContext(InputContext_Scale);
 }
 
 bool canRotate(const AppContext& ctx) {
-    return ctx.scene.selection.getVertices().size() >= 2 || ctx.scene.selection.hasLights() || ctx.scene.selection.hasObjects();
+    const Selection& selection = ctx.scene.selection;
+    return selection.getVertices().size() >= 2 || selection.hasLights() || selection.hasObjects() || selection.hasOrigin() || selection.hasReferences();
 }
 
 void startRotate(AppContext& ctx) {
@@ -112,6 +133,8 @@ void startRotate(AppContext& ctx) {
         lightDirections.push_back(data ? data->direction : Vec3(0.0f, -1.0f, 0.0f));
     }
     ctx.scene.selection.setLightStartDirections(lightDirections);
+    saveReferenceStarts(ctx);
+    beginOriginEdit(ctx);
 
     ctx.history.begin(ctx.scene);
     ctx.transformTool = {};
@@ -234,8 +257,55 @@ void dissolveSelection(AppContext& ctx) {
     ctx.history.commit();
 }
 
+bool canParentToActive(const AppContext& ctx) {
+    const Selection& selection = ctx.scene.selection;
+    if (ctx.systems.input_ctx.getSelectionContext() != InputContext_SelectionObject) return false;
+    if (!ctx.scene.objects.isValid(selection.getActiveObject())) return false;
+    for (ObjectHandle handle : selection.getObjects()) {
+        if (handle != selection.getActiveObject()) return true;
+    }
+    return false;
+}
+
+void parentToActive(AppContext& ctx) {
+    ObjectCollection& objects = ctx.scene.objects;
+    const ObjectHandle parent = ctx.scene.selection.getActiveObject();
+
+    ctx.history.begin(ctx.scene);
+    u32 parented = 0;
+    for (ObjectHandle child : ctx.scene.selection.getObjects()) {
+        if (child == parent) continue;
+        if (objects.setParent(child, parent)) {
+            ++parented;
+        } else {
+            ctx.systems.console.printError("parent: " + objects.get(child).name + " can't be a child of its own child " + objects.get(parent).name);
+        }
+    }
+
+    if (parented == 0) {
+        ctx.history.cancel(ctx.scene);
+        return;
+    }
+    ctx.history.commit();
+    ctx.systems.console.print("Parented " + std::to_string(parented) + (parented == 1 ? " object" : " objects") + " to " + objects.get(parent).name);
+}
+
+bool canClearParents(const AppContext& ctx) {
+    if (ctx.systems.input_ctx.getSelectionContext() != InputContext_SelectionObject) return false;
+    for (ObjectHandle handle : ctx.scene.selection.getObjects()) {
+        if (!ctx.scene.objects.parentOf(handle).isNull()) return true;
+    }
+    return false;
+}
+
+void clearParents(AppContext& ctx) {
+    ctx.history.begin(ctx.scene);
+    for (ObjectHandle handle : ctx.scene.selection.getObjects()) ctx.scene.objects.setParent(handle, INVALID_OBJECT);
+    ctx.history.commit();
+}
+
 bool canDelete(const AppContext& ctx) {
-    return ctx.scene.selection.hasLights() || ctx.scene.selection.hasVertices() || ctx.scene.selection.hasObjects();
+    return ctx.scene.selection.hasLights() || ctx.scene.selection.hasVertices() || ctx.scene.selection.hasObjects() || ctx.scene.selection.hasReferences();
 }
 
 void deleteSelectedObjects(AppContext& ctx) {
@@ -260,6 +330,11 @@ void deleteSelectedObjects(AppContext& ctx) {
 }
 
 void deleteSelection(AppContext& ctx) {
+    if (ctx.scene.selection.hasReferences()) {
+        deleteSelectedReferences(ctx);
+        return;
+    }
+
     if (ctx.scene.selection.hasObjects()) {
         deleteSelectedObjects(ctx);
         return;

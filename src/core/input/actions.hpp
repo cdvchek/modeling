@@ -63,5 +63,17 @@ enum class Action : u8 {
     SaveProjectAs,
     OpenProject,
     NewProject,
+    ExportAssets,
+    ImportAssets,
+    ModalConfirm,
+    ModalCancel,
+    OriginToGeometry,
+    OriginToBottom,
+    OriginToWorld,
+    OriginResetRotation,
+    OriginToSelection,
+    ToggleOrigins,
+    ParentToActive,
+    ClearParents,
     Count
 };

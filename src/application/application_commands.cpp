@@ -2,8 +2,12 @@
 #include "application/editing_actions.hpp"
 #include "application/command_parsing.hpp"
 #include "application/light_commands.hpp"
+#include "application/reference_commands.hpp"
 #include "application/object_commands.hpp"
 #include "application/project_actions.hpp"
+#include "application/asset_actions.hpp"
+#include "application/origin_actions.hpp"
+#include "asset/asset_file.hpp"
 #include "project/project_file.hpp"
 
 #include <algorithm>
@@ -112,6 +116,14 @@ void Application::registerCommands(AppContext& ctx) {
         "Edits lights: light list | add <type> | <id> <property> <value> | ambient ...",
         [&ctx](const CommandArgs& args) {
             runLightCommand(ctx, args);
+        }
+    );
+
+    ctx.systems.commands.registerCommand(
+        "reference",
+        "Adds and edits reference images: reference list | add [<file.png>] | <id> <property> <value>",
+        [&ctx](const CommandArgs& args) {
+            runReferenceCommand(ctx, args);
         }
     );
 
@@ -232,8 +244,9 @@ void Application::registerCommands(AppContext& ctx) {
         [&ctx](const CommandArgs& args) {
             if (args.empty()) {
                 openProject(ctx);
-            } else if (canUseProjectFiles(ctx) && confirmDiscardChanges(ctx)) {
-                openProjectFrom(ctx, resolveProjectPath(pathFromArgs(args)));
+            } else if (canUseProjectFiles(ctx)) {
+                const std::filesystem::path path = resolveProjectPath(pathFromArgs(args));
+                confirmDiscardChanges(ctx, [&ctx, path] { openProjectFrom(ctx, path); });
             }
         }
     );
@@ -243,6 +256,56 @@ void Application::registerCommands(AppContext& ctx) {
         "Starts a new project with the default scene: new",
         [&ctx](const CommandArgs& args) {
             newProject(ctx);
+        }
+    );
+
+    ctx.systems.commands.registerCommand(
+        "origin",
+        "Moves an origin, leaving the mesh in place: origin geometry | bottom | world | rotation | selection",
+        [&ctx](const CommandArgs& args) {
+            const char* usage = "usage: origin geometry | bottom | world | rotation | selection  (the selected origin's object, else the active object; selection uses the selected vertices)";
+            if (args.size() != 1) {
+                std::cout << usage << std::endl;
+                return;
+            }
+
+            OriginTarget target;
+            if (args[0] == "geometry") target = OriginTarget::Geometry;
+            else if (args[0] == "bottom") target = OriginTarget::Bottom;
+            else if (args[0] == "world") target = OriginTarget::World;
+            else if (args[0] == "rotation") target = OriginTarget::WorldRotation;
+            else if (args[0] == "selection") target = OriginTarget::Selection;
+            else {
+                std::cout << usage << std::endl;
+                return;
+            }
+
+            if (!canUseProjectFiles(ctx)) return;
+            if (moveOrigin(ctx, target)) {
+                const ObjectHandle handle = target == OriginTarget::Selection ? ctx.scene.selection.getActiveObject() : originCommandObject(ctx);
+                if (const Object* object = ctx.scene.objects.tryGet(handle)) {
+                    const Vec3 p = ctx.scene.objects.worldTransform(handle).position;
+                    std::cout << "[origin] " << object->name << " at " << p.x << " " << p.y << " " << p.z << std::endl;
+                }
+            }
+        }
+    );
+
+    ctx.systems.commands.registerCommand(
+        "import",
+        "Adds a .vlmobj asset as a new object, picking files if no path is given: import [<path>]",
+        [&ctx](const CommandArgs& args) {
+            if (!canUseProjectFiles(ctx)) return;
+            if (args.empty()) {
+                importAssets(ctx);
+                return;
+            }
+
+            // Like project paths, but relative ones start in the export folder, where assets usually are
+            std::filesystem::path path = pathFromArgs(args);
+            if (!path.has_extension()) path += AssetFile::EXTENSION;
+            if (path.is_relative()) path = exportFolder(ctx) / path;
+            importAssetFrom(ctx, path);
         }
     );
 
@@ -268,7 +331,7 @@ void Application::registerCommands(AppContext& ctx) {
 
     ctx.systems.commands.registerCommand(
         "object",
-        "Edits objects: object list | add <preset> | <id> edit | <id> remove | <id> <property> <value>",
+        "Edits objects: object list | add <preset> | <id> edit | <id> remove | <id> parent <id | none> | <id> <property> <value>",
         [&ctx](const CommandArgs& args) {
             runObjectCommand(ctx, args);
         }

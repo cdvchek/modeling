@@ -2,6 +2,7 @@
 #include "application/tool_guides.hpp"
 #include "core/math/vec2.hpp"
 
+#include <algorithm>
 #include <iostream>
 #include <cmath>
 
@@ -19,8 +20,10 @@ void checkScaleContext(AppContext& ctx) {
     const auto& starts = ctx.scene.selection.getSelectionStartPositions();
     const auto& objects = ctx.scene.selection.getObjects();
     const auto& objectStarts = ctx.scene.selection.getObjectStartTransforms();
+    const auto& references = ctx.scene.selection.getReferences();
+    const auto& referenceStarts = ctx.scene.selection.getReferenceStartTransforms();
 
-    if ((selections.empty() && objects.empty()) || !initTransformTool(ctx)) return;
+    if ((selections.empty() && objects.empty() && references.empty()) || !initTransformTool(ctx)) return;
 
     // Scales the locked components (all of them when nothing is locked) and keeps the rest
     const auto applyLock = [&](Vec3 scaled, Vec3 start) {
@@ -36,7 +39,7 @@ void checkScaleContext(AppContext& ctx) {
     // Every frame starts over from the start positions; locked-out axes keep theirs.
     // Works in world space so axis locks are world axes on any object transform.
     if (!starts.empty() && !selections.empty()) {
-        const ObjectSpace space(ctx.scene.objects.get(selections[0].object).transform);
+        const ObjectSpace space(ctx.scene.objects.worldTransform(selections[0].object));
 
         Vec3 center(0.0f);
         for (const Vec3& start : starts) center += space.pointToWorld(start);
@@ -53,7 +56,7 @@ void checkScaleContext(AppContext& ctx) {
         }
     }
 
-    // Objects spread out from their shared center and grow by the same factor
+    // Objects spread out from their shared center (in the world) and grow by the same factor; children come along
     if (!objectStarts.empty()) {
         Vec3 center(0.0f);
         for (const Transform& start : objectStarts) center += start.position;
@@ -61,16 +64,33 @@ void checkScaleContext(AppContext& ctx) {
 
         for (u32 i = 0; i < static_cast<u32>(objects.size()) && i < static_cast<u32>(objectStarts.size()); ++i) {
             Object* object = ctx.scene.objects.tryGet(objects[i]);
-            if (!object) continue;
+            if (!object || carriedByParent(ctx, objects[i])) continue;
 
             const Transform& start = objectStarts[i];
-            object->transform.position = applyLock(center + (start.position - center) * scaling, start.position);
+            ctx.scene.objects.setWorldPosition(objects[i], applyLock(center + (start.position - center) * scaling, start.position));
             // A zero scale can't be inverted for lighting, so keep each axis a little away from it
             Vec3 scale = applyLock(start.scale * scaling, start.scale);
             for (f32* axis : { &scale.x, &scale.y, &scale.z }) {
                 if (std::abs(*axis) < MIN_OBJECT_SCALE) *axis = *axis < 0.0f ? -MIN_OBJECT_SCALE : MIN_OBJECT_SCALE;
             }
-            object->transform.scale = scale;
+            // The scale is set relative to the parent's, so the world scale is what was asked for
+            const Vec3 parentScale = ctx.scene.objects.parentWorldTransform(objects[i]).scale;
+            object->transform.scale = Vec3(scale.x / parentScale.x, scale.y / parentScale.y, scale.z / parentScale.z);
+        }
+    }
+
+    // Reference images keep their proportions, so they always scale evenly: axis locks don't apply to them
+    if (!referenceStarts.empty()) {
+        Vec3 center(0.0f);
+        for (const Transform& start : referenceStarts) center += start.position;
+        center = center / static_cast<f32>(referenceStarts.size());
+
+        for (u32 i = 0; i < static_cast<u32>(references.size()) && i < static_cast<u32>(referenceStarts.size()); ++i) {
+            ReferenceImage* image = ctx.scene.references.tryGet(references[i]);
+            if (!image) continue;
+
+            image->position = center + (referenceStarts[i].position - center) * scaling;
+            image->size = std::max(referenceStarts[i].scale.y * scaling, MIN_REFERENCE_SIZE);
         }
     }
 
@@ -123,7 +143,7 @@ void checkScaleContext(AppContext& ctx) {
         }
 
         for (u32 i = 0; i < static_cast<u32>(objects.size()) && i < static_cast<u32>(objectStarts.size()); ++i) {
-            if (Object* object = ctx.scene.objects.tryGet(objects[i])) object->transform = objectStarts[i];
+            if (ctx.scene.objects.isValid(objects[i])) ctx.scene.objects.setWorldTransform(objects[i], objectStarts[i]);
         }
 
         ctx.history.cancel(ctx.scene);

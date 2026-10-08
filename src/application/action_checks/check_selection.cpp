@@ -2,6 +2,7 @@
 #include "scene/selection/ray.hpp"
 #include "scene/selection/scene_queries.hpp"
 #include "application/light_markers.hpp"
+#include "application/origin_markers.hpp"
 
 #include "core/math/vec4.hpp"
 
@@ -9,8 +10,8 @@
 #include <cfloat>
 
 namespace {
-    Vec3 toWorld(const Object& object, Vec3 point) {
-        const Vec4 world = object.transform.getMatrix() * Vec4(point.x, point.y, point.z, 1.0f);
+    Vec3 toWorld(const Mat4& model, Vec3 point) {
+        const Vec4 world = model * Vec4(point.x, point.y, point.z, 1.0f);
         return Vec3(world.x, world.y, world.z);
     }
 
@@ -89,6 +90,7 @@ namespace {
             if (!hit.hit) return;
 
             const Object& object = ctx.scene.objects.get(hit.object);
+            const Mat4 model = ctx.scene.objects.worldMatrix(hit.object);
             const MeshData& mesh = object.meshData;
 
             // The loop runs across the clicked face's edge nearest the click.
@@ -100,8 +102,8 @@ namespace {
             for (EdgeHandle edge : mesh.getLoopEdges(mesh.getFace(hit.face)->edge)) {
                 const f32 distance = distanceToSegment(
                     point,
-                    toWorld(object, mesh.getVertexPosition(mesh.getEdgeOrigin(edge))),
-                    toWorld(object, mesh.getVertexPosition(mesh.getEdgeTip(edge)))
+                    toWorld(model, mesh.getVertexPosition(mesh.getEdgeOrigin(edge))),
+                    toWorld(model, mesh.getVertexPosition(mesh.getEdgeTip(edge)))
                 );
 
                 if (nearest.isNull() || distance < nearestDistance) {
@@ -188,12 +190,40 @@ void checkSelectionContext(AppContext& ctx) {
 
         if (!toggling) selection.clear();
 
-        // Light markers sit on top of the scene, so they're picked before mesh elements
+        // Markers sit on top of the scene, so they're picked first: origins, then lights, then reference images and
+        // mesh elements by which is in front
         const Mat4 viewProjection = camera.getProjectionMatrix(static_cast<f32>(width) / static_cast<f32>(height)) * camera.getViewMatrix();
-        const LightHit lightHit = pickLight(ctx.scene, viewProjection, static_cast<f32>(input.getMouseX()), static_cast<f32>(input.getMouseY()),
-                                           static_cast<f32>(width), static_cast<f32>(height), LIGHT_MARKER_PICK_RADIUS);
+        const f32 mouseX = static_cast<f32>(input.getMouseX());
+        const f32 mouseY = static_cast<f32>(input.getMouseY());
+        const OriginHit originHit = ctx.viewport.showOrigins
+            ? pickOrigin(ctx.scene, viewProjection, mouseX, mouseY, static_cast<f32>(width), static_cast<f32>(height), ORIGIN_MARKER_PICK_RADIUS)
+            : OriginHit {};
+        const LightHit lightHit = originHit.hit ? LightHit {}
+            : pickLight(ctx.scene, viewProjection, mouseX, mouseY, static_cast<f32>(width), static_cast<f32>(height), LIGHT_MARKER_PICK_RADIUS);
 
-        if (lightHit.hit) {
+        // A reference image wins when it's drawn over the mesh under the mouse
+        ReferenceHit referenceHit = (originHit.hit || lightHit.hit) ? ReferenceHit {} : pickReference(ctx.scene, ray);
+        if (referenceHit.hit && referenceHit.depth != ReferenceDepth::InFront) {
+            const FaceHit meshHit = pickFace(ctx.scene, ray);
+            const bool hidden = meshHit.hit && (referenceHit.depth == ReferenceDepth::Behind || meshHit.distance < referenceHit.distance);
+            if (hidden) referenceHit = {};
+        }
+
+        if (originHit.hit) {
+            // Another object's origin makes that object the one being edited (or the active one), with nothing else selected
+            if (toggling && selection.getOrigin() == originHit.object) {
+                selection.clearOrigin();
+            } else {
+                selection.clear();
+                selection.selectOrigin(originHit.object);
+            }
+        } else if (referenceHit.hit) {
+            if (toggling && selection.hasReference(referenceHit.reference)) {
+                selection.removeReference(referenceHit.reference);
+            } else {
+                selection.addReference(referenceHit.reference);
+            }
+        } else if (lightHit.hit) {
             selection.clearMeshElements();
             selection.clearObjects();
 

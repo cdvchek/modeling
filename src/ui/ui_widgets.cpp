@@ -5,6 +5,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <string>
 
 namespace {
@@ -20,6 +21,13 @@ namespace {
 
     // Under this much mouse movement, pressing and releasing a drag field is a click
     constexpr f32 DRAG_THRESHOLD = 3.0f;
+    // Space between an X/Y/Z box's edge and its letter or value
+    constexpr f32 COMPONENT_INSET = 4.0f;
+    // Least space between a row's label and its control; a label that doesn't fit is shortened with "..."
+    constexpr f32 LABEL_GAP = 4.0f;
+    // Tree rows: how far each level is indented, and the fold arrow's column
+    constexpr f32 TREE_INDENT = 14.0f;
+    constexpr f32 TREE_ARROW_WIDTH = 16.0f;
     constexpr f32 TEXT_INSET = 6.0f;
     constexpr f64 CARET_BLINK = 0.5;   // seconds on, then off
 
@@ -49,6 +57,23 @@ namespace {
         return true;
     }
 
+    // value in format (like "%.2f"), or with fewer decimals until it fits in width
+    std::string fitNumber(const UIFont& font, f32 value, const char* format, f32 width) {
+        char text[32];
+        std::snprintf(text, sizeof(text), format, static_cast<double>(value));
+        // A value that rounds to zero shows as 0, not -0
+        if (text[0] == '-' && std::strspn(text + 1, "0.") == std::strlen(text + 1)) std::memmove(text, text + 1, std::strlen(text));
+        if (measureText(font, text).x <= width) return text;
+
+        const char* dot = std::strchr(format, '.');
+        const int decimals = dot ? std::atoi(dot + 1) : 0;
+        for (int fewer = decimals - 1; fewer >= 0; --fewer) {
+            std::snprintf(text, sizeof(text), "%.*f", fewer, static_cast<double>(value));
+            if (measureText(font, text).x <= width) break;
+        }
+        return text;
+    }
+
     // Clipboard text can hold anything; keep one line of characters the font can draw
     std::string printable(const std::string& text) {
         std::string result;
@@ -62,7 +87,8 @@ namespace {
 }
 
 void UIContext::label(std::string_view text, bool dim) {
-    drawLabelText(nextRow(), text, dim ? UIStyle::TEXT_DIM : UIStyle::TEXT);
+    const Rect row = nextRow();
+    drawLabelText(row, fitText(m_font, text, row.width), dim ? UIStyle::TEXT_DIM : UIStyle::TEXT);
 }
 
 void UIContext::heading(std::string_view text) {
@@ -102,9 +128,17 @@ bool UIContext::segmented(std::string_view label, i32& index, const std::vector<
     Rect controlRect = row;
     if (!label.empty()) {
         splitLabeledRow(row, labelRect, controlRect);
-        drawLabelText(labelRect, label, UIStyle::TEXT_DIM);
+        drawLabelText(labelRect, fitText(m_font, label, labelRect.width - LABEL_GAP), UIStyle::TEXT_DIM);
     }
 
+    return segmentedControl(label.empty() ? std::string_view("segmented") : label, controlRect, index, options);
+}
+
+bool UIContext::segmented(std::string_view id, const Rect& rect, i32& index, const std::vector<std::string_view>& options) {
+    return segmentedControl(id, rect, index, options);
+}
+
+bool UIContext::segmentedControl(std::string_view id, const Rect& controlRect, i32& index, const std::vector<std::string_view>& options) {
     m_drawList->roundedRect(controlRect, UIStyle::CORNER_RADIUS, UIStyle::FRAME, UIStyle::FRAME_BORDER, 1.0f);
 
     // Each segment fits its text, and leftover width is shared evenly
@@ -122,7 +156,7 @@ bool UIContext::segmented(std::string_view label, i32& index, const std::vector<
     bool changed = false;
     f32 x = controlRect.x;
 
-    pushId(label.empty() ? std::string_view("segmented") : label);
+    pushId(id);
     for (u32 i = 0; i < count; ++i) {
         const Rect segment { x, controlRect.y, widths[i], controlRect.height };
         x += widths[i];
@@ -212,13 +246,67 @@ bool UIContext::selectable(std::string_view label, bool selected, std::string_vi
         m_drawList->roundedRect(row, UIStyle::CORNER_RADIUS, UIStyle::ROW_HOVER);
     }
 
-    drawLabelText({ row.x + UIStyle::TEXT_PADDING, row.y, row.width - UIStyle::TEXT_PADDING, row.height }, label, UIStyle::TEXT);
+    // The name gets whatever the detail leaves, and is shortened with "..." rather than running into it
+    const f32 detailWidth = detail.empty() ? 0.0f : measureText(m_font, detail).x + UIStyle::TEXT_PADDING;
+    const f32 labelRoom = row.width - UIStyle::TEXT_PADDING * 2.0f - detailWidth;
+    drawLabelText({ row.x + UIStyle::TEXT_PADDING, row.y, labelRoom, row.height }, fitText(m_font, label, labelRoom), UIStyle::TEXT);
 
     if (!detail.empty()) {
-        const f32 detailWidth = measureText(m_font, detail).x;
-        drawLabelText({ row.right() - UIStyle::TEXT_PADDING - detailWidth, row.y, detailWidth, row.height }, detail, UIStyle::TEXT_DIM);
+        const f32 width = detailWidth - UIStyle::TEXT_PADDING;
+        drawLabelText({ row.right() - UIStyle::TEXT_PADDING - width, row.y, width, row.height }, detail, UIStyle::TEXT_DIM);
     }
 
+    finishItem(interaction, false);
+    return interaction.clicked;
+}
+
+bool UIContext::treeRow(std::string_view label, bool selected, std::string_view detail, u32 depth, bool hasChildren, bool& open) {
+    const Rect row = nextRow();
+    const f32 indent = static_cast<f32>(depth) * TREE_INDENT;
+    const Rect arrow { row.x + indent, row.y, TREE_ARROW_WIDTH, row.height };
+
+    // The arrow is its own widget, checked first so a click on it folds rather than selects
+    if (hasChildren) {
+        pushId(label);
+        const Interaction fold = interact(makeId("##fold"), arrow);
+        popId();
+        if (fold.clicked) open = !open;
+    }
+
+    const Interaction interaction = interact(makeId(label), row);
+
+    if (selected) {
+        m_drawList->roundedRect(row, UIStyle::CORNER_RADIUS, UIStyle::ACCENT_SOFT);
+        m_drawList->rect({ row.x, row.y + 3.0f, UIStyle::SELECTED_BAR_WIDTH, row.height - 6.0f }, UIStyle::ACCENT);
+    } else if (interaction.hovered) {
+        m_drawList->roundedRect(row, UIStyle::CORNER_RADIUS, UIStyle::ROW_HOVER);
+    }
+
+    if (hasChildren) {
+        // A small triangle: pointing right when folded, down when open
+        const Vec2 c = arrow.center();
+        const f32 s = 3.5f;
+        if (open) {
+            m_drawList->line(Vec2(c.x - s, c.y - s * 0.5f), Vec2(c.x, c.y + s * 0.5f), 1.5f, UIStyle::TEXT_DIM);
+            m_drawList->line(Vec2(c.x, c.y + s * 0.5f), Vec2(c.x + s, c.y - s * 0.5f), 1.5f, UIStyle::TEXT_DIM);
+        } else {
+            m_drawList->line(Vec2(c.x - s * 0.5f, c.y - s), Vec2(c.x + s * 0.5f, c.y), 1.5f, UIStyle::TEXT_DIM);
+            m_drawList->line(Vec2(c.x + s * 0.5f, c.y), Vec2(c.x - s * 0.5f, c.y + s), 1.5f, UIStyle::TEXT_DIM);
+        }
+    }
+
+    const f32 textX = arrow.right();
+    const f32 detailWidth = detail.empty() ? 0.0f : measureText(m_font, detail).x + UIStyle::TEXT_PADDING;
+    const f32 labelRoom = row.right() - UIStyle::TEXT_PADDING - detailWidth - textX;
+    drawLabelText({ textX, row.y, labelRoom, row.height }, fitText(m_font, label, labelRoom), UIStyle::TEXT);
+    if (!detail.empty()) {
+        const f32 width = detailWidth - UIStyle::TEXT_PADDING;
+        drawLabelText({ row.right() - UIStyle::TEXT_PADDING - width, row.y, width, row.height }, detail, UIStyle::TEXT_DIM);
+    }
+
+    // Leave the row as the last item, for dragSource and lastItemRect
+    m_lastItemId = makeId(label);
+    m_lastRect = row;
     finishItem(interaction, false);
     return interaction.clicked;
 }
@@ -235,11 +323,28 @@ bool UIContext::checkbox(std::string_view label, bool& value) {
     const bool changed = interaction.clicked;
     if (changed) value = !value;
 
-    drawLabelText(labelRect, label, UIStyle::TEXT_DIM);
+    drawLabelText(labelRect, fitText(m_font, label, labelRect.width - LABEL_GAP), UIStyle::TEXT_DIM);
 
     const f32 size = UIStyle::CHECKBOX_SIZE;
-    const Rect box { controlRect.x, controlRect.y + std::floor((controlRect.height - size) * 0.5f), size, size };
+    drawCheckbox({ controlRect.x, controlRect.y + std::floor((controlRect.height - size) * 0.5f), size, size }, value, interaction);
 
+    finishItem(interaction, changed);
+    return changed;
+}
+
+bool UIContext::checkbox(std::string_view id, const Rect& rect, bool& value) {
+    const Interaction interaction = interact(makeId(id), rect);
+    const bool changed = interaction.clicked;
+    if (changed) value = !value;
+
+    const f32 size = UIStyle::CHECKBOX_SIZE;
+    drawCheckbox({ rect.x, rect.y + std::floor((rect.height - size) * 0.5f), size, size }, value, interaction);
+
+    finishItem(interaction, changed);
+    return changed;
+}
+
+void UIContext::drawCheckbox(const Rect& box, bool value, const Interaction& interaction) {
     if (value) {
         m_drawList->roundedRect(box, 3.0f, UIStyle::ACCENT);
         m_drawList->line(Vec2(box.x + 3.5f, box.y + 7.5f), Vec2(box.x + 6.0f, box.y + 10.5f), 2.0f, UIStyle::TEXT_ON_ACCENT);
@@ -247,9 +352,6 @@ bool UIContext::checkbox(std::string_view label, bool& value) {
     } else {
         m_drawList->roundedRect(box, 3.0f, frameColor(interaction.hovered, interaction.held), UIStyle::FRAME_BORDER, 1.0f);
     }
-
-    finishItem(interaction, changed);
-    return changed;
 }
 
 bool UIContext::sliderControl(UIId id, const Rect& rect, f32& value, f32 min, f32 max, const char* format, const Color* fillColor, Interaction& interaction) {
@@ -289,7 +391,7 @@ bool UIContext::sliderFloat(std::string_view label, f32& value, f32 min, f32 max
     Rect controlRect;
     splitLabeledRow(row, labelRect, controlRect);
 
-    drawLabelText(labelRect, label, UIStyle::TEXT_DIM);
+    drawLabelText(labelRect, fitText(m_font, label, labelRect.width - LABEL_GAP), UIStyle::TEXT_DIM);
 
     Interaction interaction;
     const bool changed = sliderControl(makeId(label), controlRect, value, min, max, format, nullptr, interaction);
@@ -299,25 +401,39 @@ bool UIContext::sliderFloat(std::string_view label, f32& value, f32 min, f32 max
 }
 
 bool UIContext::dragFloat3(std::string_view label, Vec3& value, f32 speed, const char* format) {
+    f32* components[3] = { &value.x, &value.y, &value.z };
+    const char* axisNames[3] = { "X", "Y", "Z" };
+    const Color* axisColors[3] = { &UIStyle::AXIS_X, &UIStyle::AXIS_Y, &UIStyle::AXIS_Z };
+    return dragFloats(label, components, axisNames, axisColors, 3, speed, format);
+}
+
+bool UIContext::dragFloat(std::string_view label, f32& value, f32 speed, const char* format) {
+    f32* components[1] = { &value };
+    const char* names[1] = { "" };
+    const Color* colors[1] = { &UIStyle::TEXT_DIM };
+    return dragFloats(label, components, names, colors, 1, speed, format);
+}
+
+bool UIContext::dragFloats(std::string_view label, f32* const* components, const char* const* axisNames, const Color* const* axisColors,
+                           u32 count, f32 speed, const char* format) {
     const Rect row = nextRow();
     Rect labelRect;
     Rect controlRect;
     splitLabeledRow(row, labelRect, controlRect);
 
-    drawLabelText(labelRect, label, UIStyle::TEXT_DIM);
+    drawLabelText(labelRect, fitText(m_font, label, labelRect.width - LABEL_GAP), UIStyle::TEXT_DIM);
 
-    const f32 componentWidth = std::floor((controlRect.width - UIStyle::COMPONENT_GAP * 2.0f) / 3.0f);
-    f32* components[3] = { &value.x, &value.y, &value.z };
-    const char* axisNames[3] = { "X", "Y", "Z" };
-    const Color* axisColors[3] = { &UIStyle::AXIS_X, &UIStyle::AXIS_Y, &UIStyle::AXIS_Z };
+    const f32 componentWidth = std::floor((controlRect.width - UIStyle::COMPONENT_GAP * (count - 1)) / count);
 
     Interaction combined;
     bool changed = false;
 
     pushId(label);
-    for (u32 i = 0; i < 3; ++i) {
+    for (u32 i = 0; i < count; ++i) {
         const Rect part { controlRect.x + i * (componentWidth + UIStyle::COMPONENT_GAP), controlRect.y, componentWidth, controlRect.height };
-        const UIId id = makeId(axisNames[i]);
+        // A single box has no axis letter; its id still needs a name
+        const bool lettered = axisNames[i][0] != '\0';
+        const UIId id = makeId(lettered ? axisNames[i] : "value");
 
         // Being typed into: one undo step when the typed value is kept
         if (m_textEdit.id == id) {
@@ -348,12 +464,17 @@ bool UIContext::dragFloat3(std::string_view label, Vec3& value, f32 speed, const
         }
 
         m_drawList->roundedRect(part, UIStyle::CORNER_RADIUS, frameColor(interaction.hovered, interaction.held));
-        drawLabelText({ part.x + 6.0f, part.y, m_font.glyphWidth, part.height }, axisNames[i], *axisColors[i]);
+        if (lettered) drawLabelText({ part.x + COMPONENT_INSET, part.y, m_font.glyphWidth, part.height }, axisNames[i], *axisColors[i]);
 
-        char text[32];
-        std::snprintf(text, sizeof(text), format, *components[i]);
-        const f32 textWidth = measureText(m_font, text).x;
-        drawLabelText({ part.right() - 6.0f - textWidth, part.y, textWidth, part.height }, text, UIStyle::TEXT);
+        // The value sits right of the axis letter; when it doesn't fit (a narrow panel, a minus sign), fewer decimals
+        // are shown, and anything still too long is clipped rather than drawn over the letter
+        const f32 valueLeft = part.x + COMPONENT_INSET + (lettered ? m_font.glyphWidth + 2.0f : 0.0f);
+        const f32 room = part.right() - COMPONENT_INSET - valueLeft;
+        const std::string text = fitNumber(m_font, *components[i], format, room);
+        const f32 textWidth = std::min(measureText(m_font, text).x, room);
+        m_drawList->pushClip({ valueLeft, part.y, std::max(0.0f, room), part.height });
+        drawLabelText({ part.right() - COMPONENT_INSET - textWidth, part.y, textWidth, part.height }, text, UIStyle::TEXT);
+        m_drawList->popClip();
 
         combined.hovered |= interaction.hovered;
         combined.activated |= interaction.activated;
@@ -373,7 +494,7 @@ bool UIContext::colorEdit(std::string_view label, Vec3& color) {
     Rect controlRect;
     splitLabeledRow(row, labelRect, controlRect);
 
-    drawLabelText(labelRect, label, UIStyle::TEXT_DIM);
+    drawLabelText(labelRect, fitText(m_font, label, labelRect.width - LABEL_GAP), UIStyle::TEXT_DIM);
 
     // Clicking the swatch shows or hides the RGB sliders under it
     const Interaction swatch = interact(id, controlRect);
@@ -430,7 +551,7 @@ bool UIContext::textField(std::string_view label, std::string& text, bool allowE
     Rect controlRect;
     splitLabeledRow(row, labelRect, controlRect);
 
-    drawLabelText(labelRect, label, UIStyle::TEXT_DIM);
+    drawLabelText(labelRect, fitText(m_font, label, labelRect.width - LABEL_GAP), UIStyle::TEXT_DIM);
 
     Interaction interaction;
     bool changed = false;

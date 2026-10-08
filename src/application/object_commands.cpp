@@ -14,7 +14,8 @@ namespace {
     const char* USAGE =
         "usage: object list\n"
         "       object add <preset> [name]   (cube, plane, grid, circle, cylinder, cone, uvsphere, icosphere, torus)\n"
-        "       object <id> [edit | remove | name <n> | position <x> <y> <z> | rotation <x> <y> <z> | scale <x> <y> <z>]";
+        "       object <id> [edit | remove | name <n> | parent <id | none> | position <x> <y> <z> | rotation <x> <y> <z> | scale <x> <y> <z>]\n"
+        "       (position, rotation, and scale are relative to the parent)";
 
     const ObjectPreset* findPreset(const std::string& text) {
         for (const ObjectPreset& preset : objectPresets()) {
@@ -39,6 +40,8 @@ namespace {
         printVec3(object.transform.rotation * RADIANS_TO_DEGREES);
         std::cout << ", scale ";
         printVec3(object.transform.scale);
+        const ObjectHandle parent = ctx.scene.objects.parentOf(handle);
+        if (!parent.isNull()) std::cout << ", child of " << ctx.scene.objects.get(parent).name << " (" << parent.index << ")";
         std::cout << std::endl;
     }
 
@@ -114,6 +117,17 @@ namespace {
             return;
         }
 
+        if (args[1] == "parent" && args.size() == 3) {
+            u32 parentSlot = 0;
+            const ObjectHandle parent = args[2] == "none" ? INVALID_OBJECT : parseU32(args[2], parentSlot) ? objects.handleAt(parentSlot) : INVALID_OBJECT;
+            if (args[2] != "none" && !objects.isValid(parent)) {
+                std::cout << "usage: object <id> parent <id | none>" << std::endl;
+                return;
+            }
+            if (setObjectParent(ctx, handle, parent)) printObject(ctx, handle);
+            return;
+        }
+
         if (args[1] == "edit" && args.size() == 2) {
             ctx.scene.selection.clearLights();
             ctx.scene.selection.setActiveObject(handle);
@@ -150,12 +164,25 @@ const std::vector<ObjectPreset>& objectPresets() {
 }
 
 ObjectHandle addObject(AppContext& ctx, PresetMesh preset, const std::string& name) {
-    ObjectCollection& objects = ctx.scene.objects;
-    const f32 offset = NEW_OBJECT_SPACING * static_cast<f32>(objects.count());
+    Object object;
+    object.name = name;
+    object.meshData.setMesh(preset);
+    return addObject(ctx, std::move(object));
+}
 
+ObjectHandle addObject(AppContext& ctx, Object object) {
     ctx.history.begin(ctx.scene);
-    const ObjectHandle handle = objects.add(name, preset);
-    objects.get(handle).transform.position.x = offset;
+    const ObjectHandle handle = placeNewObject(ctx, std::move(object));
+    ctx.history.commit();
+    return handle;
+}
+
+ObjectHandle placeNewObject(AppContext& ctx, Object object) {
+    ObjectCollection& objects = ctx.scene.objects;
+    object.transform.position = Vec3(NEW_OBJECT_SPACING * static_cast<f32>(objects.count()), 0.0f, 0.0f);
+    object.parent = INVALID_OBJECT;
+
+    const ObjectHandle handle = objects.add(std::move(object));
     ctx.scene.selection.clearLights();
     ctx.scene.selection.setActiveObject(handle);
 
@@ -164,9 +191,24 @@ ObjectHandle addObject(AppContext& ctx, PresetMesh preset, const std::string& na
         ctx.scene.selection.clearObjects();
         ctx.scene.selection.selectObject(handle);
     }
+    return handle;
+}
+
+bool setObjectParent(AppContext& ctx, ObjectHandle child, ObjectHandle parent) {
+    ObjectCollection& objects = ctx.scene.objects;
+    if (!objects.isValid(child)) return false;
+
+    ctx.history.begin(ctx.scene);
+    if (!objects.setParent(child, parent)) {
+        ctx.history.cancel(ctx.scene);
+        ctx.systems.console.printError("parent: " + objects.get(child).name + " can't be a child of itself or of its own child");
+        return false;
+    }
     ctx.history.commit();
 
-    return handle;
+    const std::string& name = objects.get(child).name;
+    ctx.systems.console.print(parent.isNull() ? name + " has no parent now" : name + " is now a child of " + objects.get(parent).name);
+    return true;
 }
 
 void removeObject(AppContext& ctx, ObjectHandle handle) {

@@ -7,9 +7,12 @@
 #include "application/tool_guides.hpp"
 #include "application/status_bar.hpp"
 #include "application/light_markers.hpp"
+#include "application/origin_markers.hpp"
 #include "application/main_panel.hpp"
 #include "application/console_view.hpp"
 #include "application/project_actions.hpp"
+#include "application/modal_windows.hpp"
+#include "application/reference_images.hpp"
 #include "core/math/vec4.hpp"
 
 #include <algorithm>
@@ -187,11 +190,15 @@ void Application::renderFrame(AppContext& ctx) {
     ctx.renderer->setLighting(buildLightingState(ctx.scene.lights, ctx.viewport.headlight, ctx.scene.camera));
 
     ctx.objectMeshes.prune(ctx.scene.objects);
+    ctx.referenceTextures.prune(*ctx.renderer);
+
+    // Backdrop images go first so everything draws over them
+    drawReferenceImages(ctx, viewProjection, ReferenceDepth::Behind);
 
     for (ObjectHandle handle : ctx.scene.objects.handles()) {
         Object& object = ctx.scene.objects.get(handle);
 
-        Mat4 model = object.transform.getMatrix();
+        Mat4 model = ctx.scene.objects.worldMatrix(handle);
         Mat4 mvp = viewProjection * model;
 
         const Selection& selection = ctx.scene.selection;
@@ -230,6 +237,9 @@ void Application::renderFrame(AppContext& ctx) {
         ctx.renderer->draw(cmd);
     }
 
+    // After the meshes, so see-through images blend over them
+    drawReferenceImages(ctx, viewProjection, ReferenceDepth::InScene);
+
     DrawGridCommand gridCmd;
     gridCmd.viewProjection = viewProjection;
     gridCmd.cameraPosition = ctx.scene.camera.position;
@@ -237,6 +247,7 @@ void Application::renderFrame(AppContext& ctx) {
     gridCmd.farPlane = ctx.scene.camera.farPlane;
 
     ctx.renderer->drawGrid(gridCmd);
+    drawReferenceImages(ctx, viewProjection, ReferenceDepth::InFront);
 
     if (ctx.systems.input_ctx.isActive(InputContext_Debug)) {
         ctx.debug_renderer.render(
@@ -249,7 +260,11 @@ void Application::renderFrame(AppContext& ctx) {
     UIDrawList& ui = ctx.uiDrawList;
     ui.clear();
 
+    drawReferenceOutlines(ctx, ui, viewProjection, static_cast<f32>(width), static_cast<f32>(height));
     drawLightMarkers(ctx, ui, viewProjection, static_cast<f32>(width), static_cast<f32>(height));
+    drawParentLines(ctx, ui, viewProjection, static_cast<f32>(width), static_cast<f32>(height));
+    // Origins win clicks over lights, so they draw over them too
+    drawOriginMarkers(ctx, ui, viewProjection, static_cast<f32>(width), static_cast<f32>(height));
     drawToolGuides(ctx, ui);
     drawStatusBar(ctx, ui, static_cast<f32>(width), static_cast<f32>(height));
 
@@ -257,6 +272,7 @@ void Application::renderFrame(AppContext& ctx) {
     ctx.ui.setFont(makeUIFont(FontId::UI, ctx.fonts.get(FontId::UI)));
     ctx.ui.beginDraw();
     if (ctx.viewport.showPanel) drawMainPanel(ctx, { 0.0f, 0.0f, static_cast<f32>(width), static_cast<f32>(height) - statusBarHeight(ctx) });
+    drawModal(ctx, { 0.0f, 0.0f, static_cast<f32>(width), static_cast<f32>(height) });
     ctx.ui.endDraw();
 
     drawRadialMenu(ctx, ui);

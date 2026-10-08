@@ -10,7 +10,8 @@ enum class RadialMenuId : u8 {
     Light,
     Mode,
     View,
-    Tool
+    Tool,
+    Origin
 };
 
 struct RadialMenuState {

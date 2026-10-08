@@ -54,6 +54,13 @@ bool ActionMap::isBlocked(Action action, const Keybind& keybind) const {
     return m_keyboardBlocked && action != Action::Quit && usesKeys(keybind);
 }
 
+bool ActionMap::ownerAllows(u32 bindingContexts, u32 input_ctx) const {
+    for (u32 owner : { u32(InputContext_Modal), u32(InputContext_Console) }) {
+        if (input_ctx & owner) return bindingContexts & owner;
+    }
+    return true;
+}
+
 bool ActionMap::modifiersMatch(const Keybind& keybind, const InputState& input) const {
     if (usesMouse(keybind)) return true;
 
@@ -89,7 +96,7 @@ bool ActionMap::wasActionPressedOrRepeated(Action action, const InputState& inpu
     // Repeats only make sense for one key held on its own
     if (inputs.size() != 1 || inputs[0].kind != InputKind::Key) return false;
     if (!(input_ctx & data.ctx)) return false;
-    if (input_ctx & InputContext_Console && !(data.ctx & InputContext_Console)) return false;
+    if (!ownerAllows(data.ctx, input_ctx)) return false;
     if (isBlocked(action, data.bind) || !modifiersMatch(data.bind, input)) return false;
 
     return input.wasKeyPressedOrRepeated(inputs[0].code);
@@ -116,8 +123,7 @@ bool ActionMap::isActionDown(Action action, const InputState& input, u32 input_c
     bool contextMatch = input_ctx & key_context;
     if (!contextMatch) return false;
 
-    // Only console bindings work while the console is open.
-    if (input_ctx & InputContext_Console && !(key_context & InputContext_Console)) return false;
+    if (!ownerAllows(key_context, input_ctx)) return false;
 
     if (isBlocked(action, keybind) || !modifiersMatch(keybind, input)) return false;
 
@@ -157,7 +163,7 @@ bool ActionMap::wasActionPressedThisFrame(Action action, const InputState& input
     bool contextMatch = input_ctx & key_context;
     if (!contextMatch) return false;
 
-    if (input_ctx & InputContext_Console && !(key_context & InputContext_Console)) return false;
+    if (!ownerAllows(key_context, input_ctx)) return false;
 
     if (isBlocked(action, keybind) || !modifiersMatch(keybind, input)) return false;
 
@@ -176,12 +182,11 @@ bool ActionMap::wasActionPressedThisFrame(Action action, const InputState& input
                 break;
 
             case InputKind::MouseButton:
-                if (!input.isMouseDown(bindingInput.code)) {
-                    return false;
-                }
-
+                // A click that went down and up within the frame still counts as a press
                 if (input.wasMousePressedThisFrame(bindingInput.code)) {
                     anyPressedThisFrame = true;
+                } else if (!input.isMouseDown(bindingInput.code)) {
+                    return false;
                 }
                 break;
 

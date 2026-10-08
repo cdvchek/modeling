@@ -72,18 +72,64 @@ namespace {
     }
 
     Vec3 matrixToEuler(const Mat3& r) {
-        const f32 sy = std::clamp(-r.m[2][0], -1.0f, 1.0f);
-        const f32 y = std::asin(sy);
+        // atan2 rather than asin, which loses precision near straight up or down
+        const f32 y = std::atan2(-r.m[2][0], std::sqrt(r.m[0][0] * r.m[0][0] + r.m[1][0] * r.m[1][0]));
 
         // Looking straight along Y, X and Z turn about the same axis; put it all in Z
-        if (std::abs(sy) > 0.9999f) {
-            return Vec3(0.0f, y, std::atan2(-r.m[0][1], r.m[1][1]));
+        // Adding 0 turns -0 into 0, so angles don't read back as "-0"
+        if (std::abs(r.m[2][0]) > 0.99999f) {
+            return Vec3(0.0f, y + 0.0f, std::atan2(-r.m[0][1], r.m[1][1]) + 0.0f);
         }
 
-        return Vec3(std::atan2(r.m[2][1], r.m[2][2]), y, std::atan2(r.m[1][0], r.m[0][0]));
+        return Vec3(std::atan2(r.m[2][1], r.m[2][2]) + 0.0f, y + 0.0f, std::atan2(r.m[1][0], r.m[0][0]) + 0.0f);
     }
+
+    Mat3 transpose(const Mat3& a) {
+        Mat3 result {};
+        for (u32 row = 0; row < 3; ++row) for (u32 col = 0; col < 3; ++col) result.m[row][col] = a.m[col][row];
+        return result;
+    }
+
+    Vec3 apply(const Mat3& a, const Vec3& v) {
+        return Vec3(a.m[0][0] * v.x + a.m[0][1] * v.y + a.m[0][2] * v.z,
+                    a.m[1][0] * v.x + a.m[1][1] * v.y + a.m[1][2] * v.z,
+                    a.m[2][0] * v.x + a.m[2][1] * v.y + a.m[2][2] * v.z);
+    }
+
+    Vec3 multiplyEach(const Vec3& a, const Vec3& b) {
+        return Vec3(a.x * b.x, a.y * b.y, a.z * b.z);
+    }
+
+    Vec3 divideEach(const Vec3& a, const Vec3& b) {
+        return Vec3(a.x / b.x, a.y / b.y, a.z / b.z);
+    }
+}
+
+Vec3 eulerFromAxes(const Vec3& x, const Vec3& y, const Vec3& z) {
+    // The axes are the rotation matrix's columns
+    return matrixToEuler({ { { x.x, y.x, z.x }, { x.y, y.y, z.y }, { x.z, y.z, z.z } } });
 }
 
 Vec3 rotateEuler(const Vec3& euler, const Vec3& axis, f32 angle) {
     return matrixToEuler(multiply(axisAngleToMatrix(axis, angle), eulerToMatrix(euler)));
+}
+
+Transform combineTransforms(const Transform& parent, const Transform& local) {
+    const Mat3 parentRotation = eulerToMatrix(parent.rotation);
+
+    Transform world;
+    world.position = parent.position + apply(parentRotation, multiplyEach(parent.scale, local.position));
+    world.rotation = matrixToEuler(multiply(parentRotation, eulerToMatrix(local.rotation)));
+    world.scale = multiplyEach(parent.scale, local.scale);
+    return world;
+}
+
+Transform relativeTransform(const Transform& parent, const Transform& world) {
+    const Mat3 inverseRotation = transpose(eulerToMatrix(parent.rotation));
+
+    Transform local;
+    local.position = divideEach(apply(inverseRotation, world.position - parent.position), parent.scale);
+    local.rotation = matrixToEuler(multiply(inverseRotation, eulerToMatrix(world.rotation)));
+    local.scale = divideEach(world.scale, parent.scale);
+    return local;
 }

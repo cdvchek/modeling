@@ -2,6 +2,7 @@
 
 #include <filesystem>
 #include <string>
+#include <vector>
 
 namespace Platform {
     void pollEvents();
@@ -16,12 +17,11 @@ namespace Platform {
     // and adds the extension when it's left off. Both return an empty path when cancelled.
     std::filesystem::path chooseOpenFile(void* window, const std::string& typeName, const std::string& extension, const std::filesystem::path& folder);
     std::filesystem::path chooseSaveFile(void* window, const std::string& typeName, const std::string& extension, const std::filesystem::path& folder, const std::filesystem::path& fileName);
+    // Open with several files allowed; empty when cancelled
+    std::vector<std::filesystem::path> chooseOpenFiles(void* window, const std::string& typeName, const std::string& extension, const std::filesystem::path& folder);
+    // Windows' folder picker, starting in folder; empty when cancelled
+    std::filesystem::path chooseFolder(void* window, const std::filesystem::path& folder);
 
     // The user's Documents folder (wherever Windows keeps it, e.g. in OneDrive); empty if it can't be found
     std::filesystem::path documentsFolder();
-
-    enum class SaveChoice { Save, DontSave, Cancel };
-
-    // "Save changes to name?" with Save, Don't Save, and Cancel
-    SaveChoice askToSaveChanges(void* window, const std::string& title, const std::string& name);
 }

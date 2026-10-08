@@ -6,6 +6,8 @@
 void InputState::beginFrame() {
     m_keys_was_down = m_keys_is_down;
     m_buttons_was_down = m_buttons_is_down;
+    m_buttons_pressed.fill(false);
+    m_buttons_released.fill(false);
 
     m_mouse_delta_x = 0;
     m_mouse_delta_y = 0;
@@ -21,6 +23,8 @@ void InputState::releaseAll() {
     m_keys_was_down.fill(false);
     m_buttons_is_down.fill(false);
     m_buttons_was_down.fill(false);
+    m_buttons_pressed.fill(false);
+    m_buttons_released.fill(false);
 }
 
 bool InputState::wasKeyPressedOrRepeated(u16 key) const {
@@ -58,11 +62,11 @@ bool InputState::wasMouseDown(u16 button) const {
 }
 
 bool InputState::wasMousePressedThisFrame(u16 button) const {
-    return (m_buttons_is_down[button] && !m_buttons_was_down[button]);
+    return m_buttons_pressed[button];
 }
 
 bool InputState::wasMouseReleasedThisFrame(u16 button) const {
-    return (!m_buttons_is_down[button] && m_buttons_was_down[button]);
+    return m_buttons_released[button];
 }
 
 i32 InputState::getMouseX() const {
@@ -91,6 +95,8 @@ void InputState::onKey(u16 key, bool pressed) {
 }
 
 void InputState::onMouseButton(u16 button, bool pressed) {
+    if (pressed && !m_buttons_is_down[button]) m_buttons_pressed[button] = true;
+    if (!pressed && m_buttons_is_down[button]) m_buttons_released[button] = true;
     m_buttons_is_down[button] = pressed;
 }
 
@@ -99,8 +105,9 @@ void InputState::onScroll(i32 scroll) {
 }
 
 void InputState::onMouseMove(i32 x, i32 y) {
-    m_mouse_delta_x = x - m_mouse_x;
-    m_mouse_delta_y = y - m_mouse_y;
+    // Added up: several moves can arrive in one frame, and a click reports its position too
+    m_mouse_delta_x += x - m_mouse_x;
+    m_mouse_delta_y += y - m_mouse_y;
 
     m_mouse_x = x;
     m_mouse_y = y;

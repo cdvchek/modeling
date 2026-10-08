@@ -2,6 +2,7 @@
 #include "application/ui_undo.hpp"
 #include "application/light_commands.hpp"
 #include "application/object_commands.hpp"
+#include "application/reference_images.hpp"
 #include "ui/ui_style.hpp"
 
 #include <algorithm>
@@ -10,7 +11,7 @@
 #include <vector>
 
 namespace {
-    constexpr f32 PANEL_WIDTH = 330.0f;
+    constexpr f32 PANEL_WIDTH = 360.0f;
     constexpr f32 PANEL_HEIGHT = 620.0f;
     constexpr f32 PANEL_MARGIN = 20.0f;
     constexpr f32 RADIANS_TO_DEGREES = 180.0f / 3.14159265f;
@@ -21,9 +22,14 @@ namespace {
     constexpr f32 PRESET_DROPDOWN_WIDTH = 130.0f;
     constexpr f32 MIN_SCALE = 0.001f;
 
-    const std::vector<std::string_view> TABS = { "Objects", "Lights" };
+    const std::vector<std::string_view> TABS = { "Objects", "Lights", "Images" };
     constexpr i32 OBJECTS_TAB = 0;
     constexpr i32 LIGHTS_TAB = 1;
+    constexpr i32 IMAGES_TAB = 2;
+
+    // Order of the depth switch
+    const std::vector<ReferenceDepth> DEPTHS = { ReferenceDepth::Behind, ReferenceDepth::InScene, ReferenceDepth::InFront };
+    const std::vector<std::string_view> DEPTH_LABELS = { "Behind", "Scene", "Front" };
 
     f32 listHeight() {
         return LIST_ROWS * UIStyle::ROW_HEIGHT + (LIST_ROWS - 1) * UIStyle::ITEM_SPACING + UIStyle::CHILD_PADDING * 2.0f;
@@ -38,18 +44,26 @@ namespace {
 
     ListHeader listHeader(UIContext& ui, std::string_view title, f32 pickerWidth) {
         const Rect header = ui.row();
-        ui.text(header, title, UIStyle::ACCENT_GREEN);
+
+        // A narrow panel shrinks the picker first, so the title keeps some room
+        const f32 picker = std::min(pickerWidth, std::floor(header.width * 0.45f));
 
         ListHeader rects;
         rects.minus = { header.right() - header.height, header.y, header.height, header.height };
         rects.plus = { rects.minus.x - UIStyle::COMPONENT_GAP - header.height, header.y, header.height, header.height };
-        rects.picker = { rects.plus.x - UIStyle::COMPONENT_GAP - pickerWidth, header.y, pickerWidth, header.height };
+        rects.picker = { rects.plus.x - UIStyle::COMPONENT_GAP - picker, header.y, picker, header.height };
+
+        const f32 titleRoom = rects.picker.x - header.x - UIStyle::COMPONENT_GAP;
+        ui.text(header, fitText(ui.font(), title, titleRoom), UIStyle::ACCENT_GREEN);
         return rects;
     }
+
+    constexpr std::string_view IMPORT_LABEL = "Import...";
 
     std::vector<std::string_view> presetLabels() {
         std::vector<std::string_view> labels;
         for (const ObjectPreset& preset : objectPresets()) labels.push_back(preset.displayName);
+        labels.push_back(IMPORT_LABEL);
         return labels;
     }
 
@@ -63,9 +77,14 @@ namespace {
         const ListHeader header = listHeader(ui, "Objects", PRESET_DROPDOWN_WIDTH);
         ui.dropdown("preset", header.picker, preset, presetLabels());
 
+        // The entry after the presets is Import…: + opens the file dialog (next frame, not while drawing)
         if (ui.button("+", header.plus)) {
-            const ObjectPreset& chosen = objectPresets()[preset];
-            addObject(ctx, chosen.preset, objects.uniqueName(chosen.displayName));
+            if (preset >= static_cast<i32>(objectPresets().size())) {
+                ctx.importRequested = true;
+            } else {
+                const ObjectPreset& chosen = objectPresets()[preset];
+                addObject(ctx, chosen.preset, objects.uniqueName(chosen.displayName));
+            }
         }
         if (ui.button("-", header.minus, objects.isValid(selection.getActiveObject()))) {
             removeObject(ctx, selection.getActiveObject());
@@ -73,16 +92,36 @@ namespace {
 
         const bool objectMode = ctx.systems.input_ctx.getSelectionContext() == InputContext_SelectionObject;
 
-        ui.beginChild("list", listHeight());
-        for (ObjectHandle handle : objects.handles()) {
+        std::vector<ObjectHandle>& folded = ctx.viewport.foldedObjects;
+        std::erase_if(folded, [&objects](ObjectHandle handle) { return !objects.isValid(handle); });
+
+        // The dragged object, if a row is being dragged; it can go under any object that isn't itself or one of its own
+        const ObjectHandle dragged = ui.isDragging() ? objects.handleAt(ui.dragPayload()) : INVALID_OBJECT;
+        auto canDropOn = [&](ObjectHandle target) {
+            return objects.isValid(dragged) && target != dragged && !objects.isAncestor(dragged, target) && objects.parentOf(dragged) != target;
+        };
+
+        const Rect box = ui.beginChild("list", listHeight());
+
+        // Parents before children; a folded object's children (and theirs) are skipped
+        u32 hideBelow = UINT32_MAX;
+        for (const HierarchyEntry& entry : objects.hierarchy()) {
+            if (entry.depth > hideBelow) continue;
+            hideBelow = UINT32_MAX;
+
+            const ObjectHandle handle = entry.handle;
             const Object& object = objects.get(handle);
-            const std::string detail = std::to_string(object.meshData.getFaceHandles().size()) + " faces";
+            const std::size_t faces = object.meshData.getFaceHandles().size();
+            const std::string detail = std::to_string(faces) + (faces == 1 ? " face" : " faces");
+            const bool hasChildren = !objects.childrenOf(handle).empty();
+            const bool wasFolded = std::find(folded.begin(), folded.end(), handle) != folded.end();
+            bool open = !wasFolded;
 
             // Object mode lists the selected objects; edit modes the one being edited
             const bool selected = objectMode ? selection.hasObject(handle) : handle == selection.getActiveObject();
 
             ui.pushId(handle.index);
-            if (ui.selectable(object.name, selected, detail)) {
+            if (ui.treeRow(object.name, selected, detail, entry.depth, hasChildren, open)) {
                 selection.clearLights();
                 selection.setActiveObject(handle);
                 if (objectMode) {
@@ -90,9 +129,29 @@ namespace {
                     selection.selectObject(handle);
                 }
             }
+            ui.dragSource(handle.index, object.name);
+
+            // Dropping one row on another parents it there, keeping it where it is in the world
+            const Rect row = ui.lastItemRect();
+            if (canDropOn(handle) && ui.mouseIn(row)) ui.drawList().roundedRect(row, UIStyle::CORNER_RADIUS, { 0.0f, 0.0f, 0.0f, 0.0f }, UIStyle::ACCENT, 1.5f);
+            u32 dropped = 0;
+            if (canDropOn(handle) && ui.acceptDrop(row, dropped)) setObjectParent(ctx, objects.handleAt(dropped), handle);
             ui.popId();
+
+            if (open == wasFolded) {
+                if (open) std::erase(folded, handle);
+                else folded.push_back(handle);
+            }
+            if (!open) hideBelow = entry.depth;
         }
         ui.endChild();
+
+        // Dropping on the list's empty space takes the object out of its parent
+        u32 dropped = 0;
+        if (ui.acceptDrop(box, dropped)) {
+            const ObjectHandle handle = objects.handleAt(dropped);
+            if (!objects.parentOf(handle).isNull()) setObjectParent(ctx, handle, INVALID_OBJECT);
+        }
     }
 
     // Edits a copy of the transform so an undo restore mid-frame never leaves a dangling reference
@@ -284,6 +343,97 @@ namespace {
         if (changed && lights.isValid(handle)) lights.replace(handle, light);
     }
 
+    // Heading with + and - on the right, then a fixed-height scrolling list
+    void imageListSection(AppContext& ctx) {
+        UIContext& ui = ctx.ui;
+        ReferenceCollection& references = ctx.scene.references;
+        Selection& selection = ctx.scene.selection;
+
+        const ListHeader header = listHeader(ui, "Reference images", 0.0f);
+        // The file dialog opens next frame, not while drawing
+        if (ui.button("+", header.plus)) ctx.referenceRequested = true;
+        if (ui.button("-", header.minus, selection.hasReferences())) deleteSelectedReferences(ctx);
+
+        ui.beginChild("list", listHeight());
+        for (ReferenceHandle handle : references.handles()) {
+            const ReferenceImage& image = references.get(handle);
+            const std::string detail = !image.visible ? "hidden" : image.locked ? "locked" : "";
+
+            // Locked images can still be picked here, to change them or unlock them
+            ui.pushId(handle.index);
+            if (ui.selectable(image.name, selection.hasReference(handle), detail)) {
+                selection.clear();
+                selection.addReference(handle);
+            }
+            ui.popId();
+        }
+        ui.endChild();
+    }
+
+    // Edits a copy so an undo restore mid-frame never leaves a dangling reference
+    void selectedImageSection(AppContext& ctx) {
+        UIContext& ui = ctx.ui;
+        ReferenceCollection& references = ctx.scene.references;
+        const std::vector<ReferenceHandle>& selected = ctx.scene.selection.getReferences();
+
+        ui.heading("Selected image");
+
+        if (selected.empty() || !references.isValid(selected.front())) {
+            ui.label("No image selected", true);
+            return;
+        }
+
+        const ReferenceHandle handle = selected.front();
+        ReferenceImage image = references.get(handle);
+        bool changed = false;
+
+        ui.pushId(handle.index);
+
+        changed |= ui.textField("Name", image.name);
+        trackUndo(ctx);
+
+        if (image.picture) {
+            ui.label(image.picture->fileName + ", " + std::to_string(image.picture->width) + " x " + std::to_string(image.picture->height), true);
+        }
+
+        changed |= ui.checkbox("Visible", image.visible);
+        trackUndo(ctx);
+        // A locked image ignores clicks in the viewport; it can still be picked in the list above
+        changed |= ui.checkbox("Locked", image.locked);
+        trackUndo(ctx);
+
+        changed |= ui.sliderFloat("Opacity", image.opacity, 0.0f, 1.0f);
+        trackUndo(ctx);
+
+        i32 depth = static_cast<i32>(std::find(DEPTHS.begin(), DEPTHS.end(), image.depth) - DEPTHS.begin());
+        if (ui.segmented("Depth", depth, DEPTH_LABELS)) {
+            image.depth = DEPTHS[depth];
+            changed = true;
+        }
+        trackUndo(ctx);
+
+        changed |= ui.dragFloat3("Position", image.position, 0.01f);
+        trackUndo(ctx);
+
+        Vec3 degrees = image.rotation * RADIANS_TO_DEGREES;
+        if (ui.dragFloat3("Rotation", degrees, 0.5f, "%.0f")) {
+            image.rotation = degrees / RADIANS_TO_DEGREES;
+            changed = true;
+        }
+        trackUndo(ctx);
+
+        // Its height; the width follows the picture's proportions
+        if (ui.dragFloat("Size", image.size, 0.01f)) {
+            image.size = std::max(image.size, MIN_REFERENCE_SIZE);
+            changed = true;
+        }
+        trackUndo(ctx);
+
+        ui.popId();
+
+        if (changed && references.isValid(handle)) references.get(handle) = image;
+    }
+
     void ambientSection(AppContext& ctx) {
         UIContext& ui = ctx.ui;
         LightCollection& lights = ctx.scene.lights;
@@ -352,6 +502,15 @@ void drawMainPanel(AppContext& ctx, const Rect& bounds) {
 
         ui.pushId("headlight");
         headlightSection(ctx);
+        ui.popId();
+    } else if (panel.activeTab == IMAGES_TAB) {
+        ui.pushId("images");
+        imageListSection(ctx);
+        ui.popId();
+        ui.spacing();
+
+        ui.pushId("selected image");
+        selectedImageSection(ctx);
         ui.popId();
     }
 

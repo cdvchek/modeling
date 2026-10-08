@@ -43,7 +43,21 @@ namespace {
         u32 hiddenLines;
     };
 
-    std::vector<DisplayLine> layoutLines(const std::vector<ConsoleEntry>& entries) {
+    // Splits a line into rows of at most width characters, breaking after a space when there is one
+    std::vector<std::string_view> wrap(std::string_view text, std::size_t width) {
+        std::vector<std::string_view> rows;
+        while (text.size() > width && width > 0) {
+            std::size_t cut = text.rfind(' ', width);
+            cut = (cut == std::string_view::npos || cut == 0) ? width : cut + 1;
+            rows.push_back(text.substr(0, cut));
+            text.remove_prefix(cut);
+        }
+        rows.push_back(text);
+        return rows;
+    }
+
+    // Lines longer than width characters wrap onto further rows; only an entry's very first row counts as first
+    std::vector<DisplayLine> layoutLines(const std::vector<ConsoleEntry>& entries, std::size_t width) {
         std::vector<DisplayLine> lines;
 
         for (u32 i = 0; i < static_cast<u32>(entries.size()); ++i) {
@@ -55,7 +69,12 @@ namespace {
             for (u32 line = 0; line < lineCount; ++line) {
                 const std::size_t end = text.find('\n', start);
                 const std::string_view part = text.substr(start, end == std::string_view::npos ? std::string_view::npos : end - start);
-                lines.push_back({ i, part, line == 0, collapsed ? lineCount - 1 : 0 });
+
+                const std::vector<std::string_view> rows = wrap(part, width);
+                for (std::size_t r = 0; r < rows.size(); ++r) {
+                    lines.push_back({ i, rows[r], line == 0 && r == 0, collapsed ? lineCount - 1 : 0 });
+                    if (collapsed) break;
+                }
 
                 if (collapsed) break;
                 start = end + 1;
@@ -157,7 +176,10 @@ void drawConsole(AppContext& ctx, UIDrawList& ui, const Rect& viewport) {
     // The list above the input: commands, their output, and errors, newest at the bottom
     const Rect list { panel.x + PADDING, panel.y + HEADER_HEIGHT + 1.0f, panel.width - PADDING * 2.0f, input.y - (panel.y + HEADER_HEIGHT + 1.0f) - LINE_GAP };
     const std::vector<ConsoleEntry>& entries = console.getEntries();
-    const std::vector<DisplayLine> lines = layoutLines(entries);
+    // Characters that fit between the prompt column and the scrollbar
+    const f32 textWidth = list.width - SCROLLBAR_SPACE - INPUT_PADDING_X - promptWidth;
+    const std::size_t wrapWidth = static_cast<std::size_t>(std::max(1.0f, textWidth / font.glyphWidth));
+    const std::vector<DisplayLine> lines = layoutLines(entries, wrapWidth);
     const i32 count = static_cast<i32>(lines.size());
     const f32 lineHeight = font.glyphHeight + LINE_GAP;
     const i32 visibleLines = std::max(1, static_cast<i32>(list.height / lineHeight));

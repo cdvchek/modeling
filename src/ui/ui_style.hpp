@@ -9,7 +9,7 @@ namespace UIStyle {
     constexpr f32 ITEM_SPACING = 4.0f;
     constexpr f32 SECTION_SPACING = 10.0f;
     constexpr f32 CORNER_RADIUS = 4.0f;
-    constexpr f32 LABEL_FRACTION = 0.38f;
+    constexpr f32 LABEL_FRACTION = 0.32f;
     constexpr f32 TEXT_PADDING = 8.0f;
     constexpr f32 INDENT = 14.0f;
 
@@ -62,6 +62,13 @@ namespace UIStyle {
     const Color PANEL_BACKGROUND { 0.16f, 0.16f, 0.21f, 0.97f };   // background #282a36
     const Color PANEL_BORDER { 0.27f, 0.28f, 0.35f, 1.0f };
     const Color PANEL_SHADOW { 0.0f, 0.0f, 0.0f, 0.5f };
+
+    // Dims everything behind a modal window
+    const Color MODAL_BACKDROP { 0.06f, 0.06f, 0.08f, 0.55f };
+
+    // Something to look at before going ahead (a file that will be replaced); Dracula orange #ffb86c
+    const Color WARNING { 1.0f, 0.72f, 0.42f, 1.0f };
+
     const Color PANEL_HEADER { 0.13f, 0.13f, 0.17f, 1.0f };        // darker background #21222c
     const Color PANEL_HEADER_HOVER { 0.17f, 0.17f, 0.22f, 1.0f };
     const Color LIST_BACKGROUND { 0.13f, 0.13f, 0.17f, 1.0f };

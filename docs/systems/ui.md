@@ -1,12 +1,12 @@
 # UI
 
-Everything drawn on top of the viewport (light markers, status bar, console) and the immediate-mode widget system that panels are built from (see the [roadmap](../features.md#planned) for the floating panel and tabs).
+Everything drawn on top of the viewport (markers, tool guides, status bar, panel, modal windows, radial menu, console) and the immediate-mode widget system the panel and modal windows are built from.
 
 Files: `src/ui/` (part of `modeling_core`, no OpenGL), drawn by [opengl_ui_renderer.cpp](../../src/renderer/opengl/opengl_ui_renderer.cpp).
 
 | File | Contents |
 |---|---|
-| [ui_types.hpp](../../src/ui/ui_types.hpp) | `Rect`, `Color`, `UIFont`, `makeUIFont`, `measureText` |
+| [ui_types.hpp](../../src/ui/ui_types.hpp) | `Rect`, `Color`, `UIFont`, `makeUIFont`, `measureText`, `fitText` |
 | [ui_draw_list.hpp](../../src/ui/ui_draw_list.hpp) | `UIDrawList`, `UIVertex`, `UIDrawBatch` |
 | [ui_input.hpp](../../src/ui/ui_input.hpp) | `UIInput`: one frame of mouse and keyboard state, filled by the app: mouse buttons, wheel, typed `text`, editing `keys` (`UIKey`: arrows, Home/End, Backspace/Delete, Enter, Escape, and Ctrl+A/C/X/V; repeats included), `shift`, and `time` for the caret blink |
 | [ui_context.hpp](../../src/ui/ui_context.hpp), `ui_context.cpp` | `UIContext`: input routing, IDs, hot/active, regions, layout |
@@ -16,7 +16,7 @@ Files: `src/ui/` (part of `modeling_core`, no OpenGL), drawn by [opengl_ui_rende
 ## How a frame draws UI
 
 1. `renderFrame` clears `ctx.uiDrawList`.
-2. UI code adds shapes and text to it, in drawing order: `drawLightMarkers`, `drawStatusBar`, the widget pass (`ctx.ui.beginDraw()` … `endDraw()`, currently the floating panel), then `drawRadialMenu`, then `drawConsole` (so the open console is on top).
+2. UI code adds shapes and text to it, in drawing order: `drawLightMarkers`, `drawOriginMarkers`, `drawToolGuides`, `drawStatusBar`, the widget pass (`ctx.ui.beginDraw()` … `endDraw()`: the floating panel, then an open modal window, then any open dropdown list), then `drawRadialMenu`, then `drawConsole` (so the open console is on top).
 3. `ctx.renderer->drawUI(list)` uploads the whole list once and draws it after the scene, grid, and debug overlay, before the MSAA resolve.
 
 UI code never calls OpenGL, so everything up to step 3 can be unit tested (see `tests/ui_draw_list_tests.cpp`).
@@ -51,7 +51,7 @@ main loop:
 
 ### Layout
 
-Inside a region, each widget takes the next row (`UIStyle::ROW_HEIGHT`, 24 px) across the full width, minus `UIStyle::PADDING`. Labeled widgets split the row: the label in a dim left column (`LABEL_FRACTION` of the width), the control on the right. `spacing()`, `separator()`, and `indent(px)` adjust the flow. `row(height)` hands out the next row's rect and `text(rect, text, color)` draws a label in it, for custom rows like a heading with buttons on the right.
+Inside a region, each widget takes the next row (`UIStyle::ROW_HEIGHT`, 24 px) across the full width, minus `UIStyle::PADDING`. Labeled widgets split the row: the label in a dim left column (`LABEL_FRACTION`, 32% of the width), the control on the right. A label that doesn't fit its column is shortened with "..." (`fitText`), as are `label` text and list rows, so nothing runs into its neighbor when the panel is narrow. `spacing()`, `separator()`, and `indent(px)` adjust the flow. `row(height)` hands out the next row's rect and `text(rect, text, color)` draws a label in it, for custom rows like a heading with buttons on the right.
 
 **Child boxes:** `beginChild(name, height)` … `endChild()` reserves a fixed-height box (darker background, 1 px border) whose content scrolls on its own, with its own scrollbar. Its scroll state is kept per ID. The wheel over a child scrolls the child and is used up, so the panel doesn't also scroll; that's why the panel handles the wheel in `endPanel`, after its children. Widgets in the child only respond inside the box (intersected with the panel's content area).
 
@@ -59,16 +59,20 @@ Inside a region, each widget takes the next row (`UIStyle::ROW_HEIGHT`, 24 px) a
 
 | Widget | Look and behavior | Returns true when |
 |---|---|---|
-| `label(text, dim)` | A line of text | — |
+| `label(text, dim)` | A line of text, shortened with "..." if it doesn't fit | — |
 | `heading(text)` | Green section title | — |
 | `button(label)` | Full-width rounded button, centered text | Clicked (released over itself) |
-| `selectable(label, selected, detail)` | Full-width row; selected rows get a purple tint and a 2 px purple bar on the left. Optional `detail` is drawn dim and right-aligned | Clicked |
+| `treeRow(label, selected, detail, depth, hasChildren, open)` | A `selectable` indented by `depth`, with a small arrow that folds the row's children away (`open` toggles on a click on the arrow, which doesn't select the row). The label is shortened to fit | The row (not the arrow) was clicked |
+| `selectable(label, selected, detail)` | Full-width row; selected rows get a purple tint and a 2 px purple bar on the left. Optional `detail` is drawn dim and right-aligned; the label gets the rest of the row and is shortened with "..." rather than running into it | Clicked |
 | `button(label, rect, enabled)` | A button at an explicit rect, for putting several controls on one row. Disabled buttons are drawn dim and ignore the mouse | Clicked |
+| `segmented(id, rect, index, options)` | The same switch in a given rect with no label (table rows); an `index` of -1 highlights nothing | A different option was picked |
 | `segmented(label, index, options)` | A row of options in one frame; the picked one is filled purple. Segments are sized to their text and share the leftover width; each label is clipped to its segment. An empty label uses the full row | A different option was picked (on release) |
 | `dropdown(label, rect, index, options)` | A button showing `options[index]` with a chevron; clicking it opens a list below it (or above, if it wouldn't fit in the viewport) drawn on top of everything. Picking an option closes the list | An option was picked (the frame after the click) |
 | `checkbox(label, value)` | Purple box with a check mark when on; toggles on release | Toggled |
+| `checkbox(id, rect, value)` | Just the box, at the left of `rect` and centered in its height; the whole rect is clickable (table rows) | Toggled |
 | `sliderFloat(label, value, min, max, format)` | Box filled in purple up to the value, number centered; the value follows the mouse's x while held | Value changed |
-| `dragFloat3(label, vec3, speed, format)` | Three boxes with X/Y/Z in axis colors; dragging left/right nudges that component by `mouseDelta × speed` once the mouse has moved 3 px (`DRAG_THRESHOLD`). A press and release under that opens the component as a text edit (value as `%g`, all selected); Enter or a click elsewhere parses it (a non-number is ignored) | Any component changed (by drag, or when a typed value is kept) |
+| `dragFloat3(label, vec3, speed, format)` | Three boxes with X/Y/Z in axis colors and the value right-aligned beside the letter; a value too wide for its box shows fewer decimals (`-3.25` → `-3.2` → `-3`) and is clipped rather than drawn over the letter. Dragging left/right nudges that component by `mouseDelta × speed` once the mouse has moved 3 px (`DRAG_THRESHOLD`). A press and release under that opens the component as a text edit (value as `%g`, all selected); Enter or a click elsewhere parses it (a non-number is ignored) | Any component changed (by drag, or when a typed value is kept) |
+| `dragFloat(label, value, speed, format)` | One box with no axis letter, dragged and typed the same way as `dragFloat3` (both are drawn by `dragFloats`) | The value changed |
 | `textField(label, text, allowEmpty = false)` | A field showing `text`; pressing it starts an edit with all text selected (I-beam cursor over it) | Once, when an edit is kept that changed the text (trimmed; an empty edit is dropped unless `allowEmpty`) |
 | `colorEdit(label, rgb)` | A swatch of the color; clicking it shows or hides R/G/B sliders below it | A channel changed |
 
@@ -84,6 +88,10 @@ One field at a time is edited; its state (`TextEdit`: buffer, caret, selection a
 - **Keyboard ownership:** `wantsKeyboard()` is true while a field is edited. The app passes it to `ActionMap::setKeyboardBlocked`, so no key shortcut fires (Quit excepted).
 - **Ending without a commit:** an edit whose widget isn't drawn in a frame (tab switched, object removed) or that becomes non-interactive is dropped.
 
+### Drag and drop
+
+Right after a widget, `dragSource(payload, label)` starts a drag carrying `payload` (a number, e.g. an object's slot) once that widget has been pressed and the mouse has moved past the 3 px drag threshold; it returns true while its drag lasts. A small tag with `label` follows the mouse (drawn in `endDraw`, over everything). On the release, the first `acceptDrop(rect, payload)` whose rect is under the mouse takes it and returns true; the drag ends at the end of that frame either way. `isDragging()` and `dragPayload()` let targets show where a drop would go (outline `lastItemRect()` when `mouseIn` it). The dragged widget doesn't count as clicked unless it's released over itself. `beginChild` returns the box's rect, so the empty part of a list can be a drop target after its rows.
+
 ### Dropdown lists (popups)
 
 Only one dropdown list is open at a time. The list is drawn in `endDraw`, after everything else, as its own region, so it's on top of the panel and wins hover tests. While it's open, `wantsMouse` is true; a press anywhere outside the list and its button only closes it (the press goes nowhere else). If its dropdown isn't drawn in a frame (e.g. the tab changed), the list closes. A picked option is handed back to the dropdown on the next frame. `setViewport(rect)` sets the area lists are kept inside.
@@ -94,7 +102,11 @@ Widgets never change a value on the frame they activate. That's what makes undo 
 
 ### Style
 
-All sizes and colors live in `UIStyle`, following the Dracula theme: text `#f8f8f2`, dim text the comment blue `#6272a4`, panels and frames in its blue-grey backgrounds (`#282a36`, `#21222c`, `#44475a`). `ACCENT` is Dracula purple `#bd93f9`, the same as viewport selection, for selection and highlights (selected rows, the active tab, sliders, checkboxes, the radial menu's hovered slice). `ACCENT_GREEN` (`#50fa7b`) marks headings and whatever is being typed into (an edited text field's border and caret, the console's prompt, caret, and input line). `ERROR` is Dracula red. X/Y/Z use the grid's axis colors: red, green, and cyan.
+All sizes and colors live in `UIStyle`, following the Dracula theme: text `#f8f8f2`, dim text the comment blue `#6272a4`, panels and frames in its blue-grey backgrounds (`#282a36`, `#21222c`, `#44475a`). `ACCENT` is Dracula purple `#bd93f9`, the same as viewport selection, for selection and highlights (selected rows, the active tab, sliders, checkboxes, the radial menu's hovered slice). `ACCENT_GREEN` (`#50fa7b`) marks headings and whatever is being typed into (an edited text field's border and caret, the console's prompt, caret, and input line). `ERROR` is Dracula red, `WARNING` Dracula orange (`#ffb86c`, files an export will replace). X/Y/Z use the grid's axis colors: red, green, and cyan.
+
+### Modal windows
+
+`ui.beginModal(name, viewport, width, height, title)` … `ui.endModal()` draws a window centered in `viewport` over a dimmed backdrop (`MODAL_BACKDROP`), with a header carrying the title in green. The backdrop is a region covering the whole viewport, so drawn last (after every panel) it's the topmost region under the mouse: nothing below can be hovered or clicked, and the viewport doesn't get the mouse. Widgets inside are laid out as in a panel and only respond inside the window. The window doesn't move or resize; `height` includes the header. The app's modal windows are in [application.md](application.md#modal-windows).
 
 ### Floating panel
 
@@ -112,7 +124,7 @@ All sizes and colors live in `UIStyle`, following the Dracula theme: text `#f8f8
 - `UIPanelState` also keeps `activeTab`, `scroll`, and `contentHeight` between frames.
 - **Tabs:** `beginPanel(name, state, bounds, tabs)` (a list of names instead of a title) draws tabs left to right in the header, sized to their text. Pressing a tab switches `state.activeTab` (and resets the scroll); the header, tabs included, still drags the panel, so you can grab a tab and move. The selected tab takes the body's color with a 2 px purple underline; the others are dim until hovered. The caller draws the active tab's content.
 
-[main_panel.cpp](../../src/application/main_panel.cpp) is the app's panel: it's placed at the top right on first use, bounded by the viewport above the status bar, and toggled with `ui panel`. Its contents are currently the light controls from the UI core work (ambient, headlight, light list, add light, selected light's properties); tabs come next.
+[main_panel.cpp](../../src/application/main_panel.cpp) is the app's panel: 360 px wide at the top right on first use, bounded by the viewport above the status bar, toggled with `ui panel`, with an Objects tab and a Lights tab (see [application.md](application.md)). Its list headers shrink the picker before the title when the panel is narrow.
 
 ## Coordinates and types
 
@@ -124,6 +136,7 @@ Pixels, origin at the **top-left**, y pointing **down**.
 | `Color { r, g, b, a }` | 0..1 floats. `packed()` turns it into RGBA bytes for the vertex. |
 | `UIFont { id, glyphWidth, glyphHeight }` | Which font texture to use and its cell size. Get one with `makeUIFont(FontId, ctx.fonts.get(FontId))`. |
 | `measureText(font, text)` | Width and height of monospaced text; `\n` starts a new line. Use it for layout (centering, sizing tabs). |
+| `fitText(font, text, width)` | The text, or as much as fits in `width` followed by `...` (just `...`, or nothing, when even that doesn't fit). |
 
 ## UIDrawList
 

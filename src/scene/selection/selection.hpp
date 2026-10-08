@@ -6,6 +6,7 @@
 
 #include "scene/mesh/mesh_handles.hpp"
 #include "scene/lights/light.hpp"
+#include "scene/references/reference_image.hpp"
 #include "scene/objects/object_collection.hpp"
 #include "core/math/vec3.hpp"
 #include "scene/transform.hpp"
@@ -27,7 +28,7 @@ struct FaceSelection {
 
 class Selection {
 public:
-    // Clears selected elements, objects, and lights; the active object stays
+    // Clears selected elements, objects, lights, origins, and reference images; the active object stays
     void clear();
 
     // The one object whose elements can be selected and edited; changing it clears the selected elements
@@ -55,11 +56,27 @@ public:
     const std::vector<ObjectHandle>& getObjects() const;
     void clearObjects();
 
+    // An object's origin, picked on its own: selecting it makes that object active and clears everything else,
+    // and selecting anything else clears it. Only one origin is selected at a time.
+    void selectOrigin(ObjectHandle object);
+    void clearOrigin() { m_selectedOrigin = INVALID_OBJECT; }
+    bool hasOrigin() const { return !m_selectedOrigin.isNull(); }
+    ObjectHandle getOrigin() const { return m_selectedOrigin; }
+
     void addLight(LightHandle light);
     void removeLight(LightHandle light);
     bool hasLight(LightHandle light) const;
     bool hasLights() const;
     const std::vector<LightHandle>& getLights() const;
+
+    // Reference images are only ever selected on their own: selecting one clears everything else, and selecting
+    // anything else clears them
+    void addReference(ReferenceHandle reference);
+    void removeReference(ReferenceHandle reference);
+    bool hasReference(ReferenceHandle reference) const;
+    bool hasReferences() const { return !m_selectedReferences.empty(); }
+    const std::vector<ReferenceHandle>& getReferences() const { return m_selectedReferences; }
+    void clearReferences();
 
     bool hasVertices() const;
     bool hasEdges() const;
@@ -94,16 +111,24 @@ public:
     const std::vector<Transform>& getObjectStartTransforms() const;
     void setObjectStartTransforms(const std::vector<Transform>& transforms);
 
+    // Reference image placements saved when a modal tool starts, in the same order as getReferences()
+    // (scale.y holds the size)
+    const std::vector<Transform>& getReferenceStartTransforms() const { return m_referenceStartTransforms; }
+    void setReferenceStartTransforms(const std::vector<Transform>& transforms) { m_referenceStartTransforms = transforms; }
+
 private:
     std::vector<VertexSelection> m_selectedVertices;
     std::vector<EdgeSelection> m_selectedEdges;
     std::vector<FaceSelection> m_selectedFaces;
     std::vector<LightHandle> m_selectedLights;
     std::vector<ObjectHandle> m_selectedObjects;
+    std::vector<ReferenceHandle> m_selectedReferences;
     ObjectHandle m_activeObject = INVALID_OBJECT;
+    ObjectHandle m_selectedOrigin = INVALID_OBJECT;
 
     std::vector<Vec3> m_originalPositions;
     std::vector<Vec3> m_lightStartPositions;
     std::vector<Vec3> m_lightStartDirections;
     std::vector<Transform> m_objectStartTransforms;
+    std::vector<Transform> m_referenceStartTransforms;
 };

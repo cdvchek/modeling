@@ -1,4 +1,5 @@
 #include "application/action_checks/action_checks.hpp"
+#include "application/origin_actions.hpp"
 
 #include <algorithm>
 
@@ -18,11 +19,14 @@ void checkGrabContext(AppContext& ctx) {
     const auto& lightStarts = ctx.scene.selection.getLightStartPositions();
     const auto& objects = ctx.scene.selection.getObjects();
     const auto& objectStarts = ctx.scene.selection.getObjectStartTransforms();
+    const auto& references = ctx.scene.selection.getReferences();
+    const auto& referenceStarts = ctx.scene.selection.getReferenceStartTransforms();
 
-    if (selections.empty() && lights.empty() && objects.empty()) return;
+    Object* origin = ctx.scene.selection.hasOrigin() ? ctx.scene.objects.tryGet(ctx.originEdit.object) : nullptr;
+    if (selections.empty() && lights.empty() && objects.empty() && !origin && references.empty()) return;
 
     // Vertices live in their object's mesh space; the grab works in world space and converts
-    const ObjectSpace space(selections.empty() ? Transform() : ctx.scene.objects.get(selections[0].object).transform);
+    const ObjectSpace space(selections.empty() ? Transform() : ctx.scene.objects.worldTransform(selections[0].object));
 
     const auto& starts =
         ctx.scene.selection.getSelectionStartPositions();
@@ -45,16 +49,37 @@ void checkGrabContext(AppContext& ctx) {
             else if (zJustActivated) { light->position.x = start.x; light->position.y = start.y; }
         }
 
-        // So do whole objects
-        for (u32 i = 0; i < static_cast<u32>(objects.size()) && i < static_cast<u32>(objectStarts.size()); ++i) {
-            Object* object = ctx.scene.objects.tryGet(objects[i]);
-            if (!object) continue;
+        // Reference images too
+        for (u32 i = 0; i < static_cast<u32>(references.size()) && i < static_cast<u32>(referenceStarts.size()); ++i) {
+            ReferenceImage* image = ctx.scene.references.tryGet(references[i]);
+            if (!image) continue;
 
-            Vec3& position = object->transform.position;
+            const Vec3& start = referenceStarts[i].position;
+            if (xJustActivated) { image->position.y = start.y; image->position.z = start.z; }
+            else if (yJustActivated) { image->position.x = start.x; image->position.z = start.z; }
+            else if (zJustActivated) { image->position.x = start.x; image->position.y = start.y; }
+        }
+
+        // And an origin
+        if (origin) {
+            Transform to = ctx.scene.objects.worldTransform(ctx.originEdit.object);
+            const Vec3& start = ctx.originEdit.start.world.position;
+            if (xJustActivated) { to.position.y = start.y; to.position.z = start.z; }
+            else if (yJustActivated) { to.position.x = start.x; to.position.z = start.z; }
+            else if (zJustActivated) { to.position.x = start.x; to.position.y = start.y; }
+            updateOriginEdit(ctx, to);
+        }
+
+        // So do whole objects (in the world, whatever their parents)
+        for (u32 i = 0; i < static_cast<u32>(objects.size()) && i < static_cast<u32>(objectStarts.size()); ++i) {
+            if (!ctx.scene.objects.isValid(objects[i]) || carriedByParent(ctx, objects[i])) continue;
+
+            Vec3 position = ctx.scene.objects.worldTransform(objects[i]).position;
             const Vec3& start = objectStarts[i].position;
             if (xJustActivated) { position.y = start.y; position.z = start.z; }
             else if (yJustActivated) { position.x = start.x; position.z = start.z; }
             else if (zJustActivated) { position.x = start.x; position.y = start.y; }
+            ctx.scene.objects.setWorldPosition(objects[i], position);
         }
 
         for (u32 i = 0; i < static_cast<u32>(selections.size()); ++i) {
@@ -122,12 +147,24 @@ void checkGrabContext(AppContext& ctx) {
         if (!zAxis) vertMove.z = 0.0f;
     }
 
-    // Move selected lights and objects.
+    // Move selected lights, reference images, and objects.
     for (LightHandle handle : lights) {
         if (Light* light = ctx.scene.lights.tryGet(handle)) light->position += vertMove;
     }
+    for (ReferenceHandle handle : references) {
+        if (ReferenceImage* image = ctx.scene.references.tryGet(handle)) image->position += vertMove;
+    }
+    // Children of a moved object come along on their own
     for (ObjectHandle handle : objects) {
-        if (Object* object = ctx.scene.objects.tryGet(handle)) object->transform.position += vertMove;
+        if (!ctx.scene.objects.isValid(handle) || carriedByParent(ctx, handle)) continue;
+        ctx.scene.objects.setWorldPosition(handle, ctx.scene.objects.worldTransform(handle).position + vertMove);
+    }
+
+    // An origin moves on its own; its mesh is shifted back so it stays where it is
+    if (origin) {
+        Transform to = ctx.scene.objects.worldTransform(ctx.originEdit.object);
+        to.position += vertMove;
+        updateOriginEdit(ctx, to);
     }
 
     // Move selected vertices by the same world movement, in their mesh space.
@@ -195,7 +232,7 @@ void checkGrabContext(AppContext& ctx) {
         }
 
         for (u32 i = 0; i < static_cast<u32>(objects.size()) && i < static_cast<u32>(objectStarts.size()); ++i) {
-            if (Object* object = ctx.scene.objects.tryGet(objects[i])) object->transform = objectStarts[i];
+            if (ctx.scene.objects.isValid(objects[i])) ctx.scene.objects.setWorldTransform(objects[i], objectStarts[i]);
         }
 
         ctx.history.cancel(ctx.scene);

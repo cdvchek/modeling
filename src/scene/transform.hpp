@@ -28,3 +28,15 @@ struct ObjectSpace {
 
 // Euler angles (applied X, then Y, then Z, as getMatrix does) after a further world-space turn of angle around axis
 Vec3 rotateEuler(const Vec3& euler, const Vec3& axis, f32 angle);
+
+// The Euler angles (as getMatrix applies them) that turn the X, Y, and Z axes onto x, y, and z, which must be
+// unit length, at right angles, and right-handed
+Vec3 eulerFromAxes(const Vec3& x, const Vec3& y, const Vec3& z);
+
+// A child's world transform from its parent's world transform and its own (relative) one, without skew:
+// the position goes where it belongs in the parent (scaled, turned, moved by it), the rotations combine, and the
+// parent's scale multiplies the child's along the child's own axes. Unreal Engine combines transforms the same way.
+Transform combineTransforms(const Transform& parent, const Transform& local);
+
+// The reverse: the relative transform that puts a child at world under parent, exactly (no skew to lose)
+Transform relativeTransform(const Transform& parent, const Transform& world);

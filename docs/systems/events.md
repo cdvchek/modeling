@@ -42,7 +42,7 @@ Callbacks are stored type-erased in an array indexed by `EventType`. Events must
 
 All subscriptions are in [application_events.cpp](../../src/application/application_events.cpp):
 
-- Key, mouse, and wheel events update `InputState`.
+- Key, mouse, and wheel events update `InputState`. Mouse button events also set the mouse position from their `x, y` first, since the move to that spot can arrive after the click.
 - `Char` inserts text into the console when it's open.
 - `WindowResize` resizes the renderer and draws a frame immediately, because Windows blocks the main loop during a resize drag.
-- `Quit` stops the main loop.
+- `Quit` asks to save unsaved changes (the in-app prompt), then stops the main loop; Cancel keeps it running.

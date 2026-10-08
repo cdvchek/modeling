@@ -3,6 +3,7 @@
 #include "core/io/binary_io.hpp"
 #include "core/io/crc32.hpp"
 #include "core/thread/parallel_for.hpp"
+#include "image/image.hpp"
 
 #include <array>
 #include <cstring>
@@ -29,6 +30,8 @@ namespace {
     constexpr u32 CHUNK_CAMERA = fourCC("CAMR");
     constexpr u32 CHUNK_LIGHTS = fourCC("LITE");
     constexpr u32 CHUNK_OBJECT = fourCC("OBJC");
+    constexpr u32 CHUNK_EXPORT = fourCC("EXPT");
+    constexpr u32 CHUNK_REFERENCE = fourCC("REFI");
 
     struct ChunkVersion {
         u32 type;
@@ -36,8 +39,9 @@ namespace {
     };
 
     // The newest version of each chunk this build reads and writes
-    constexpr std::array<ChunkVersion, 4> CHUNK_VERSIONS = { {
-        { CHUNK_VIEW, 1 }, { CHUNK_CAMERA, 1 }, { CHUNK_LIGHTS, 1 }, { CHUNK_OBJECT, 1 },
+    constexpr std::array<ChunkVersion, 6> CHUNK_VERSIONS = { {
+        { CHUNK_VIEW, 2 }, { CHUNK_CAMERA, 1 }, { CHUNK_LIGHTS, 1 }, { CHUNK_OBJECT, 2 }, { CHUNK_EXPORT, 1 },
+        { CHUNK_REFERENCE, 1 },
     } };
 
     u32 supportedVersion(u32 type) {
@@ -140,11 +144,13 @@ namespace {
         writer.write(view.panelRect.width);
         writer.write(view.panelRect.height);
         writer.write(view.panelTab);
+        // Version 2
+        writeBool(writer, view.showOrigins);
         return finish(CHUNK_VIEW, writer);
     }
 
-    bool readView(BinaryReader& reader, ProjectFile::View& view, u32& activeObject) {
-        return readMode(reader, view.selectionMode, 4)
+    bool readView(BinaryReader& reader, u32 version, ProjectFile::View& view, u32& activeObject) {
+        const bool first = readMode(reader, view.selectionMode, 4)
             && readMode(reader, view.lastEditMode, 3)
             && reader.read(activeObject)
             && readBool(reader, view.debug)
@@ -158,6 +164,9 @@ namespace {
             && reader.read(view.panelRect.width)
             && reader.read(view.panelRect.height)
             && reader.read(view.panelTab);
+
+        // Version 1 files end here and keep the default
+        return first && (version < 2 || readBool(reader, view.showOrigins));
     }
 
     Chunk writeCamera(const Camera& camera) {
@@ -244,21 +253,91 @@ namespace {
         return true;
     }
 
-    Chunk writeObject(const Object& object) {
+    Chunk writeExport(const ProjectFile::View& view) {
+        BinaryWriter writer;
+        writer.writeString(view.exportFolder);
+        return finish(CHUNK_EXPORT, writer);
+    }
+
+    // One reference image with its picture file as it was added
+    Chunk writeReference(const ReferenceImage& image) {
+        BinaryWriter writer;
+        writer.writeString(image.name);
+        writeVec3(writer, image.position);
+        writeVec3(writer, image.rotation);
+        writer.write(image.size);
+        writer.write(image.opacity);
+        writer.write(static_cast<u8>(image.depth));
+        writeBool(writer, image.locked);
+        writeBool(writer, image.visible);
+
+        static const ReferencePicture EMPTY;
+        const ReferencePicture& picture = image.picture ? *image.picture : EMPTY;
+        writer.writeString(picture.fileName);
+        writer.write(picture.width);
+        writer.write(picture.height);
+        writer.write(static_cast<u64>(picture.png.size()));
+        writer.writeBytes(picture.png.data(), picture.png.size());
+        return finish(CHUNK_REFERENCE, writer);
+    }
+
+    // The picture is only checked to be a PNG here; it's decoded when it's first drawn
+    bool readReference(BinaryReader& reader, ReferenceImage& image, std::string& error) {
+        u8 depth = 0;
+        u64 size = 0;
+        auto picture = std::make_shared<ReferencePicture>();
+
+        const bool ok = reader.readString(image.name)
+            && readVec3(reader, image.position)
+            && readVec3(reader, image.rotation)
+            && reader.read(image.size)
+            && reader.read(image.opacity)
+            && reader.read(depth) && depth <= static_cast<u8>(ReferenceDepth::InFront)
+            && readBool(reader, image.locked)
+            && readBool(reader, image.visible)
+            && reader.readString(picture->fileName)
+            && reader.read(picture->width)
+            && reader.read(picture->height)
+            && reader.read(size) && size <= reader.remaining()
+            && reader.readVector(picture->png, static_cast<std::size_t>(size));
+
+        if (!ok) {
+            error = "a reference image's data is cut short or out of range";
+            return false;
+        }
+
+        const bool fits = picture->width > 0 && picture->height > 0 && picture->width <= image::MAX_DIMENSION && picture->height <= image::MAX_DIMENSION;
+        if (!fits || !image::isPng(picture->png.data(), picture->png.size()) || !(image.size > 0.0f)) {
+            error = "reference image '" + image.name + "' is damaged";
+            return false;
+        }
+
+        image.depth = static_cast<ReferenceDepth>(depth);
+        image.picture = std::move(picture);
+        return true;
+    }
+
+    // parent: the parent's place among the object chunks, or INVALID_INDEX
+    Chunk writeObject(const Object& object, u32 parent) {
         BinaryWriter writer;
         writer.writeString(object.name);
         writeVec3(writer, object.transform.position);
         writeVec3(writer, object.transform.rotation);
         writeVec3(writer, object.transform.scale);
+        // Version 2
+        writer.write(parent);
         object.meshData.writeTo(writer);
         return finish(CHUNK_OBJECT, writer);
     }
 
-    bool readObject(BinaryReader& reader, Object& object, std::string& error) {
+    bool readObject(BinaryReader& reader, u32 version, Object& object, u32& parent, std::string& error) {
+        // Version 1 objects have no parent
+        parent = INVALID_INDEX;
         const bool ok = reader.readString(object.name)
             && readVec3(reader, object.transform.position)
             && readVec3(reader, object.transform.rotation)
             && readVec3(reader, object.transform.scale)
+            && (version < 2 || reader.read(parent))
             && object.meshData.readFrom(reader);
 
         if (!ok) {
@@ -292,12 +371,21 @@ namespace {
         chunks.push_back(writeView(view, activeObject));
         chunks.push_back(writeCamera(scene.camera));
         chunks.push_back(writeLights(scene.lights));
+        chunks.push_back(writeExport(view));
+        for (ReferenceHandle handle : scene.references.handles()) chunks.push_back(writeReference(scene.references.get(handle)));
 
         std::size_t edges = 0;
         for (ObjectHandle handle : objects) edges += scene.objects.get(handle).meshData.getEdgeHandles().size();
 
         std::vector<Chunk> objectChunks(objects.size());
-        auto encode = [&](u32 i) { objectChunks[i] = writeObject(scene.objects.get(objects[i])); };
+        // Parents are stored as their place in this order
+        std::vector<u32> parents(objects.size(), INVALID_INDEX);
+        for (u32 i = 0; i < objects.size(); ++i) {
+            const ObjectHandle parent = scene.objects.parentOf(objects[i]);
+            for (u32 k = 0; k < objects.size(); ++k) if (objects[k] == parent) parents[i] = k;
+        }
+
+        auto encode = [&](u32 i) { objectChunks[i] = writeObject(scene.objects.get(objects[i]), parents[i]); };
 
         if (objects.size() > 1 && edges >= PARALLEL_SAVE_EDGES) parallelFor(static_cast<u32>(objects.size()), encode);
         else for (u32 i = 0; i < objects.size(); ++i) encode(i);
@@ -441,9 +529,15 @@ bool ProjectFile::read(const std::vector<u8>& bytes, Scene& scene, View& view, s
 
         BinaryReader reader(bytes.data() + entry.offset, entry.size);
         bool ok = true;
-        if (entry.type == CHUNK_VIEW) ok = readView(reader, view, activeObject);
+        if (entry.type == CHUNK_VIEW) ok = readView(reader, entry.version, view, activeObject);
         else if (entry.type == CHUNK_CAMERA) ok = readCamera(reader, scene.camera);
         else if (entry.type == CHUNK_LIGHTS) ok = readLights(reader, scene.lights);
+        else if (entry.type == CHUNK_EXPORT) ok = reader.readString(view.exportFolder);
+        else if (entry.type == CHUNK_REFERENCE) {
+            ReferenceImage image;
+            if (!readReference(reader, image, error)) return false;
+            scene.references.add(std::move(image));
+        }
 
         if (!ok) {
             error = "chunk " + typeName(entry.type) + " is cut short or out of range";
@@ -454,6 +548,7 @@ bool ProjectFile::read(const std::vector<u8>& bytes, Scene& scene, View& view, s
     // Objects decode independently, each into its own slot, so they can run on separate threads
     const u32 count = static_cast<u32>(objectEntries.size());
     std::vector<Object> objects(count);
+    std::vector<u32> parents(count, INVALID_INDEX);
     std::vector<std::string> errors(count);
 
     auto decode = [&](u32 i) {
@@ -461,7 +556,7 @@ bool ProjectFile::read(const std::vector<u8>& bytes, Scene& scene, View& view, s
         if (!checkChunk(bytes, entry, errors[i])) return;
 
         BinaryReader reader(bytes.data() + entry.offset, entry.size);
-        readObject(reader, objects[i], errors[i]);
+        readObject(reader, entry.version, objects[i], parents[i], errors[i]);
     };
 
     if (count > 1 && objectBytes >= PARALLEL_LOAD_BYTES) parallelFor(count, decode);
@@ -474,9 +569,26 @@ bool ProjectFile::read(const std::vector<u8>& bytes, Scene& scene, View& view, s
         }
     }
 
+    // Every parent must be another object, and following parents up must never come back around
     for (u32 i = 0; i < count; ++i) {
-        const ObjectHandle handle = scene.objects.add(std::move(objects[i]));
-        if (i == activeObject) scene.selection.setActiveObject(handle);
+        u32 up = parents[i];
+        for (u32 steps = 0; up != INVALID_INDEX; ++steps) {
+            if (up >= count || steps >= count) {
+                error = "object '" + objects[i].name + "' has a parent that doesn't exist or loops back to it";
+                return false;
+            }
+            up = parents[up];
+        }
+    }
+
+    std::vector<ObjectHandle> handles(count);
+    for (u32 i = 0; i < count; ++i) {
+        handles[i] = scene.objects.add(std::move(objects[i]));
+        if (i == activeObject) scene.selection.setActiveObject(handles[i]);
+    }
+    // Relative transforms were saved as they are, so the parent is linked directly
+    for (u32 i = 0; i < count; ++i) {
+        if (parents[i] != INVALID_INDEX) scene.objects.get(handles[i]).parent = handles[parents[i]];
     }
 
     return true;
@@ -550,6 +662,33 @@ bool ProjectFile::load(const std::filesystem::path& path, Scene& scene, View& vi
     return readFile(path, bytes, error) && read(bytes, scene, view, error);
 }
 
+std::string ProjectFile::storeFolder(const std::filesystem::path& folder, const std::filesystem::path& projectFile) {
+    if (folder.empty()) return {};
+
+    auto utf8 = [](const std::filesystem::path& path) {
+        const std::u8string text = path.generic_u8string();
+        return std::string(text.begin(), text.end());
+    };
+
+    const std::filesystem::path absolute = folder.lexically_normal();
+    const std::filesystem::path base = projectFile.parent_path().lexically_normal();
+    if (projectFile.empty() || absolute.root_name() != base.root_name()) return utf8(absolute);
+
+    // Inside the project's folder, or beside it: at most one step up
+    const std::filesystem::path relative = absolute.lexically_relative(base);
+    u32 upSteps = 0;
+    for (const std::filesystem::path& part : relative) if (part == "..") ++upSteps;
+    if (relative.empty() || upSteps > 1) return utf8(absolute);
+    return utf8(relative);
+}
+
+std::filesystem::path ProjectFile::resolveFolder(const std::string& stored, const std::filesystem::path& projectFile) {
+    if (stored.empty()) return {};
+    const std::filesystem::path path(std::u8string(stored.begin(), stored.end()));
+    if (path.is_absolute() || projectFile.empty()) return path.lexically_normal();
+    return (projectFile.parent_path() / path).lexically_normal();
+}
+
 std::string ProjectFile::describe(const std::vector<u8>& bytes) {
     std::ostringstream out;
     std::vector<Entry> entries;
@@ -579,9 +718,19 @@ std::string ProjectFile::describe(const std::vector<u8>& bytes) {
             reader.readString(name);
             f32 transform[9] {};
             reader.readArray(transform, 9);
+            u32 parent = INVALID_INDEX;
+            if (entry.version >= 2) reader.read(parent);
             u32 counts[3] {};
             reader.readArray(counts, 3);
             out << "  '" << name << "' " << counts[0] << " vertices, " << counts[1] << " half-edges, " << counts[2] << " faces";
+            if (parent != INVALID_INDEX) out << ", child of object " << parent;
+        } else if (entry.type == CHUNK_REFERENCE) {
+            ReferenceImage image;
+            std::string referenceError;
+            if (readReference(reader, image, referenceError)) {
+                out << "  '" << image.name << "' " << image.picture->fileName << ", " << image.picture->width << " x " << image.picture->height
+                    << ", " << image.picture->png.size() << " bytes of PNG";
+            }
         } else if (entry.type == CHUNK_LIGHTS) {
             f32 ambient[4] {};
             u32 count = 0;

@@ -8,24 +8,27 @@ A from-scratch C++20 modeling app on Win32 and OpenGL 3.3. No windowing, UI, or 
           main.cpp
              │
        ┌─────▼──────┐
-       │ application│  startup, main loop, tools (action_checks/), console commands
+       │ application│  startup, main loop, tools (action_checks/), console commands, windows and menus
        └─────┬──────┘
-   ┌─────────┼──────────┬──────────────┬───────────┐
-┌──▼───┐ ┌───▼───┐  ┌───▼──┐   ┌─────▼────┐ ┌────▼─────┐
-│ core │ │ scene │  │  ui  │   │ renderer │ │ platform │
-└──────┘ └───────┘  └──────┘   └──────────┘ └──────────┘
- events   objects   draw list   IRenderer    Win32 window
- input    mesh      rects,      OpenGL impl  message pump
- console  selection text, clips shaders      GL context
- font     camera                GPU meshes   key mapping
- math     history
+   ┌─────────┼──────────┬──────────────┬───────────┬──────────────┐
+┌──▼───┐ ┌───▼───┐  ┌───▼──┐   ┌─────▼────┐ ┌────▼─────┐ ┌──────▼───────┐
+│ core │ │ scene │  │  ui  │   │ renderer │ │ platform │ │project, asset│
+└──────┘ └───────┘  └──────┘   └──────────┘ └──────────┘ └──────────────┘
+ events   objects   draw list   IRenderer    Win32 window   .vlm files
+ input    mesh      widgets     OpenGL impl  message pump   .vlmobj baking
+ console  selection modal       shaders      GL context     (shared/vlmobj:
+ font     origins   windows     GPU meshes   key mapping     the format)
+ math, io camera
+ threads  history
 ```
 
 | Directory | Role | Depends on |
 |---|---|---|
 | `src/core/` | Engine building blocks with no app knowledge: math, containers (`DynamicArray`), events, input, console, bitmap fonts, frame timing, binary reading/writing and CRC-32 (`io/`), `parallelFor` (`thread/`) | — |
-| `src/scene/` | Everything being edited: objects, lights, half-edge meshes, selection, picking, camera, history | core |
+| `src/scene/` | Everything being edited: objects, lights, reference images, half-edge meshes, selection, picking, camera, history | core |
 | `src/project/` | The `.vlm` project file format: writing and reading a whole scene plus editor state (see [systems/project.md](systems/project.md)) | core (io, threads), scene, ui (`Rect`) |
+| `src/asset/` | Valuma's side of `.vlmobj` assets: baking an object into a file and rebuilding one from it, and the export naming rules (see [systems/vlmobj.md](systems/vlmobj.md)) | scene, `shared/vlmobj` |
+| `shared/` | Code for the whole suite (Valuma, and later the Aevora engine and Sollaria audio), with no dependency on any one program. Now: `shared/vlmobj/`, the asset format, and `shared/image/`, image files (PNG). | — (C++ standard library only) |
 | `src/ui/` | 2D UI draw list in pixel coordinates (shapes, text, clipping) and the immediate-mode widget system (`UIContext`). No OpenGL. | core (math, fonts) |
 | `src/renderer/` | Backend-neutral `IRenderer` interface plus the OpenGL implementation | core, scene (mesh handles, `Scene` for the debug overlay), ui (draws a `UIDrawList`) |
 | `src/platform/` | Win32 window, message pump, key translation, OpenGL context creation | core (events, keys) |
@@ -39,9 +42,11 @@ Defined in [CMakeLists.txt](../CMakeLists.txt):
 
 | Target | Contents |
 |---|---|
-| `modeling_core` (static lib) | Math, fonts, input (`InputState`, `ActionMap`, `ContextManager`), the console and command system, objects, lights, selection, transforms, the camera, undo history, the UI, all `MeshData` code, and the project file format. No OpenGL or Win32, so it can be tested on its own. |
+| `vlmobj` (static lib) | The `.vlmobj` format from `shared/vlmobj/`. Depends on nothing else, so the engine can link it too. `modeling_core` links it. |
+| `image` (static lib) | The PNG reader from `shared/image/` (see [systems/image.md](systems/image.md)). Depends on nothing else. `modeling_core` links it. |
+| `modeling_core` (static lib) | Math, fonts, input (`InputState`, `ActionMap`, `ContextManager`), the console and command system, objects, lights, reference images, selection and picking, transforms, the camera, undo history, the UI, all `MeshData` code, the project file format, and Valuma's `.vlmobj` baking (`src/asset/`). No OpenGL or Win32, so it can be tested on its own. |
 | `modeling` (exe → `bin/modeling.exe`) | Everything else plus `glad.c`, linked with `opengl32`, `dwmapi`, and `comdlg32` (file dialogs; all three are part of Windows). |
-| `tests` (exe) | Every `tests/*.cpp`, linked against `modeling_core`. |
+| `tests` (exe) | Every `tests/*.cpp` and `shared/*/tests/*.cpp`, linked against `modeling_core`. `SOURCE_DIR` is defined so tests can find checked-in reference files. |
 
 New `.cpp` files must be added to `CORE_SRC` or `APP_SRC` by hand. Tests are picked up by glob.
 
@@ -55,8 +60,10 @@ struct AppContext {
     std::unique_ptr<IRenderer> renderer;
     DebugRenderer debug_renderer;
     std::vector<std::unique_ptr<Window>> windows;   // only windows[0] is used
-    Scene scene;              // camera, objects, lights, selection
+    Scene scene;              // camera, objects, lights, reference images, selection
     WidthTool widthTool;      // state of an in-progress bevel or inset
+    TransformTool transformTool; // scale/rotate pivot and angle on screen
+    OriginEdit originEdit;    // an origin's start while grab or rotate moves it
     History history;          // undo/redo
     ViewportSettings viewport; // headlight and other view-only settings
     FontLibrary fonts;        // embedded bitmap fonts
@@ -64,7 +71,15 @@ struct AppContext {
     FrameTimer frameTimer;    // FPS for the status bar
     UIContext ui;             // widgets and mouse routing
     ObjectMeshCache objectMeshes; // GPU copies of object meshes, by handle
-    ProjectState project;     // the open file and whether it has unsaved changes
+    ReferenceTextureCache referenceTextures; // GPU textures for reference pictures
+    ProjectState project;     // the open file, unsaved changes, and the export folder
+    ModalState modal;         // the open modal window (prompt or Export window), if any
+    RadialMenuState radialMenu;
+    ConsoleViewState consoleView; // console scroll and clickable rows
+    u32 lastEditMode;         // where Tab returns to from object mode
+    bool importRequested;     // Import… was picked; the file dialog opens next frame
+    bool referenceRequested;  // + in the Images tab; likewise
+    std::filesystem::path referenceFolder; // where the image dialog last picked from
     bool is_running;
 };
 ```
@@ -81,16 +96,20 @@ while running:
     Platform::pollEvents()      // Win32 messages → Event structs → InputState
     ui.beginFrame(...)          // UI decides whether it owns the mouse this frame
     actions.setMouseBlocked(..) // if so, viewport mouse actions don't fire
-    checkActions(ctx)           // read actions for active contexts, run tools, edit the scene
-    renderFrame(ctx)            // upload dirty meshes, draw objects, grid, debug, UI (markers, status bar, widgets, console)
+    checkActions(ctx)           // a modal window, or: radial menu, console, picking and camera, actions, tools
+    updateWindowTitle(ctx)      // name.vlm* - Valuma Studio
+    renderFrame(ctx)            // upload dirty meshes, draw objects, grid, debug, then the UI
 ```
 
 Rendering order inside `renderFrame`:
-1. Clear (dark gray).
-2. For each object: re-upload the GPU mesh if `meshDirty`, then draw faces → edges → vertices.
-3. Ground grid and axes (blended, no depth writes).
-4. Debug half-edge overlay, if the `Debug` context is on.
-5. Console background and text, if the `Console` context is on.
+1. Clear and draw the background gradient.
+2. Reference images set to Behind (no depth test or writes, so everything draws over them).
+3. For each object: re-upload the GPU mesh if `meshDirty`, then draw faces → edges → vertices.
+4. Reference images set to Scene, farthest first, depth tested.
+5. Ground grid and axes (blended, no depth writes).
+6. Reference images set to Front, without the depth test.
+7. Debug half-edge overlay, if the `Debug` context is on.
+8. The UI, in one draw list: selected images' outlines, light markers, origin markers, tool guides, the status bar, the panel, an open modal window, the radial menu, then the console on top (see [systems/ui.md](systems/ui.md#how-a-frame-draws-ui)).
 
 ## Input to edit: how data flows
 
@@ -114,7 +133,7 @@ renderFrame ──► ObjectMeshCache::sync (OpenGLMesh::update) ──► draw
 
 Key ideas:
 - **Events** carry raw OS input. The app only subscribes to turn them into `InputState`.
-- **Actions** are named intents (`Action::GrabSelection`) bound to key combos. Tools never check raw keys. One-shot actions also have a handler (label, `canRun`, `run`) that `ActionMap::dispatch` runs when their keys are pressed, so other inputs (like the planned radial menu) can run the same action.
+- **Actions** are named intents (`Action::GrabSelection`) bound to key combos. Tools never check raw keys. One-shot actions also have a handler (label, `canRun`, `run`) that `ActionMap::dispatch` runs when their keys are pressed, so the radial menu runs exactly the same action as the key.
 - **Input contexts** are bit flags saying which modes are active (vertex mode, grab, console…). An action only fires if one of its contexts is active. Modal tools switch the context so that, for example, left click means "confirm grab" during a grab.
 - **Dirty flags**: mesh edits set `Object::meshDirty` (rebuild GPU buffers) and per-face `triangulationDirty` (re-triangulate that face).
 
@@ -122,8 +141,8 @@ Key ideas:
 
 Grab, scale, rotate, bevel, extrude, and inset all follow the same shape:
 
-1. **Start** (in `checkSelectionContext`): save each selected vertex's start position, call `history.begin(scene)`, then `input_ctx.setContext(InputContext_Grab)` (or Scale/Rotate/Bevel).
-2. **Each frame** (`checkGrabContext` etc.): move vertices from mouse deltas.
+1. **Start** (an action handler such as `startGrab` in `editing_actions.cpp`, from the key or the radial menu): save the start positions (vertices, lights, objects, reference images, or an origin), call `history.begin(scene)`, then `input_ctx.setContext(InputContext_Grab)` (or Scale/Rotate/Bevel/Inset).
+2. **Each frame** (`checkGrabContext` etc.): rebuild positions from the starts and the mouse.
 3. **Confirm**: `history.commit()` and go back to the selection context.
 4. **Cancel**: restore start positions or the saved mesh, `history.cancel(scene)`, and go back.
 
@@ -139,7 +158,7 @@ if (mesh.someOperation(...)) ctx.history.commit();
 else                         ctx.history.cancel(ctx.scene);
 ```
 
-Snapshots are full copies of every object's `MeshData`, `Transform`, and the `Selection`. See [systems/scene.md](systems/scene.md#history).
+Snapshots are full copies of every object (mesh and transform), every light and the ambient light, and the `Selection`. See [systems/scene.md](systems/scene.md#history).
 
 ## Conventions
 

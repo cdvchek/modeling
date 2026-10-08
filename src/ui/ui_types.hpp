@@ -1,5 +1,7 @@
 #pragma once
 
+#include <string>
+
 #include <algorithm>
 #include <cmath>
 #include <string_view>
@@ -73,4 +75,13 @@ inline Vec2 measureText(const UIFont& font, std::string_view text) {
     }
 
     return Vec2(longest * font.glyphWidth, lines * font.glyphHeight);
+}
+
+// text, or as much of it as fits in width followed by "...", so long names end cleanly instead of mid-letter
+inline std::string fitText(const UIFont& font, std::string_view text, f32 width) {
+    if (measureText(font, text).x <= width) return std::string(text);
+    const f32 glyph = font.glyphWidth > 0.0f ? font.glyphWidth : 1.0f;
+    const i32 keep = static_cast<i32>(width / glyph) - 3;
+    if (keep <= 0) return width >= 3.0f * glyph ? std::string("...") : std::string();
+    return std::string(text.substr(0, static_cast<std::size_t>(keep))) + "...";
 }

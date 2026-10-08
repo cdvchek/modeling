@@ -1,6 +1,9 @@
 #include "application/application.hpp"
 #include "application/editing_actions.hpp"
 #include "application/project_actions.hpp"
+#include "application/asset_actions.hpp"
+#include "application/modal_windows.hpp"
+#include "application/origin_actions.hpp"
 #include "application/action_checks/action_checks.hpp"
 
 void Application::registerDefaultActions(AppContext& ctx) {
@@ -56,6 +59,12 @@ void Application::registerDefaultActions(AppContext& ctx) {
     actions.subscribe(Action::SaveProjectAs,       DefaultKeybinds::SaveProjectAs,       InputContext_AnySelection);
     actions.subscribe(Action::OpenProject,         DefaultKeybinds::OpenProject,         InputContext_AnySelection);
     actions.subscribe(Action::NewProject,          DefaultKeybinds::NewProject,          InputContext_AnySelection);
+    actions.subscribe(Action::ExportAssets,        DefaultKeybinds::ExportAssets,        InputContext_AnySelection);
+    actions.subscribe(Action::ImportAssets,        DefaultKeybinds::ImportAssets,        InputContext_AnySelection);
+    actions.subscribe(Action::ParentToActive,      DefaultKeybinds::ParentToActive,      InputContext_SelectionObject);
+    actions.subscribe(Action::ClearParents,        DefaultKeybinds::ClearParents,        InputContext_SelectionObject);
+    actions.subscribe(Action::ModalConfirm,        DefaultKeybinds::ModalConfirm,        InputContext_Modal);
+    actions.subscribe(Action::ModalCancel,         DefaultKeybinds::ModalCancel,         InputContext_Modal);
 
     auto always = [] { return true; };
 
@@ -86,6 +95,22 @@ void Application::registerDefaultActions(AppContext& ctx) {
     actions.setHandler(Action::SaveProjectAs, { "Save As", projectFiles, [&ctx] { saveProjectAs(ctx); } });
     actions.setHandler(Action::OpenProject, { "Open", projectFiles, [&ctx] { openProject(ctx); } });
     actions.setHandler(Action::NewProject, { "New", projectFiles, [&ctx] { newProject(ctx); } });
+    actions.setHandler(Action::ExportAssets, { "Export", projectFiles, [&ctx] { openExportWindow(ctx); } });
+    actions.setHandler(Action::ImportAssets, { "Import", projectFiles, [&ctx] { importAssets(ctx); } });
+    auto origin = [&actions, &ctx](Action action, std::string_view label, OriginTarget target) {
+        actions.setHandler(action, { label, [&ctx, target] { return canMoveOrigin(ctx, target); }, [&ctx, target] { moveOrigin(ctx, target); } });
+    };
+    origin(Action::OriginToGeometry, "To geometry", OriginTarget::Geometry);
+    origin(Action::OriginToBottom, "To bottom", OriginTarget::Bottom);
+    origin(Action::OriginToWorld, "To world", OriginTarget::World);
+    origin(Action::OriginResetRotation, "Reset rotation", OriginTarget::WorldRotation);
+    origin(Action::OriginToSelection, "Origin here", OriginTarget::Selection);
+    actions.setHandler(Action::ParentToActive, { "Parent", [&ctx] { return canParentToActive(ctx); }, [&ctx] { parentToActive(ctx); } });
+    actions.setHandler(Action::ClearParents, { "Unparent", [&ctx] { return canClearParents(ctx); }, [&ctx] { clearParents(ctx); } });
+    actions.setHandler(Action::ToggleOrigins, { "Origins", always, [&ctx] { toggleOrigins(ctx); } });
+
+    actions.setHandler(Action::ModalConfirm, { "OK", always, [&ctx] { confirmModal(ctx); } });
+    actions.setHandler(Action::ModalCancel, { "Cancel", always, [&ctx] { cancelModal(ctx); } });
 
     actions.setHandler(Action::Undo, { "Undo", [&ctx] { return ctx.history.canUndo(); }, [&ctx] { undo(ctx); } });
     actions.setHandler(Action::Redo, { "Redo", [&ctx] { return ctx.history.canRedo(); }, [&ctx] { redo(ctx); } });

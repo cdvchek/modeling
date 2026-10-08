@@ -106,3 +106,83 @@ TEST_CASE(action_modifiers_keep_shortcuts_apart) {
     // Shift alone doesn't stop a plain key
     CHECK(press({ Key::LeftShift, Key::S }) == "scale ");
 }
+
+TEST_CASE(action_modal_window_owns_the_keys) {
+    ActionMap actions;
+    ContextManager contexts;
+    InputState input;
+    std::string ran;
+
+    actions.subscribe(Action::GrabSelection, { { key(Key::G) } }, InputContext_SelectionVertex);
+    actions.subscribe(Action::ModalConfirm, { { key(Key::Enter) } }, InputContext_Modal);
+    actions.subscribe(Action::EnterCommand, { { key(Key::Enter) } }, InputContext_Console);
+    actions.setHandler(Action::GrabSelection, { "Grab", {}, [&ran] { ran += "grab "; } });
+    actions.setHandler(Action::ModalConfirm, { "OK", {}, [&ran] { ran += "ok "; } });
+    actions.setHandler(Action::EnterCommand, { "Enter", {}, [&ran] { ran += "command "; } });
+
+    auto press = [&](Key k) {
+        input.beginFrame();
+        input.onKey(static_cast<u16>(Key::G), false);
+        input.onKey(static_cast<u16>(Key::Enter), false);
+        input.beginFrame();
+        input.onKey(static_cast<u16>(k), true);
+        ran.clear();
+        actions.dispatch(input, contexts);
+        return ran;
+    };
+
+    CHECK(press(Key::G) == "grab ");
+    CHECK(press(Key::Enter) == "");
+
+    // With a modal window open, only its bindings work, even over the console
+    contexts.addContext(InputContext_Modal);
+    contexts.addContext(InputContext_Console);
+    CHECK(press(Key::G) == "");
+    CHECK(press(Key::Enter) == "ok ");
+
+    contexts.removeContext(InputContext_Modal);
+    CHECK(press(Key::Enter) == "command ");
+}
+
+TEST_CASE(input_a_click_within_one_frame_still_counts) {
+    InputState input;
+    const u16 left = static_cast<u16>(MouseButton::Left);
+
+    // Down and up between two frames: both are reported, though the button isn't down any more
+    input.beginFrame();
+    input.onMouseButton(left, true);
+    input.onMouseButton(left, false);
+    CHECK(input.wasMousePressedThisFrame(left));
+    CHECK(input.wasMouseReleasedThisFrame(left));
+    CHECK(!input.isMouseDown(left));
+
+    ActionMap actions;
+    ContextManager contexts;
+    i32 runs = 0;
+    actions.subscribe(Action::Select, { { mouse(MouseButton::Left) } }, InputContext_SelectionVertex);
+    actions.setHandler(Action::Select, { "Select", {}, [&runs] { ++runs; } });
+    actions.dispatch(input, contexts);
+    CHECK(runs == 1);
+
+    // Next frame nothing new happened
+    input.beginFrame();
+    CHECK(!input.wasMousePressedThisFrame(left) && !input.wasMouseReleasedThisFrame(left));
+    actions.dispatch(input, contexts);
+    CHECK(runs == 1);
+}
+
+TEST_CASE(input_mouse_moves_add_up_within_a_frame) {
+    InputState input;
+    input.onMouseMove(10, 10);
+    input.beginFrame();
+
+    input.onMouseMove(15, 12);
+    input.onMouseMove(20, 18);
+    // A click at the same spot reports its position without changing the movement
+    input.onMouseMove(20, 18);
+    CHECK(input.getMouseDeltaX() == 10 && input.getMouseDeltaY() == 8);
+    CHECK(input.getMouseX() == 20 && input.getMouseY() == 18);
+
+    input.beginFrame();
+    CHECK(input.getMouseDeltaX() == 0 && input.getMouseDeltaY() == 0);
+}

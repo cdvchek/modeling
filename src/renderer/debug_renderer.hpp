@@ -15,7 +15,7 @@ private:
     void drawHalfEdges(
         IRenderer& renderer,
         const Object& object,
-        const Mat4& vp
+        const Mat4& mvp
     );
 
     void drawHalfEdge(

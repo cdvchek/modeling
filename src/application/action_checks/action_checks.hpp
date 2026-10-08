@@ -2,6 +2,14 @@
 
 #include "application/app_context.hpp"
 
+// A selected object whose parent (or grandparent...) is also selected moves with it, so object tools skip it
+inline bool carriedByParent(const AppContext& ctx, ObjectHandle handle) {
+    for (ObjectHandle other : ctx.scene.selection.getObjects()) {
+        if (ctx.scene.objects.isAncestor(other, handle)) return true;
+    }
+    return false;
+}
+
 void checkConsoleContext(AppContext& ctx);
 void checkSelectionContext(AppContext& ctx);
 void checkGrabContext(AppContext& ctx);

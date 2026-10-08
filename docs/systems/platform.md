@@ -14,7 +14,8 @@ Files: `src/platform/`
 | `std::string Platform::getClipboardText()` / `void Platform::setClipboardText(text)` | Plain text on the system clipboard (`CF_UNICODETEXT`). Characters outside ASCII come back as `?`. Text fields use them through `UIContext::setClipboard`. |
 | `chooseOpenFile(window, typeName, extension, folder)` / `chooseSaveFile(window, typeName, extension, folder, fileName)` | The Windows Open and Save As dialogs (`GetOpenFileNameW` / `GetSaveFileNameW` from `comdlg32`), filtered to `typeName (*.ext)` plus All files. They start in `folder` (Windows may pick the folder you last browsed to instead, by its own remembered-folder rule). Save starts with `fileName`, adds the extension when it's left off, and asks before overwriting. `OFN_NOCHANGEDIR` keeps the app's working folder. Return an empty path when cancelled. |
 | `documentsFolder()` | The user's Documents folder from `SHGetKnownFolderPath(FOLDERID_Documents)` (follows OneDrive redirection); empty if it can't be found. |
-| `askToSaveChanges(window, title, name)` | A Yes/No/Cancel box, "Save changes to name?", returned as `SaveChoice::Save` / `DontSave` / `Cancel`. |
+| `chooseOpenFiles(window, typeName, extension, folder)` | The Open dialog with several files allowed; the list is empty when cancelled. |
+| `chooseFolder(window, folder)` | Windows' folder picker (`IFileOpenDialog` with `FOS_PICKFOLDERS`, through COM from `ole32`), starting in `folder`; empty when cancelled. |
 | `void* Platform::getGLProcAddress(const char* name)` | Looks up an OpenGL function with `wglGetProcAddress`, falling back to `opengl32.dll` for GL 1.1 functions. |
 
 ## Window
@@ -45,7 +46,7 @@ Pimpl class: the header has no Win32 types; `Window::Impl` (in `impl_win32.hpp`)
 | `WM_CHAR` | `Event::Char` |
 | `WM_MOUSEMOVE` | `Event::MouseMove` |
 | `WM_[L/R/M/X]BUTTONDOWN` / `UP` | `Event::MouseButtonDown` / `Up` |
-| `WM_CAPTURECHANGED` | `Event::MouseButtonUp` for each of left/right/middle that isn't physically held (`GetKeyState`) |
+| `WM_CAPTURECHANGED` | `Event::MouseButtonUp` for each of left/right/middle that isn't physically held (`GetKeyState`), at the cursor's current position |
 | `WM_MOUSEWHEEL` | `Event::MouseWheel` |
 | `WM_SIZE` | `Event::WindowResize` |
 | `WM_CLOSE` | `Event::Quit` |

@@ -2,6 +2,7 @@
 #include "core/math/projection.hpp"
 
 #include <cfloat>
+#include <cmath>
 #include <algorithm>
 
 #include "scene/scene.hpp"
@@ -51,7 +52,7 @@ VertexHit pickVertex(const Scene& scene, const Ray& ray, f32 radius, ObjectHandl
     for (ObjectHandle objectHandle : scene.objects.handles()) {
         if (skipObject(objectHandle, only, exclude)) continue;
         const Object& object = scene.objects.get(objectHandle);
-        const Mat4 model = object.transform.getMatrix();
+        const Mat4 model = scene.objects.worldMatrix(objectHandle);
 
         for (const VertexHandle& vertexHandle : object.meshData.getVertexHandles()) {
             const Vec3 vertexPos = object.meshData.getVertexPosition(vertexHandle);
@@ -166,7 +167,7 @@ EdgeHit pickEdge(const Scene& scene, const Ray& ray, f32 radius, ObjectHandle on
         if (skipObject(objectHandle, only, exclude)) continue;
         const Object& object = scene.objects.get(objectHandle);
 
-        const Mat4 model = object.transform.getMatrix();
+        const Mat4 model = scene.objects.worldMatrix(objectHandle);
 
         for (const EdgeHandle& edgeHandle : object.meshData.getEdgeHandles()) {
             const VertexHandle originHandle = object.meshData.getEdgeOrigin(edgeHandle);
@@ -282,7 +283,7 @@ FaceHit pickFace(const Scene& scene, const Ray& ray, ObjectHandle only, ObjectHa
     for (ObjectHandle objectHandle : scene.objects.handles()) {
         if (skipObject(objectHandle, only, exclude)) continue;
         const Object& object = scene.objects.get(objectHandle);
-        Mat4 model = object.transform.getMatrix();
+        Mat4 model = scene.objects.worldMatrix(objectHandle);
 
         for (const FaceHandle faceHandle : object.meshData.getFaceHandles()) {
             const auto& triangles = object.meshData.getFaceTriangles(faceHandle);
@@ -331,6 +332,25 @@ FaceHit pickFace(const Scene& scene, const Ray& ray, ObjectHandle only, ObjectHa
     return bestHit;
 }
 
+OriginHit pickOrigin(const Scene& scene, const Mat4& viewProjection, f32 mouseX, f32 mouseY, f32 width, f32 height, f32 radius) {
+    OriginHit result;
+    const Vec2 mouse(mouseX, mouseY);
+
+    for (ObjectHandle handle : scene.objects.handles()) {
+        Vec2 screen;
+        if (!projectToScreen(viewProjection, scene.objects.worldTransform(handle).position, width, height, screen)) continue;
+
+        const f32 distance = (screen - mouse).length();
+        if (distance <= radius && distance < result.distance) {
+            result.hit = true;
+            result.object = handle;
+            result.distance = distance;
+        }
+    }
+
+    return result;
+}
+
 LightHit pickLight(const Scene& scene, const Mat4& viewProjection, f32 mouseX, f32 mouseY, f32 width, f32 height, f32 radius) {
     LightHit result;
     const Vec2 mouse(mouseX, mouseY);
@@ -345,6 +365,46 @@ LightHit pickLight(const Scene& scene, const Mat4& viewProjection, f32 mouseX, f
             result.light = handle;
             result.distance = distance;
         }
+    }
+
+    return result;
+}
+
+ReferenceHit pickReference(const Scene& scene, const Ray& ray) {
+    ReferenceHit result;
+
+    // Lower ranks win: in front, then in the scene, then behind
+    const auto rank = [](ReferenceDepth depth) {
+        return depth == ReferenceDepth::InFront ? 0 : depth == ReferenceDepth::InScene ? 1 : 2;
+    };
+
+    for (ReferenceHandle handle : scene.references.handles()) {
+        const ReferenceImage& image = scene.references.get(handle);
+        if (!image.visible || image.locked) continue;
+
+        // In the image's own space the plane is z = 0 and the picture covers -0.5 to 0.5 in X and Y
+        const Mat4 toLocal = Mat4::inverse(image.matrix());
+        const Vec4 origin = toLocal * Vec4(ray.origin.x, ray.origin.y, ray.origin.z, 1.0f);
+        const Vec4 direction = toLocal * Vec4(ray.direction.x, ray.direction.y, ray.direction.z, 0.0f);
+        if (std::abs(direction.z) < 1e-8f) continue;
+
+        const f32 t = -origin.z / direction.z;
+        if (t <= 0.0f) continue;
+
+        const f32 x = origin.x + direction.x * t;
+        const f32 y = origin.y + direction.y * t;
+        if (std::abs(x) > 0.5f || std::abs(y) > 0.5f) continue;
+
+        // The local t is the world t, since the direction went through the same matrix
+        const f32 distance = t * ray.direction.length();
+        const bool better = !result.hit || rank(image.depth) < rank(result.depth)
+            || (rank(image.depth) == rank(result.depth) && distance < result.distance);
+        if (!better) continue;
+
+        result.hit = true;
+        result.reference = handle;
+        result.depth = image.depth;
+        result.distance = distance;
     }
 
     return result;

@@ -20,6 +20,7 @@ public:
 
     bool isMouseDown(u16 button) const;
     bool wasMouseDown(u16 button) const;
+    // A press (or release) happened this frame, even if the button is already back up (or down) again
     bool wasMousePressedThisFrame(u16 button) const;
     bool wasMouseReleasedThisFrame(u16 button) const;
 
@@ -54,6 +55,10 @@ private:
 
     std::array<bool, MOUSE_COUNT> m_buttons_is_down{};
     std::array<bool, MOUSE_COUNT> m_buttons_was_down{};
+
+    // Presses and releases as they happened, so a click that starts and ends within one frame still counts
+    std::array<bool, MOUSE_COUNT> m_buttons_pressed{};
+    std::array<bool, MOUSE_COUNT> m_buttons_released{};
 
     i32 m_mouse_x = 0;
     i32 m_mouse_y = 0;

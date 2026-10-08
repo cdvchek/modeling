@@ -1,5 +1,6 @@
 #include "application/action_checks/action_checks.hpp"
 #include "application/tool_guides.hpp"
+#include "application/origin_actions.hpp"
 #include "core/math/screen_drag.hpp"
 
 #include <cmath>
@@ -22,8 +23,11 @@ void checkRotateContext(AppContext& ctx) {
     const auto& starts = ctx.scene.selection.getSelectionStartPositions();
     const auto& objects = ctx.scene.selection.getObjects();
     const auto& objectStarts = ctx.scene.selection.getObjectStartTransforms();
+    const auto& references = ctx.scene.selection.getReferences();
+    const auto& referenceStarts = ctx.scene.selection.getReferenceStartTransforms();
 
-    if (selections.empty() && lights.empty() && objects.empty()) return;
+    const bool origin = ctx.scene.selection.hasOrigin() && ctx.scene.objects.isValid(ctx.originEdit.object);
+    if (selections.empty() && lights.empty() && objects.empty() && !origin && references.empty()) return;
 
     // Puts every selected light's direction back to where it was when the rotation started
     const auto restoreLightDirections = [&]() {
@@ -42,7 +46,7 @@ void checkRotateContext(AppContext& ctx) {
     tool.lastAngle = mouseAngle;
 
     // Vertices turn in world space around their world center, then go back to mesh space
-    const ObjectSpace space(selections.empty() ? Transform() : ctx.scene.objects.get(selections[0].object).transform);
+    const ObjectSpace space(selections.empty() ? Transform() : ctx.scene.objects.worldTransform(selections[0].object));
 
     Vec3 center(0.0f);
     for (const Vec3& start : starts) center += space.pointToWorld(start);
@@ -75,6 +79,13 @@ void checkRotateContext(AppContext& ctx) {
         object.meshDirty = true;
     }
 
+    // An origin turns in place: the object's axes rotate while its mesh stays put
+    if (origin) {
+        Transform to = ctx.originEdit.start.world;
+        to.rotation = rotateEuler(to.rotation, axis, tool.angle);
+        updateOriginEdit(ctx, to);
+    }
+
     // Objects orbit their shared center and turn by the same amount
     if (!objectStarts.empty()) {
         Vec3 objectCenter(0.0f);
@@ -82,12 +93,28 @@ void checkRotateContext(AppContext& ctx) {
         objectCenter = objectCenter / static_cast<f32>(objectStarts.size());
 
         for (u32 i = 0; i < static_cast<u32>(objects.size()) && i < static_cast<u32>(objectStarts.size()); ++i) {
-            Object* object = ctx.scene.objects.tryGet(objects[i]);
-            if (!object) continue;
+            if (!ctx.scene.objects.isValid(objects[i]) || carriedByParent(ctx, objects[i])) continue;
 
-            const Transform& start = objectStarts[i];
-            object->transform.position = objectCenter + rotateAround(start.position - objectCenter, axis, cosAngle, sinAngle);
-            object->transform.rotation = rotateEuler(start.rotation, axis, tool.angle);
+            // Rebuilt from the start each frame in the world, then made relative to the parent
+            Transform world = objectStarts[i];
+            world.position = objectCenter + rotateAround(world.position - objectCenter, axis, cosAngle, sinAngle);
+            world.rotation = rotateEuler(world.rotation, axis, tool.angle);
+            ctx.scene.objects.setWorldTransform(objects[i], world);
+        }
+    }
+
+    // Reference images orbit their shared center and turn, like objects
+    if (!referenceStarts.empty()) {
+        Vec3 referenceCenter(0.0f);
+        for (const Transform& start : referenceStarts) referenceCenter += start.position;
+        referenceCenter = referenceCenter / static_cast<f32>(referenceStarts.size());
+
+        for (u32 i = 0; i < static_cast<u32>(references.size()) && i < static_cast<u32>(referenceStarts.size()); ++i) {
+            ReferenceImage* image = ctx.scene.references.tryGet(references[i]);
+            if (!image) continue;
+
+            image->position = referenceCenter + rotateAround(referenceStarts[i].position - referenceCenter, axis, cosAngle, sinAngle);
+            image->rotation = rotateEuler(referenceStarts[i].rotation, axis, tool.angle);
         }
     }
 
@@ -142,7 +169,7 @@ void checkRotateContext(AppContext& ctx) {
         restoreLightDirections();
 
         for (u32 i = 0; i < static_cast<u32>(objects.size()) && i < static_cast<u32>(objectStarts.size()); ++i) {
-            if (Object* object = ctx.scene.objects.tryGet(objects[i])) object->transform = objectStarts[i];
+            if (ctx.scene.objects.isValid(objects[i])) ctx.scene.objects.setWorldTransform(objects[i], objectStarts[i]);
         }
 
         ctx.history.cancel(ctx.scene);

@@ -12,6 +12,7 @@
 // Valuma Studio project files (.vlm): the scene plus the editor state needed to carry on where you left off.
 // Layout (all little-endian): a 16-byte header, a directory with one entry per chunk, then the chunks.
 // Each object is its own chunk, so objects are written and read in parallel; unknown chunk types are skipped.
+// Each reference image is its own chunk too, carrying its PNG file unchanged.
 namespace ProjectFile {
     inline constexpr const char* EXTENSION = ".vlm";
     inline constexpr u32 FORMAT_VERSION = 1;
@@ -31,12 +32,18 @@ namespace ProjectFile {
         bool showPanel = true;
         Rect panelRect;
         i32 panelTab = 0;
+
+        bool showOrigins = true;
+
+        // Where assets were last exported, as storeFolder gives it (relative to the project file when nearby);
+        // empty means the default, an Exports folder next to the project file
+        std::string exportFolder;
     };
 
     // The whole file in memory
     std::vector<u8> write(const Scene& scene, const View& view);
 
-    // Fills an empty scene (objects, lights, camera, active object) and view; on failure says why in error
+    // Fills an empty scene (objects, lights, reference images, camera, active object) and view; on failure says why in error
     bool read(const std::vector<u8>& bytes, Scene& scene, View& view, std::string& error);
 
     // Writes to a temporary file next to path, then swaps it in, so a failed save never damages the old file
@@ -47,4 +54,11 @@ namespace ProjectFile {
     std::string describe(const std::vector<u8>& bytes);
 
     bool readFile(const std::filesystem::path& path, std::vector<u8>& bytes, std::string& error);
+
+    // A folder as a project saved at projectFile stores it: relative to the project's folder when the folder is
+    // inside it or next to it (one level up at most), so moving the project along with it keeps it working;
+    // otherwise the full path. UTF-8 with forward slashes; empty stays empty.
+    std::string storeFolder(const std::filesystem::path& folder, const std::filesystem::path& projectFile);
+    // Back to a full path, for a project now at projectFile
+    std::filesystem::path resolveFolder(const std::string& stored, const std::filesystem::path& projectFile);
 }

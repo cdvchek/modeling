@@ -28,7 +28,11 @@ void UIContext::beginFrame(const UIInput& input, bool interactive) {
     if (!m_interactive) {
         m_activeId = 0;
         m_textEdit = {};
+        m_drag = {};
     }
+
+    // A drag ends on the release; drop targets drawn this frame can take it
+    if (m_drag.active && (m_input.released[UIInput::LEFT] || !m_input.down[UIInput::LEFT])) m_drag.dropping = true;
 
     // Topmost region from last frame under the mouse
     m_hoveredRegion = -1;
@@ -77,6 +81,8 @@ void UIContext::beginDraw() {
 
 void UIContext::endDraw() {
     drawPopup();
+    drawDragLabel();
+    if (m_drag.dropping) m_drag = {};
     m_previousRegions = m_regions;
 
     // A widget that stopped being drawn mid-drag (e.g. its light was deleted) can't hold the mouse forever
@@ -328,6 +334,41 @@ void UIContext::endPanel() {
     endRegion();
 }
 
+void UIContext::beginModal(std::string_view name, const Rect& viewport, f32 width, f32 height, std::string_view title) {
+    beginRegion(viewport);
+    UIDrawList& list = *m_drawList;
+    list.rect(viewport, UIStyle::MODAL_BACKDROP);
+
+    const Rect window = clampInside({ std::floor(viewport.x + (viewport.width - width) * 0.5f), std::floor(viewport.y + (viewport.height - height) * 0.5f), width, height }, viewport);
+    const Rect header { window.x, window.y, window.width, UIStyle::PANEL_HEADER_HEIGHT };
+
+    list.shadow({ window.x, window.y + UIStyle::PANEL_SHADOW_OFFSET, window.width, window.height }, UIStyle::PANEL_RADIUS, UIStyle::PANEL_SHADOW_BLUR, UIStyle::PANEL_SHADOW);
+    list.roundedRect(window, UIStyle::PANEL_RADIUS, UIStyle::PANEL_BACKGROUND);
+    list.pushClip(header);
+    list.roundedRect({ window.x, window.y, window.width, header.height + UIStyle::PANEL_RADIUS }, UIStyle::PANEL_RADIUS, UIStyle::PANEL_HEADER);
+    list.popClip();
+    list.rect({ window.x, header.bottom() - 1.0f, window.width, 1.0f }, UIStyle::PANEL_BORDER);
+    list.roundedRect(window, UIStyle::PANEL_RADIUS, { 0.0f, 0.0f, 0.0f, 0.0f }, UIStyle::PANEL_BORDER, 1.0f);
+    drawLabelText({ window.x + UIStyle::PADDING, window.y, window.width, header.height }, title, UIStyle::ACCENT_GREEN);
+
+    m_layout.area = { window.x + UIStyle::PADDING, header.bottom() + UIStyle::PADDING, window.width - UIStyle::PADDING * 2.0f, window.bottom() - header.bottom() - UIStyle::PADDING * 2.0f };
+    m_layout.cursorY = m_layout.area.y;
+    m_layout.indent = 0.0f;
+
+    // Widgets are only reachable inside the window; the backdrop just absorbs clicks
+    m_contentRect = { window.x, header.bottom(), window.width, window.bottom() - header.bottom() };
+    m_hasContentClip = true;
+    list.pushClip(m_contentRect);
+    pushId(name);
+}
+
+void UIContext::endModal() {
+    popId();
+    m_drawList->popClip();
+    m_hasContentClip = false;
+    endRegion();
+}
+
 // Pixels to scroll for this frame's wheel input; wheel up (positive) scrolls toward the top
 f32 UIContext::wheelScroll() const {
     return -(static_cast<f32>(m_input.scroll) / 120.0f) * UIStyle::SCROLL_STEP;
@@ -355,7 +396,7 @@ void UIContext::scrollbar(UIId id, const Rect& track, f32& scroll, f32 contentHe
     m_drawList->roundedRect(drawnThumb, UIStyle::SCROLLBAR_WIDTH * 0.5f, drag.hovered || drag.held ? UIStyle::SCROLLBAR_THUMB_HOVER : UIStyle::SCROLLBAR_THUMB);
 }
 
-void UIContext::beginChild(std::string_view name, f32 height) {
+Rect UIContext::beginChild(std::string_view name, f32 height) {
     const Rect rect = nextRow(height);
     const UIId id = makeId(name);
     ChildState& state = m_children[id];
@@ -388,6 +429,7 @@ void UIContext::beginChild(std::string_view name, f32 height) {
     m_hasContentClip = true;
 
     pushId(name);
+    return rect;
 }
 
 void UIContext::endChild() {
@@ -409,6 +451,40 @@ void UIContext::endChild() {
     pushId(frame.id);
     scrollbar(makeId("##scrollbar"), track, state.scroll, state.contentHeight);
     popId();
+}
+
+bool UIContext::mouseIn(const Rect& rect) const {
+    const bool visible = !m_hasContentClip || m_contentRect.contains(m_input.mouse);
+    return m_interactive && visible && rect.contains(m_input.mouse);
+}
+
+bool UIContext::dragSource(u32 payload, std::string_view label) {
+    if (m_drag.active) return m_drag.payload == payload;
+    if (m_activeId == 0 || m_activeId != m_lastItemId || m_activeTravel < 3.0f || !m_input.down[UIInput::LEFT]) return false;
+
+    m_drag.active = true;
+    m_drag.payload = payload;
+    m_drag.label = std::string(label);
+    return true;
+}
+
+bool UIContext::acceptDrop(const Rect& rect, u32& payload) {
+    if (!m_drag.dropping || !mouseIn(rect)) return false;
+    payload = m_drag.payload;
+    m_drag.dropping = false;
+    m_drag.active = false;
+    return true;
+}
+
+void UIContext::drawDragLabel() {
+    if (!m_drag.active || m_drag.dropping || !m_drawList) return;
+
+    // A small tag just below and right of the cursor, over everything
+    const Vec2 size = measureText(m_font, m_drag.label);
+    const Rect tag { m_input.mouse.x + 14.0f, m_input.mouse.y + 10.0f, size.x + UIStyle::TEXT_PADDING * 2.0f, UIStyle::ROW_HEIGHT };
+    m_drawList->shadow({ tag.x, tag.y + 2.0f, tag.width, tag.height }, UIStyle::CORNER_RADIUS, 6.0f, UIStyle::PANEL_SHADOW);
+    m_drawList->roundedRect(tag, UIStyle::CORNER_RADIUS, UIStyle::PANEL_BACKGROUND, UIStyle::ACCENT, 1.0f);
+    drawLabelText({ tag.x + UIStyle::TEXT_PADDING, tag.y, size.x, tag.height }, m_drag.label, UIStyle::TEXT);
 }
 
 void UIContext::drawPopup() {
@@ -512,6 +588,9 @@ void UIContext::drawLabelText(const Rect& rect, std::string_view text, const Col
 
 UIContext::Interaction UIContext::interact(UIId id, const Rect& rect) {
     Interaction result;
+
+    m_lastItemId = id;
+    m_lastRect = rect;
 
     if (!m_seenIds.insert(id).second && m_reportedDuplicates.insert(id).second) {
         std::cerr << "[ui] two widgets share ID " << id << " (" << m_lastLabel << "); wrap one in pushId/popId" << std::endl;

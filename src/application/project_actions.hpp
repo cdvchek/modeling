@@ -1,6 +1,7 @@
 #pragma once
 
 #include <filesystem>
+#include <functional>
 #include "application/app_context.hpp"
 
 // Saving, opening, and starting projects (.vlm). Each reports to the console; errors also flash in the status bar.
@@ -24,14 +25,21 @@ bool openProjectFrom(AppContext& ctx, const std::filesystem::path& path);
 // Ctrl+N: offers to save changes, then starts over with the default scene
 void newProject(AppContext& ctx);
 
-// Asks to save unsaved changes; false if you cancelled (or the save failed), so whatever was next shouldn't happen
-bool confirmDiscardChanges(AppContext& ctx);
+// Runs then right away if nothing is unsaved; otherwise asks "Save changes?" in a prompt and runs then after
+// Save (if the save worked) or Don't Save. Cancel drops it.
+void confirmDiscardChanges(AppContext& ctx, std::function<void()> then);
 
 // "name.vlm* - Valuma Studio"; the * shows unsaved changes
 void updateWindowTitle(AppContext& ctx);
 
 // Remembers the startup view and marks the scene as saved, so a fresh start has no unsaved changes
 void initializeProject(AppContext& ctx);
+
+// The main window's HWND, for native dialogs
+void* nativeWindow(AppContext& ctx);
+
+// A native dialog takes the key-ups for keys held when it opened (like Ctrl), so call this after one
+void afterDialog(AppContext& ctx);
 
 // path with .vlm added when it has no extension
 std::filesystem::path withProjectExtension(std::filesystem::path path);
