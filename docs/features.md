@@ -11,7 +11,7 @@ Work that's decided on. Each area is broken into steps in the order they'd be bu
 | Area | Status | Depends on |
 |---|---|---|
 | [Materials](#materials) | Later | — |
-| [Textures](#textures) | Later | Materials (a texture is something a material uses) |
+| [Textures](#textures) | Later | Materials (a texture is something a material uses). Reading PNGs and GPU textures already exist, from reference images. |
 | [Animation](#animation) | Later | — |
 | [Attachment points](#attachment-points) | Later | Animation for points that follow bones |
 | [Hitboxes and collision shapes](#hitboxes-and-collision-shapes) | Later | Animation for shapes that follow bones |
@@ -25,12 +25,12 @@ Give surfaces a look beyond flat gray, and carry it into the game.
 5. Included in export and the save format.
 
 ### Textures
-Paint and apply images to surfaces.
+Paint and apply images to surfaces. Reading PNG files (`shared/image/`) and uploading them as GPU textures with mipmaps already work, from [reference images](#reference-images).
 1. **UV coordinates** on the mesh: per face corner, kept through every editing tool.
 2. Unwrapping: simple projections first (planar, box, cylinder), then seams and an automatic unwrap.
 3. A UV editor view to see and adjust UVs over the texture.
 4. Materials use textures (base color first; later roughness, normal maps).
-5. Texture painting: brush color, size, and softness, painted in the viewport and the UV view; saved as PNG.
+5. Texture painting: brush color, size, and softness, painted in the viewport and the UV view; saved as PNG (needs a PNG writer in `shared/image/`).
 6. Textures included in export.
 
 ### Attachment points
@@ -60,7 +60,7 @@ Animate models, including ones made elsewhere.
 Known limitations of what exists today.
 
 - Assets only go in and out as `.vlmobj`; no glTF or OBJ yet (a separate tool later).
-- Reference images: PNG only, and not interlaced PNGs; JPEG comes later. A new image always faces the current view; a choice of Front / Side / Top (so it lines up with the axes) comes later.
+- Reference images: PNG only, and not interlaced PNGs; JPEG comes later. A new image always faces the current view; a choice of Front / Side / Top (so it lines up with the axes) comes later. Clicking a fully transparent part of an image still selects it.
 - No tone mapping: strong lights on top of the default ambient, sun, and headlight clip to white quickly.
 - Windows-only; only the OpenGL backend exists.
 
@@ -138,6 +138,7 @@ Small, builds on existing code, and useful day to day:
 - Back faces are tinted pink so flipped or open faces stand out (`backface tint r g b` to change).
 - Edges in dark gray; vertices as near-black round dots (vertices only shown in vertex mode).
 - 4× MSAA anti-aliasing.
+- Reference images as textured planes, see-through by their own alpha and an opacity, drawn behind everything, among the meshes, or over everything (see [Reference images](#reference-images)).
 - Colors follow the Dracula theme: blue-grey backgrounds, purple selection and highlights, green headings and text input, red errors.
 - Vertical gradient background in Dracula blue-greys, lighter at the top, dithered to avoid banding.
 - Infinite ground grid on the XZ plane:
@@ -307,4 +308,4 @@ Finished assets go out to the game engine (Aevora) and back in as **`.vlmobj`**:
 - Native Win32 window, input, clipboard, and file and folder dialogs; OpenGL 3.3 via GLAD. No other third-party code.
 - The window is titled Valuma Studio.
 - Fonts and shaders are embedded into the executable with `#embed`.
-- CMake build: `modeling` executable, `modeling_core` static library, the `vlmobj` library shared with the future engine, and a `tests` executable.
+- CMake build: `modeling` executable, `modeling_core` static library, the `vlmobj` and `image` libraries shared with the future engine, and a `tests` executable.
