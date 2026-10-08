@@ -1,4 +1,5 @@
 #include "application/application.hpp"
+#include "application/project_actions.hpp"
 
 void Application::registerInputEvents(AppContext& ctx) {
     ctx.systems.events.subscribe<Event::KeyDown>(
@@ -71,6 +72,8 @@ void Application::registerInputEvents(AppContext& ctx) {
 
     ctx.systems.events.subscribe<Event::Quit>(
         [&ctx](const Event::Quit&) -> bool {
+            // Closing with unsaved changes asks first; Cancel keeps the app open
+            if (!confirmDiscardChanges(ctx)) return true;
             ctx.is_running = false;
             return true;
         }

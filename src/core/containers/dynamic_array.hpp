@@ -27,6 +27,9 @@ class DynamicArray {
 public:
     HandleT insert(const T& value);
 
+    // Room for count slots in total, so a run of inserts doesn't keep reallocating
+    void reserve(u32 count) { m_slots.reserve(count); }
+
     void remove(HandleT handle);
 
     bool isValid(HandleT handle) const;

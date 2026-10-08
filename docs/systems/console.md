@@ -44,6 +44,10 @@ Holds the line being typed, the cursor, the history of entered lines (for Up/Dow
 | Command | Arguments | Description |
 |---|---|---|
 | `help` | — | Lists every command with its description. |
+| `save` | none / `<path>` | Saves the project to its file (the Save As dialog the first time), or to the path. `.vlm` is added when there's no extension, and a relative path goes in `Documents\Valuma Studio`. See [project.md](project.md). |
+| `open` | none / `<path>` | Opens a project (the Open dialog without a path). Asks to save unsaved changes first. |
+| `new` | — | Starts a new project with the default scene. Asks to save unsaved changes first. |
+| `fileinfo` | none / `<path>` | Lists a project file's header and sections (type, version, offset, size, checksum, object names and counts). Without a path, the current project's file. |
 | `debug` | `on` / `off` / none (toggle) | Shows the half-edge debug overlay. |
 | `validate` | — | Runs `MeshData::validate()` on the active object. Prints counts if OK, or the first broken invariant. |
 | `merge` | `center` (default) / `first` / `last` | Vertex mode, exactly 2 selected, connected by an edge: collapses them into one vertex at the chosen position. Undoable. |
@@ -55,7 +59,7 @@ Holds the line being typed, the cursor, the history of entered lines (for Up/Dow
 | `vsync` | `on` / `off` / none (toggle) | Turns vertical sync on or off and prints the new state. Off lets the frame rate (status bar FPS) go past the monitor's refresh rate. Not saved; starts on each launch. |
 | `object` | see [below](#object-command) | Lists, adds, removes, edits, and switches the active object. |
 
-Anything a command writes to `std::cout` shows up in the console under it (and in stdout). An unknown command adds an error entry.
+Anything a command writes to `std::cout` shows up in the console under it (and in stdout). An unknown command adds an error entry. A command can also add entries itself with `print`/`printError` (the project commands do); with echo on, those go to the real stdout rather than into the command's captured output, so they appear once.
 
 ## Light command
 

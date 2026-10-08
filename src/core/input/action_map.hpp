@@ -50,6 +50,10 @@ private:
     bool usesKeys(const Keybind& keybind) const;
     bool isBlocked(Action action, const Keybind& keybind) const;
 
+    // A key binding doesn't fire while Ctrl or Alt is held unless it includes it, so Ctrl+S never also scales.
+    // Shift only counts for bindings with Ctrl or Alt, so Ctrl+S and Ctrl+Shift+S stay apart.
+    bool modifiersMatch(const Keybind& keybind, const InputState& input) const;
+
     struct ActionData {
         Keybind bind;
         u32 ctx;

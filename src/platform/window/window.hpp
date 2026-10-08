@@ -3,6 +3,7 @@
 #include <types>
 #include <memory>
 #include <functional>
+#include <string>
 
 class EventDispatcher;
 
@@ -36,6 +37,9 @@ public:
 
     // Shown whenever the mouse is over the window's client area
     void setCursor(CursorShape shape);
+
+    // The title bar text, in UTF-8
+    void setTitle(const std::string& title);
 
     void printWindowError() const;
 

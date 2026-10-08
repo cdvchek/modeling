@@ -23,8 +23,9 @@ A from-scratch C++20 modeling app on Win32 and OpenGL 3.3. No windowing, UI, or 
 
 | Directory | Role | Depends on |
 |---|---|---|
-| `src/core/` | Engine building blocks with no app knowledge: math, containers (`DynamicArray`), events, input, console, bitmap fonts, frame timing | — |
+| `src/core/` | Engine building blocks with no app knowledge: math, containers (`DynamicArray`), events, input, console, bitmap fonts, frame timing, binary reading/writing and CRC-32 (`io/`), `parallelFor` (`thread/`) | — |
 | `src/scene/` | Everything being edited: objects, lights, half-edge meshes, selection, picking, camera, history | core |
+| `src/project/` | The `.vlm` project file format: writing and reading a whole scene plus editor state (see [systems/project.md](systems/project.md)) | core (io, threads), scene, ui (`Rect`) |
 | `src/ui/` | 2D UI draw list in pixel coordinates (shapes, text, clipping) and the immediate-mode widget system (`UIContext`). No OpenGL. | core (math, fonts) |
 | `src/renderer/` | Backend-neutral `IRenderer` interface plus the OpenGL implementation | core, scene (mesh handles, `Scene` for the debug overlay), ui (draws a `UIDrawList`) |
 | `src/platform/` | Win32 window, message pump, key translation, OpenGL context creation | core (events, keys) |
@@ -38,8 +39,8 @@ Defined in [CMakeLists.txt](../CMakeLists.txt):
 
 | Target | Contents |
 |---|---|
-| `modeling_core` (static lib) | Math, fonts, input (`InputState`, `ActionMap`, `ContextManager`), the console and command system, objects, lights, selection, transforms, the UI, and all `MeshData` code. No OpenGL or Win32, so it can be tested on its own. |
-| `modeling` (exe → `bin/modeling.exe`) | Everything else plus `glad.c`, linked with `opengl32` and `dwmapi`. |
+| `modeling_core` (static lib) | Math, fonts, input (`InputState`, `ActionMap`, `ContextManager`), the console and command system, objects, lights, selection, transforms, the camera, undo history, the UI, all `MeshData` code, and the project file format. No OpenGL or Win32, so it can be tested on its own. |
+| `modeling` (exe → `bin/modeling.exe`) | Everything else plus `glad.c`, linked with `opengl32`, `dwmapi`, and `comdlg32` (file dialogs; all three are part of Windows). |
 | `tests` (exe) | Every `tests/*.cpp`, linked against `modeling_core`. |
 
 New `.cpp` files must be added to `CORE_SRC` or `APP_SRC` by hand. Tests are picked up by glob.
@@ -63,6 +64,7 @@ struct AppContext {
     FrameTimer frameTimer;    // FPS for the status bar
     UIContext ui;             // widgets and mouse routing
     ObjectMeshCache objectMeshes; // GPU copies of object meshes, by handle
+    ProjectState project;     // the open file and whether it has unsaved changes
     bool is_running;
 };
 ```

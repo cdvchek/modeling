@@ -44,7 +44,7 @@ bool Window::initialize(EventDispatcher* event_dispatcher) {
     HWND hwnd = CreateWindowExW(
         0, // Option window styles
         class_name, // Window class
-        L"Modeling", // Window text
+        L"Valuma Studio", // Window text
         WS_OVERLAPPEDWINDOW, // Window style
 
         // Position and size
@@ -146,6 +146,15 @@ void Window::setCursor(CursorShape shape) {
     if (GetCursorPos(&point) && ScreenToClient(m_impl->hwnd, &point) && GetClientRect(m_impl->hwnd, &client)) {
         if (GetCapture() == m_impl->hwnd || PtInRect(&client, point)) SetCursor(loadCursor(shape));
     }
+}
+
+void Window::setTitle(const std::string& title) {
+    if (!m_impl || !m_impl->hwnd) return;
+
+    const int length = MultiByteToWideChar(CP_UTF8, 0, title.data(), static_cast<int>(title.size()), nullptr, 0);
+    std::wstring wide(static_cast<std::size_t>(length), L'\0');
+    MultiByteToWideChar(CP_UTF8, 0, title.data(), static_cast<int>(title.size()), wide.data(), length);
+    SetWindowTextW(m_impl->hwnd, wide.c_str());
 }
 
 LRESULT CALLBACK windowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {

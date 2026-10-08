@@ -326,6 +326,35 @@ namespace DefaultKeybinds {
         }
     };
 
+    inline Keybind SaveProject {
+        {
+            key(Key::LeftCtrl),
+            key(Key::S)
+        }
+    };
+
+    inline Keybind SaveProjectAs {
+        {
+            key(Key::LeftCtrl),
+            key(Key::LeftShift),
+            key(Key::S)
+        }
+    };
+
+    inline Keybind OpenProject {
+        {
+            key(Key::LeftCtrl),
+            key(Key::O)
+        }
+    };
+
+    inline Keybind NewProject {
+        {
+            key(Key::LeftCtrl),
+            key(Key::N)
+        }
+    };
+
     // The thumb side button (back)
     inline Keybind RadialMenu {
         {

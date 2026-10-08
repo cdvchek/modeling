@@ -54,6 +54,29 @@ bool ActionMap::isBlocked(Action action, const Keybind& keybind) const {
     return m_keyboardBlocked && action != Action::Quit && usesKeys(keybind);
 }
 
+bool ActionMap::modifiersMatch(const Keybind& keybind, const InputState& input) const {
+    if (usesMouse(keybind)) return true;
+
+    auto bound = [&](Key left, Key right) {
+        for (const Input& binding : keybind.inputs) {
+            if (binding.kind == InputKind::Key && (binding.code == static_cast<u16>(left) || binding.code == static_cast<u16>(right))) return true;
+        }
+        return false;
+    };
+    auto held = [&](Key left, Key right) {
+        return input.isKeyDown(static_cast<u16>(left)) || input.isKeyDown(static_cast<u16>(right));
+    };
+
+    const bool ctrl = bound(Key::LeftCtrl, Key::RightCtrl);
+    const bool alt = bound(Key::LeftAlt, Key::RightAlt);
+    const bool shift = bound(Key::LeftShift, Key::RightShift);
+
+    if (!ctrl && held(Key::LeftCtrl, Key::RightCtrl)) return false;
+    if (!alt && held(Key::LeftAlt, Key::RightAlt)) return false;
+    if ((ctrl || alt) && !shift && held(Key::LeftShift, Key::RightShift)) return false;
+    return true;
+}
+
 bool ActionMap::wasActionPressedOrRepeated(Action action, const InputState& input, u32 input_ctx) const {
     if (wasActionPressedThisFrame(action, input, input_ctx)) return true;
 
@@ -67,7 +90,7 @@ bool ActionMap::wasActionPressedOrRepeated(Action action, const InputState& inpu
     if (inputs.size() != 1 || inputs[0].kind != InputKind::Key) return false;
     if (!(input_ctx & data.ctx)) return false;
     if (input_ctx & InputContext_Console && !(data.ctx & InputContext_Console)) return false;
-    if (isBlocked(action, data.bind)) return false;
+    if (isBlocked(action, data.bind) || !modifiersMatch(data.bind, input)) return false;
 
     return input.wasKeyPressedOrRepeated(inputs[0].code);
 }
@@ -96,7 +119,7 @@ bool ActionMap::isActionDown(Action action, const InputState& input, u32 input_c
     // Only console bindings work while the console is open.
     if (input_ctx & InputContext_Console && !(key_context & InputContext_Console)) return false;
 
-    if (isBlocked(action, keybind)) return false;
+    if (isBlocked(action, keybind) || !modifiersMatch(keybind, input)) return false;
 
     for (const Input& bindingInput : keybind.inputs) {
         switch (bindingInput.kind) {
@@ -136,7 +159,7 @@ bool ActionMap::wasActionPressedThisFrame(Action action, const InputState& input
 
     if (input_ctx & InputContext_Console && !(key_context & InputContext_Console)) return false;
 
-    if (isBlocked(action, keybind)) return false;
+    if (isBlocked(action, keybind) || !modifiersMatch(keybind, input)) return false;
 
     bool anyPressedThisFrame = false;
 

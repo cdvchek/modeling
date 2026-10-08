@@ -16,6 +16,13 @@ void InputState::beginFrame() {
     m_typed.clear();
 }
 
+void InputState::releaseAll() {
+    m_keys_is_down.fill(false);
+    m_keys_was_down.fill(false);
+    m_buttons_is_down.fill(false);
+    m_buttons_was_down.fill(false);
+}
+
 bool InputState::wasKeyPressedOrRepeated(u16 key) const {
     return std::find(m_keyPresses.begin(), m_keyPresses.end(), key) != m_keyPresses.end();
 }

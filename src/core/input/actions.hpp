@@ -59,5 +59,9 @@ enum class Action : u8 {
     ToggleDebug,
     ConfirmInset,
     CancelInset,
+    SaveProject,
+    SaveProjectAs,
+    OpenProject,
+    NewProject,
     Count
 };

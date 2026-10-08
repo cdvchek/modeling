@@ -2,6 +2,7 @@
 #include "core/console/console.hpp"
 
 #include <iostream>
+#include <sstream>
 
 namespace {
     void type(Console& console, const std::string& text) {
@@ -142,4 +143,28 @@ TEST_CASE(console_tracks_the_latest_error) {
 
     CHECK(console.getErrorCount() == 2);
     CHECK(console.getLatestError() == "second problem\nwith detail");
+}
+
+TEST_CASE(console_entries_added_by_a_command_appear_once_with_echo) {
+    Console console;
+    CommandSystem commands;
+    console.setEcho(true);
+
+    commands.registerCommand("save", "", [&console](const CommandArgs&) {
+        console.print("Saved");
+        console.printError("Couldn't");
+    });
+
+    // Echo still reaches the real stdout, not the command's captured output
+    std::ostringstream stdoutCopy;
+    std::streambuf* original = std::cout.rdbuf(stdoutCopy.rdbuf());
+    type(console, "save");
+    console.enterCurrentCommand(commands);
+    std::cout.rdbuf(original);
+
+    const std::vector<ConsoleEntry>& entries = console.getEntries();
+    CHECK(entries.size() == 3);
+    CHECK(entries[1].text == "Saved");
+    CHECK(entries[2].kind == ConsoleEntryKind::Error);
+    CHECK(stdoutCopy.str() == "> save\nSaved\nCouldn't\n");
 }

@@ -13,8 +13,10 @@ void Console::enterCurrentCommand(CommandSystem& commands) {
     // Everything the command prints lands in one entry under it
     std::ostringstream captured;
     std::streambuf* original = std::cout.rdbuf(captured.rdbuf());
+    m_echoTarget = original;
     const bool known = commands.execute(m_command);
     std::cout.rdbuf(original);
+    m_echoTarget = nullptr;
 
     print(captured.str());
     if (!known) printError("unknown command: " + CommandSystem::commandName(m_command) + " (type help to list commands)");
@@ -45,7 +47,10 @@ void Console::addEntry(ConsoleEntryKind kind, const std::string& text) {
     while (!trimmed.empty() && (trimmed.back() == '\n' || trimmed.back() == '\r')) trimmed.pop_back();
     if (trimmed.empty()) return;
 
-    if (m_echo) std::cout << (kind == ConsoleEntryKind::Command ? "> " : "") << trimmed << std::endl;
+    if (m_echo) {
+        std::ostream out(m_echoTarget ? m_echoTarget : std::cout.rdbuf());
+        out << (kind == ConsoleEntryKind::Command ? "> " : "") << trimmed << std::endl;
+    }
     m_entries.push_back({ kind, trimmed });
 
     if (kind == ConsoleEntryKind::Error) {

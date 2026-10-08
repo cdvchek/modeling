@@ -3,6 +3,8 @@
 #include "application/command_parsing.hpp"
 #include "application/light_commands.hpp"
 #include "application/object_commands.hpp"
+#include "application/project_actions.hpp"
+#include "project/project_file.hpp"
 
 #include <algorithm>
 #include <iostream>
@@ -16,6 +18,14 @@ namespace {
 
     void printBackFaceTint(const Vec3& tint) {
         std::cout << "[backface tint] " << tint.x << " " << tint.y << " " << tint.z << std::endl;
+    }
+
+    // The arguments as one path, so names with spaces work; surrounding quotes are dropped
+    std::filesystem::path pathFromArgs(const CommandArgs& args) {
+        std::string text;
+        for (const std::string& arg : args) text += (text.empty() ? "" : " ") + arg;
+        if (text.size() >= 2 && text.front() == '"' && text.back() == '"') text = text.substr(1, text.size() - 2);
+        return std::filesystem::path(std::u8string(text.begin(), text.end()));
     }
 }
 
@@ -204,6 +214,55 @@ void Application::registerCommands(AppContext& ctx) {
             } else {
                 std::cout << "usage: ui panel" << std::endl;
             }
+        }
+    );
+
+    ctx.systems.commands.registerCommand(
+        "save",
+        "Saves the project, to a new file if given: save [<path>]",
+        [&ctx](const CommandArgs& args) {
+            if (args.empty()) saveProject(ctx);
+            else saveProjectTo(ctx, resolveProjectPath(pathFromArgs(args)));
+        }
+    );
+
+    ctx.systems.commands.registerCommand(
+        "open",
+        "Opens a project, asking which one if no path is given: open [<path>]",
+        [&ctx](const CommandArgs& args) {
+            if (args.empty()) {
+                openProject(ctx);
+            } else if (canUseProjectFiles(ctx) && confirmDiscardChanges(ctx)) {
+                openProjectFrom(ctx, resolveProjectPath(pathFromArgs(args)));
+            }
+        }
+    );
+
+    ctx.systems.commands.registerCommand(
+        "new",
+        "Starts a new project with the default scene: new",
+        [&ctx](const CommandArgs& args) {
+            newProject(ctx);
+        }
+    );
+
+    ctx.systems.commands.registerCommand(
+        "fileinfo",
+        "Lists the sections of a project file: fileinfo [<path>]",
+        [&ctx](const CommandArgs& args) {
+            const std::filesystem::path path = args.empty() ? ctx.project.path : resolveProjectPath(pathFromArgs(args));
+            if (path.empty()) {
+                ctx.systems.console.printError("This project hasn't been saved yet; give a path");
+                return;
+            }
+
+            std::vector<u8> bytes;
+            std::string error;
+            if (!ProjectFile::readFile(path, bytes, error)) {
+                ctx.systems.console.printError(error);
+                return;
+            }
+            std::cout << ProjectFile::describe(bytes) << std::endl;
         }
     );
 

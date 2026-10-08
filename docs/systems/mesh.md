@@ -35,6 +35,7 @@ How it works:
 - `get(handle)` asserts validity; `tryGet(handle)` returns `nullptr` instead.
 - `getActiveHandles()` / `getActiveValues()` list live elements in slot order.
 - `size()` is the slot count (including free slots); `activeSize()` is the live count.
+- `reserve(count)` makes room for that many slots up front.
 
 `INVALID_VERTEX`, `INVALID_EDGE`, `INVALID_FACE` have index `INVALID_INDEX`; `handle.isNull()` checks for that.
 
@@ -199,6 +200,17 @@ Used by `OpenGLMesh` to build buffers. See [renderer.md](renderer.md#gpu-meshes)
 | `getVertexData()` | Flat `x,y,z` positions for live vertices, plus `indexMap` from vertex slot index to GPU vertex index. |
 | `getEdgeData(vertexData)` | Line index pairs (one per edge, not per half-edge), plus a map from half-edge slot index to its offset in the index buffer. Both halves map to the same line. |
 | `getFaceData()` | Its own vertex buffer: every triangle's three corners are written separately as `x, y, z, nx, ny, nz` (`FaceData::FLOATS_PER_VERTEX` = 6), with that triangle's own normal (cross product of its edges; a zero-area triangle uses the face's `getFaceNormal`). That gives flat shading per triangle: planar faces look the same as with one face normal, and a non-planar face shows its fold along the triangulation. `indices` run over that buffer in order, wound counter-clockwise around the normal. `indexMap` holds `(offset, count)` pairs per face slot. |
+
+### Files
+
+[mesh_data_serialize.cpp](../../src/scene/mesh/mesh_data_serialize.cpp), used by project files (layout in [project.md](project.md#file-format)).
+
+| Function | Description |
+|---|---|
+| `writeTo(BinaryWriter&)` | Counts, then flat arrays: positions, each vertex's half-edge, each half-edge's tip/pair/next/prev/face, each face's half-edge. Deleted slots are packed out, so stored links are indices `0..n-1` (`INVALID_INDEX` for none). |
+| `readFrom(BinaryReader&)` | Reads that back into fresh arrays, so element `i` gets handle `{ i, 0 }`. Every link is range-checked first; on a short read or a link out of range it returns false and leaves the mesh unchanged. It doesn't run `validate()` (the project loader does). |
+
+Face order, winding, and each loop's starting half-edge are kept, so a mesh comes back the same apart from handle numbers.
 
 ### Private primitives
 

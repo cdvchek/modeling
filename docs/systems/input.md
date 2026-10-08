@@ -29,6 +29,7 @@ Filled by event subscribers in `application_events.cpp`. `beginFrame()` runs at 
 | `getKeyPresses()` / `wasKeyPressedOrRepeated(key)` | Every key press this frame in order, including the OS's repeats while a key is held (they start after the system repeat delay). Used for text fields and console editing keys. |
 | `getTypedText()` | Printable characters typed this frame (from `Event::Char`; control characters such as Backspace, Enter, and Ctrl+letters are left out) |
 | `onKey`, `onChar`, `onMouseButton`, `onMouseMove`, `onScroll` | Called by event subscribers to record input |
+| `releaseAll()` | Forgets every held key and button without reporting releases. Called after a modal dialog, which takes the key-ups for keys held when it opened (like Ctrl). |
 
 ## Keybinds
 
@@ -76,6 +77,8 @@ Defaults live in `namespace DefaultKeybinds`.
 | `setMouseBlocked(bool)` | While set, actions whose binding includes a mouse button or the scroll wheel never fire. Set every frame from `ctx.ui.wantsMouse()` so clicks and scrolling over UI don't reach the viewport. |
 
 Both return false if none of the action's contexts are active, or if the console is open and the action isn't a console action.
+
+**Modifiers:** a binding made only of keys doesn't fire while Ctrl or Alt is held unless it includes it, so Ctrl+S saves without also starting scale (S). Shift only counts for bindings that have Ctrl or Alt, so Ctrl+S and Ctrl+Shift+S stay apart while Shift+key bindings could still be added. Either side's modifier counts as held. Bindings with a mouse button or the wheel are unaffected (Shift/Ctrl/Alt + click are separate actions checked by the selection code).
 
 All bindings are registered in [application_actions.cpp](../../src/application/application_actions.cpp).
 
@@ -128,6 +131,10 @@ Handlers are registered in `registerDefaultActions`; their lambdas capture the `
 | SelectRing | Alt + left click | Edge |
 | Undo | Ctrl + Z | Selection |
 | Redo | Ctrl + Y | Selection |
+| SaveProject | Ctrl + S | Selection |
+| SaveProjectAs | Ctrl + Shift + S | Selection |
+| OpenProject | Ctrl + O | Selection |
+| NewProject | Ctrl + N | Selection |
 | GrabSelection | G | Selection |
 | ScaleSelection | S | Selection |
 | RotateSelection | R | Selection |

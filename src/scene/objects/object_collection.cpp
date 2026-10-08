@@ -9,6 +9,11 @@ ObjectHandle ObjectCollection::add(const std::string& name, PresetMesh meshType)
     return m_objects.insert(object);
 }
 
+ObjectHandle ObjectCollection::add(Object object) {
+    object.meshDirty = true;
+    return m_objects.insert(object);
+}
+
 void ObjectCollection::remove(ObjectHandle handle) {
     m_objects.remove(handle);
 }

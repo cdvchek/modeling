@@ -16,6 +16,7 @@ set(CORE_SRC
     src/core/input/keybinds.cpp
     src/core/console/command_system.cpp
     src/core/console/console.cpp
+    src/core/io/crc32.cpp
     src/ui/ui_draw_list.cpp
     src/ui/ui_context.cpp
     src/ui/ui_widgets.cpp
@@ -45,10 +46,14 @@ set(CORE_SRC
     src/scene/mesh/mesh_data_region.cpp
     src/scene/mesh/mesh_data_validate.cpp
     src/scene/mesh/mesh_data_gpu.cpp
+    src/scene/mesh/mesh_data_serialize.cpp
     src/scene/lights/light_collection.cpp
     src/scene/objects/object_collection.cpp
     src/scene/selection/selection.cpp
     src/scene/transform.cpp
+    src/scene/camera.cpp
+    src/scene/history.cpp
+    src/project/project_file.cpp
 )
 
 set(APP_SRC
@@ -69,6 +74,7 @@ set(APP_SRC
     src/application/application_commands.cpp
     src/application/light_commands.cpp
     src/application/object_commands.cpp
+    src/application/project_actions.cpp
     src/application/status_bar.cpp
     src/application/light_markers.cpp
     src/application/main_panel.cpp
@@ -92,8 +98,6 @@ set(APP_SRC
     src/renderer/renderer.cpp
     src/scene/selection/ray.cpp
     src/scene/selection/scene_queries.cpp
-    src/scene/camera.cpp
-    src/scene/history.cpp
 )
 
 set(C_SRC
@@ -116,6 +120,7 @@ target_link_libraries(modeling PRIVATE
     modeling_core
     opengl32
     dwmapi
+    comdlg32
 )
 
 set_target_properties(modeling PROPERTIES

@@ -42,6 +42,9 @@ public:
     void onScroll(i32 scroll);
     void onMouseMove(i32 x, i32 y);
 
+    // Forgets every held key and button without reporting releases; for after a modal dialog, which takes the key-ups
+    void releaseAll();
+
 private:
     static constexpr std::size_t KEY_COUNT = static_cast<std::size_t>(Key::Count);
     static constexpr std::size_t MOUSE_COUNT = static_cast<std::size_t>(MouseButton::Count);

@@ -1,6 +1,6 @@
 # Documentation
 
-Developer documentation for the modeling application.
+Developer documentation for Valuma Studio, the modeling application (project files are `.vlm`).
 
 | Document | What it covers |
 |---|---|
@@ -12,6 +12,7 @@ Developer documentation for the modeling application.
 | [systems/application.md](systems/application.md) | Startup, the main loop, and the modal tools (grab, scale, rotate, bevel, extrude) |
 | [systems/console.md](systems/console.md) | In-app console and the command registry |
 | [systems/mesh.md](systems/mesh.md) | Half-edge mesh, generational handles, and every mesh operator |
+| [systems/project.md](systems/project.md) | Saving and opening projects (`.vlm`): what's saved, the binary file format, threads |
 | [systems/scene.md](systems/scene.md) | Objects, transforms, camera, selection, picking, and undo/redo history |
 | [systems/renderer.md](systems/renderer.md) | Renderer interface, OpenGL backend, shaders, grid, text, debug overlay |
 | [systems/ui.md](systems/ui.md) | 2D UI draw list, UI shader, fonts |

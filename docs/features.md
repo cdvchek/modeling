@@ -21,7 +21,7 @@ Get models in and out of the app, so they can be used in a game and so models ma
 1. **Pick the format.** Still to decide. OBJ is simple and handles n-gons but only carries geometry (and basic materials). glTF also carries materials, textures, skeletons, and animations, which the later areas need, so it would grow with the app.
 2. Export the scene's objects (mesh, transform, name).
 3. Import into the scene as new objects, n-gons kept.
-4. A native save format for the whole scene (objects, lights, settings), so work can be closed and reopened.
+4. **Done:** a native save format for the whole scene (objects, lights, settings), so work can be closed and reopened. See [Projects](#projects).
 
 ### Reference images
 Put pictures in the scene to model against (a front and side view of a character, a photo of a prop).
@@ -60,7 +60,7 @@ Animate models, including ones made elsewhere.
 
 Known limitations of what exists today.
 
-- No save/load or import/export (see [Import/export](#importexport)).
+- No import/export (see [Import/export](#importexport)).
 - No tone mapping: strong lights on top of the default ambient, sun, and headlight clip to white quickly.
 - Windows-only; only the OpenGL backend exists.
 
@@ -117,6 +117,7 @@ Small, builds on existing code, and useful day to day:
 ### Workflow and engineering
 - Autosave (once the native save format from [Import/export](#importexport) exists).
 - Store undo as diffs instead of full snapshots to cut memory use.
+- Autosave and a recent-files list for projects.
 - Configurable key bindings.
 
 ## Current
@@ -218,6 +219,13 @@ The menu replaces the awkward key chords (like M+V and M+F for modes). Everythin
 - Ctrl+Z / Ctrl+Y, up to 100 steps.
 - Snapshots all objects, lights (including ambient), and the selection, so adding and removing objects and lights is undoable too.
 - A whole drag of a panel slider or field is one undo step.
+- Opening a project or starting a new one clears the history.
+
+### Projects
+- Save and open Valuma Studio projects (`.vlm`): Ctrl+S (asks where the first time), Ctrl+Shift+S (Save As), Ctrl+O, Ctrl+N (new), with the Windows file dialogs; or the `save`, `open`, `new` commands with an optional path. Projects go in `Documents\Valuma Studio` by default: the dialogs start there, and console names like `save scene` land there. `fileinfo` lists a file's sections.
+- A project holds the objects (whole half-edge meshes), lights and ambient light, the camera, the active object, the selection mode, and the view (headlight, back-face tint, debug overlay, panel position, size, and tab). The selection and undo history aren't saved.
+- The window title shows the file name with a `*` when there are unsaved changes (anything undoable; undoing back to the saved state clears it). New, Open, and closing the window ask to save unsaved changes first.
+- Binary format with a section per object, each checksummed; objects are written and read on several threads when there's enough geometry. Saves go to a temporary file that replaces the old one, and a damaged file is refused without touching the open scene. Sections a newer version adds are skipped. See [systems/project.md](systems/project.md).
 
 ### Interface
 - **Floating panel** (shown by default, `ui panel` toggles it): drag it by its header or tabs, resize it from any edge or corner (resize cursors, 240 × 160 minimum), and scroll it with the wheel or its scrollbar when the content doesn't fit. It always stays inside the viewport.
@@ -235,7 +243,7 @@ The menu replaces the awkward key chords (like M+V and M+F for modes). Everythin
 - **X/Y/Z fields**: drag to change; click without dragging (under 3 px of movement) to type an exact value, with the same keys. Text that isn't a number leaves the value alone.
 - Held keys repeat after the system's repeat delay, in text fields and in the console.
 - **Status bar** along the bottom: frames per second, selection mode, active tool, and axis lock (`-` outside grab/scale/rotate, `Free`, or the locked axes in red/green/cyan). Items keep fixed positions as values change. An error that happens while the console is closed (an unknown command, a refused bevel/extrude/inset/dissolve) shows in red at the right end for 4 seconds, fading out at the end.
-- **Console** (/): a panel docked above the status bar with commands, their output, and errors (red) above an input line with a blinking caret. `help` lists every command; an unknown command shows an error; tools report refusals there too (bevel, extrude, inset, dissolve). Output or errors longer than one line can be collapsed and expanded by clicking; closing the console collapses everything so far, so only new or reopened ones show expanded. The wheel scrolls the list; command history (Up/Down, with the recalled command highlighted in the list, which scrolls to keep it in view) and cursor movement; Backspace, Delete, and the arrow keys repeat while held. Commands: `help`, `debug`, `validate`, `merge`, `dissolve`, `light`, `object`, `headlight`, `backface`, `vsync`, `ui`. See [systems/console.md](systems/console.md).
+- **Console** (/): a panel docked above the status bar with commands, their output, and errors (red) above an input line with a blinking caret. `help` lists every command; an unknown command shows an error; tools report refusals there too (bevel, extrude, inset, dissolve). Output or errors longer than one line can be collapsed and expanded by clicking; closing the console collapses everything so far, so only new or reopened ones show expanded. The wheel scrolls the list; command history (Up/Down, with the recalled command highlighted in the list, which scrolls to keep it in view) and cursor movement; Backspace, Delete, and the arrow keys repeat while held. Commands: `help`, `save`, `open`, `new`, `fileinfo`, `debug`, `validate`, `merge`, `dissolve`, `light`, `object`, `headlight`, `backface`, `vsync`, `ui`. See [systems/console.md](systems/console.md).
 - Built on a from-scratch immediate-mode UI (tabs, buttons, dropdowns, list rows, checkboxes, sliders, X/Y/Z fields, text fields, color swatches, type switches, scrolling list boxes) and a batched 2D draw list. See [systems/ui.md](systems/ui.md).
 - Two embedded fonts: the 16×24 console font and a 10×16 UI font (the console font trimmed and scaled down).
 
@@ -246,6 +254,7 @@ The menu replaces the awkward key chords (like M+V and M+F for modes). Everythin
 - Built-in presets: cube, plane, grid, circle, cylinder, cone, UV sphere, ico sphere, torus (see [systems/mesh.md](systems/mesh.md#presets)). The startup object is a cube; add more from the Objects tab or `object add <preset>`.
 
 ### Platform and build
-- Native Win32 window, input, and clipboard; OpenGL 3.3 via GLAD. No other third-party code.
+- Native Win32 window, input, clipboard, and file dialogs; OpenGL 3.3 via GLAD. No other third-party code.
+- The window is titled Valuma Studio.
 - Fonts and shaders are embedded into the executable with `#embed`.
 - CMake build: `modeling` executable, `modeling_core` static library, and a `tests` executable.

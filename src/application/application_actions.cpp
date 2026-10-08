@@ -1,5 +1,6 @@
 #include "application/application.hpp"
 #include "application/editing_actions.hpp"
+#include "application/project_actions.hpp"
 #include "application/action_checks/action_checks.hpp"
 
 void Application::registerDefaultActions(AppContext& ctx) {
@@ -51,6 +52,10 @@ void Application::registerDefaultActions(AppContext& ctx) {
     actions.subscribe(Action::RadialMenu,          DefaultKeybinds::RadialMenu,          InputContext_Global);
     actions.subscribe(Action::ObjectMode,          DefaultKeybinds::ObjectMode,          InputContext_AnySelection);
     actions.subscribe(Action::ToggleObjectMode,    DefaultKeybinds::ToggleObjectMode,    InputContext_AnySelection);
+    actions.subscribe(Action::SaveProject,         DefaultKeybinds::SaveProject,         InputContext_AnySelection);
+    actions.subscribe(Action::SaveProjectAs,       DefaultKeybinds::SaveProjectAs,       InputContext_AnySelection);
+    actions.subscribe(Action::OpenProject,         DefaultKeybinds::OpenProject,         InputContext_AnySelection);
+    actions.subscribe(Action::NewProject,          DefaultKeybinds::NewProject,          InputContext_AnySelection);
 
     auto always = [] { return true; };
 
@@ -75,6 +80,12 @@ void Application::registerDefaultActions(AppContext& ctx) {
 
     actions.setHandler(Action::MergeVertices, { "Merge", [&ctx] { return canMergeVertices(ctx); }, [&ctx] { mergeVertices(ctx); } });
     actions.setHandler(Action::DissolveSelection, { "Dissolve", [&ctx] { return canDissolve(ctx); }, [&ctx] { dissolveSelection(ctx); } });
+
+    auto projectFiles = [&ctx] { return canUseProjectFiles(ctx); };
+    actions.setHandler(Action::SaveProject, { "Save", projectFiles, [&ctx] { saveProject(ctx); } });
+    actions.setHandler(Action::SaveProjectAs, { "Save As", projectFiles, [&ctx] { saveProjectAs(ctx); } });
+    actions.setHandler(Action::OpenProject, { "Open", projectFiles, [&ctx] { openProject(ctx); } });
+    actions.setHandler(Action::NewProject, { "New", projectFiles, [&ctx] { newProject(ctx); } });
 
     actions.setHandler(Action::Undo, { "Undo", [&ctx] { return ctx.history.canUndo(); }, [&ctx] { undo(ctx); } });
     actions.setHandler(Action::Redo, { "Redo", [&ctx] { return ctx.history.canRedo(); }, [&ctx] { redo(ctx); } });

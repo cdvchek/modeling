@@ -39,6 +39,7 @@ struct Object {
 | Method | Description |
 |---|---|
 | `add(name, PresetMesh)` | Adds an object with a preset mesh and returns its handle. |
+| `add(Object)` | Adds a whole object as it is (opening a project); sets `meshDirty`. |
 | `remove(handle)` | Removes the object. |
 | `get(handle)` / `tryGet(handle)` | Reference (asserts) / pointer or `nullptr`. |
 | `isValid(handle)` | Whether the handle points to a live object. |
@@ -185,6 +186,8 @@ Undo/redo by snapshot. A `State` is a copy of the whole `ObjectCollection`, the 
 | `commit()` | Pushes the pending snapshot onto the undo stack and clears redo. |
 | `cancel(scene)` | Restores the pending snapshot and discards it. |
 | `undo(scene)` / `redo(scene)` | Swaps the current state with the top of the undo / redo stack. Returns false if empty. |
+| `stateId()` | Names the current state: each commit gives a new id, and undo or redo back to a state gives its id again. The app compares it with the id at the last save to show unsaved changes (see [project.md](project.md)). `cancel` keeps the id. |
+| `clear()` | Drops every step (after opening a project or starting a new one); the state gets a new id. |
 
 Usage pattern: call `begin` before changing anything, then exactly one of `commit` or `cancel`. Modal tools call `begin` when they start and `commit`/`cancel` when they end.
 

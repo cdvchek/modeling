@@ -1,5 +1,6 @@
 #pragma once
 
+#include <streambuf>
 #include <string>
 #include <vector>
 #include <types>
@@ -67,6 +68,8 @@ private:
     std::vector<std::string> m_history;
     std::vector<ConsoleEntry> m_entries;
     bool m_echo = false;
+    // While a command runs std::cout is captured; echoes go here instead, so entries the command adds itself aren't captured twice
+    std::streambuf* m_echoTarget = nullptr;
     u32 m_errorCount = 0;
     std::string m_latestError;
 };

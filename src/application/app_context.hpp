@@ -18,6 +18,7 @@
 #include "application/radial_menu_state.hpp"
 #include "application/console_view_state.hpp"
 #include "application/transform_tool.hpp"
+#include "application/project_state.hpp"
 #include "core/time/frame_timer.hpp"
 
 struct AppContext {
@@ -38,6 +39,7 @@ struct AppContext {
 
     RadialMenuState radialMenu;
     ConsoleViewState consoleView;
+    ProjectState project;
 
     // Where Tab returns to from object mode
     u32 lastEditMode = InputContext_SelectionVertex;

@@ -22,6 +22,8 @@ constexpr ObjectHandle INVALID_OBJECT { INVALID_INDEX, 0 };
 class ObjectCollection {
 public:
     ObjectHandle add(const std::string& name, PresetMesh meshType);
+    // Takes a whole object as it is (opening a project)
+    ObjectHandle add(Object object);
     void remove(ObjectHandle handle);
 
     bool isValid(ObjectHandle handle) const;

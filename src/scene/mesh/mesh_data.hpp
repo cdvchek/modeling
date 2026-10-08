@@ -9,6 +9,7 @@
 #include "scene/mesh/mesh_handles.hpp"
 #include "core/math/vec2.hpp"
 #include "core/math/mat4.hpp"
+#include "core/io/binary_io.hpp"
 
 struct VertexData {
     std::vector<f32> vertices;
@@ -140,6 +141,13 @@ public:
     void setSlideWidth(const SlideSession& session, f32 width);
     void cancelSlide(const SlideSession& session);
 
+
+    // ---- Files (mesh_data_serialize.cpp) ----
+
+    // Writes the half-edge structure with deleted slots packed out, so handles are renumbered from 0
+    void writeTo(BinaryWriter& writer) const;
+    // Replaces this mesh with one written by writeTo; false (mesh unchanged) if the data is cut short or links out of range
+    bool readFrom(BinaryReader& reader);
 
     // ---- GPU export (mesh_data_gpu.cpp) ----
 

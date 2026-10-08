@@ -74,3 +74,35 @@ TEST_CASE(action_availability_checks_binding_context_and_can_run) {
     CHECK(actions.getKeybind(Action::AxisFree) == nullptr);
     CHECK(actions.getKeybind(Action::XAxis) != nullptr);
 }
+
+TEST_CASE(action_modifiers_keep_shortcuts_apart) {
+    ActionMap actions;
+    ContextManager contexts;
+    InputState input;
+    std::string ran;
+
+    actions.subscribe(Action::ScaleSelection, { { key(Key::S) } }, InputContext_SelectionVertex);
+    actions.subscribe(Action::SaveProject, { { key(Key::LeftCtrl), key(Key::S) } }, InputContext_SelectionVertex);
+    actions.subscribe(Action::SaveProjectAs, { { key(Key::LeftCtrl), key(Key::LeftShift), key(Key::S) } }, InputContext_SelectionVertex);
+    actions.setHandler(Action::ScaleSelection, { "Scale", {}, [&ran] { ran += "scale "; } });
+    actions.setHandler(Action::SaveProject, { "Save", {}, [&ran] { ran += "save "; } });
+    actions.setHandler(Action::SaveProjectAs, { "Save As", {}, [&ran] { ran += "saveas "; } });
+
+    auto press = [&](std::initializer_list<Key> keys) {
+        input.beginFrame();
+        for (Key k : { Key::LeftCtrl, Key::RightCtrl, Key::LeftShift, Key::S }) input.onKey(static_cast<u16>(k), false);
+        input.beginFrame();
+        for (Key k : keys) input.onKey(static_cast<u16>(k), true);
+        ran.clear();
+        actions.dispatch(input, contexts);
+        return ran;
+    };
+
+    CHECK(press({ Key::S }) == "scale ");
+    CHECK(press({ Key::LeftCtrl, Key::S }) == "save ");
+    CHECK(press({ Key::LeftCtrl, Key::LeftShift, Key::S }) == "saveas ");
+    // Right Ctrl doesn't match the left-Ctrl binding, but still keeps S from scaling
+    CHECK(press({ Key::RightCtrl, Key::S }) == "");
+    // Shift alone doesn't stop a plain key
+    CHECK(press({ Key::LeftShift, Key::S }) == "scale ");
+}

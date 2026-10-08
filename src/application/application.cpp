@@ -9,6 +9,7 @@
 #include "application/light_markers.hpp"
 #include "application/main_panel.hpp"
 #include "application/console_view.hpp"
+#include "application/project_actions.hpp"
 #include "core/math/vec4.hpp"
 
 #include <algorithm>
@@ -86,6 +87,7 @@ bool Application::initialize(AppContext& ctx) {
     loadTestScene(ctx);
 
     ctx.systems.input_ctx.setSelectionContext(InputContext_SelectionVertex);
+    initializeProject(ctx);
     ctx.is_running = false;
     return true;
 }
@@ -105,6 +107,7 @@ void Application::run(AppContext& ctx) {
         ctx.systems.actions.setKeyboardBlocked(ctx.ui.wantsKeyboard());
 
         checkActions(ctx);
+        updateWindowTitle(ctx);
         Application::renderFrame(ctx);
 
         ctx.windows[0]->setCursor(toCursorShape(ctx.ui.cursor()));
