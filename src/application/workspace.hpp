@@ -38,6 +38,8 @@ struct WorkspaceState {
     UVBackground uvBackground = UVBackground::Material;
     TextureHandle uvTexture = INVALID_TEXTURE;
     bool uvPanning = false;     // a drag that started over the editor is moving the view
+    // Island mode (UV workspace): face mode, but a click takes every face connected to it on the texture
+    bool uvIslands = false;
 };
 
 // Where everything sits in the window this frame, in window pixels (origin top left, y down)

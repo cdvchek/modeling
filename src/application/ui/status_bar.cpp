@@ -29,7 +29,7 @@ namespace {
     const Color Y_AXIS_COLOR = UIStyle::AXIS_Y;
     const Color Z_AXIS_COLOR = UIStyle::AXIS_Z;
 
-    const std::vector<std::string_view> MODE_NAMES = { "Vertex", "Edge", "Face", "Object" };
+    const std::vector<std::string_view> MODE_NAMES = { "Vertex", "Edge", "Face", "Object", "Island" };
     const std::vector<std::string_view> TOOL_NAMES = { "Select", "Grab", "Scale", "Rotate", "Bevel", "Inset" };
     const std::vector<std::string_view> AXIS_VALUES = { "Free", "XYZ", "-" };
     constexpr std::string_view AXIS_LABEL = "Axis ";
@@ -75,6 +75,18 @@ namespace {
     }
 }
 
+namespace {
+    // A UV tool locks to u (X) or v (Y); rotating has nothing to lock
+    StatusItem uvAxisItem(const UVToolState& tool) {
+        StatusItem item { { { std::string(AXIS_LABEL), DIM_TEXT_COLOR } }, AXIS_LABEL.size() + longest(AXIS_VALUES) };
+        if (tool.kind == UVToolKind::Rotate) item.segments.push_back({ "-", DIM_TEXT_COLOR });
+        else if (tool.axis == UVAxis::X) item.segments.push_back({ "X", X_AXIS_COLOR });
+        else if (tool.axis == UVAxis::Y) item.segments.push_back({ "Y", Y_AXIS_COLOR });
+        else item.segments.push_back({ "Free", TEXT_COLOR });
+        return item;
+    }
+}
+
 const char* selectionModeName(const ContextManager& contexts) {
     switch (contexts.getSelectionContext()) {
         case InputContext_SelectionEdge: return MODE_NAMES[1].data();
@@ -108,9 +120,9 @@ void drawStatusBar(const AppContext& ctx, UIDrawList& ui, f32 width, f32 height)
     const ContextManager& contexts = ctx.systems.input_ctx;
     const std::vector<StatusItem> items = {
         fpsItem(ctx.frameTimer.getFps()),
-        { { { selectionModeName(contexts), TEXT_COLOR } }, longest(MODE_NAMES) },
-        { { { activeToolName(contexts), TEXT_COLOR } }, longest(TOOL_NAMES) },
-        axisLockItem(contexts),
+        { { { ctx.workspace.uvIslands ? MODE_NAMES[4].data() : selectionModeName(contexts), TEXT_COLOR } }, longest(MODE_NAMES) },
+        { { { ctx.uvTool.active() ? uvToolName(ctx.uvTool.kind) : activeToolName(contexts), TEXT_COLOR } }, longest(TOOL_NAMES) },
+        ctx.uvTool.active() ? uvAxisItem(ctx.uvTool) : axisLockItem(contexts),
     };
 
     // Left to right, with a divider between items

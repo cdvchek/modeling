@@ -23,6 +23,7 @@
 #include "application/tools/transform_tool.hpp"
 #include "application/project_state.hpp"
 #include "application/workspace.hpp"
+#include "application/uv/uv_tools.hpp"
 #include "application/ui/modal_state.hpp"
 #include "core/time/frame_timer.hpp"
 
@@ -51,6 +52,7 @@ struct AppContext {
     ProjectState project;
     ModalState modal;
     WorkspaceState workspace;
+    UVToolState uvTool;         // a grab, scale, or rotate running in the UV editor
 
     // Import… was picked in the Objects tab; the file dialog opens in checkActions, not while drawing
     bool importRequested = false;

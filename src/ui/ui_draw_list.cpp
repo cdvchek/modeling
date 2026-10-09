@@ -37,6 +37,16 @@ void UIDrawList::gradientRect(const Rect& rect, Color topLeft, Color topRight, C
     addQuad(corners, false, FontId::UI);
 }
 
+void UIDrawList::triangle(Vec2 a, Vec2 b, Vec2 c, Color fill) {
+    // A shape quad whose last corner repeats the third, and whose shape is so large every pixel is inside it
+    const Vec2 far(1.0e6f, 1.0e6f);
+    const u32 color = fill.packed();
+    UIVertex corners[4];
+    const Vec2 points[4] = { a, b, c, c };
+    for (u32 i = 0; i < 4; ++i) corners[i] = { points[i], Vec2(), Vec2(), far, 0.0f, 0.0f, 0.0f, MODE_SHAPE, color, 0 };
+    addQuad(corners, false, FontId::UI);
+}
+
 void UIDrawList::line(Vec2 start, Vec2 end, f32 width, Color color) {
     const Vec2 delta = end - start;
     const f32 length = delta.length();

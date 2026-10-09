@@ -244,3 +244,28 @@ TEST_CASE(asset_bake_writes_a_uv_attribute_and_splits_at_seams) {
     for (const Vec2& uv : object.meshData.getCornerUVs()) meshUVs.insert({ uv.x == 0.0f ? 0.0f : uv.x, uv.y == 0.0f ? 0.0f : uv.y });
     CHECK(bakedUVs == meshUVs);
 }
+
+TEST_CASE(uv_islands_follow_matching_uvs) {
+    // The cube unfolds into one connected cross
+    const MeshData box = cube();
+    for (FaceHandle face : box.getFaceHandles()) CHECK(box.getUVIsland(face).size() == 6);
+
+    // A grid is one sheet
+    const MeshData grid = preset(PresetMesh::Grid);
+    CHECK(grid.getUVIsland(grid.getFaceHandles()[37]).size() == grid.getFaceHandles().size());
+
+    // A cylinder: the side strip, and each cap on its own
+    const MeshData cylinder = preset(PresetMesh::Cylinder);
+    std::set<std::size_t> sizes;
+    for (FaceHandle face : cylinder.getFaceHandles()) sizes.insert(cylinder.getUVIsland(face).size());
+    CHECK(sizes == std::set<std::size_t>({ 1, 16 }));
+
+    // Moving one face's UVs away cuts it off from the sheet
+    MeshData cut = preset(PresetMesh::Grid);
+    const FaceHandle moved = cut.getFaceHandles()[0];
+    std::vector<Vec2> uvs = cut.getFaceUVs(moved);
+    for (Vec2& uv : uvs) uv = uv + Vec2(2.0f, 0.0f);
+    cut.setFaceUVs(moved, uvs);
+    CHECK(cut.getUVIsland(moved).size() == 1);
+    CHECK(cut.getUVIsland(cut.getFaceHandles()[50]).size() == cut.getFaceHandles().size() - 1);
+}

@@ -2,6 +2,8 @@
 #include "core/input/context_manager.hpp"
 #include "core/math/vec4.hpp"
 #include "scene/selection/selection.hpp"
+#include "scene/selection/mesh_selection.hpp"
+#include "scene/objects/object_collection.hpp"
 #include "scene/transform.hpp"
 
 #include <cmath>
@@ -114,4 +116,30 @@ TEST_CASE(object_space_world_axis_on_a_rotated_object) {
     const ObjectSpace space(transform);
 
     CHECK(near(space.directionToLocal(Vec3(1.0f, 0.0f, 0.0f)), Vec3(0.0f, -1.0f, 0.0f)));
+}
+
+TEST_CASE(select_all_takes_every_element_with_its_vertices) {
+    ObjectCollection objects;
+    const ObjectHandle handle = objects.add("Cube", PresetMesh::Cube);
+    const MeshData& mesh = objects.get(handle).meshData;
+
+    Selection vertices;
+    selectAll(vertices, handle, mesh, SelectAllMode::Vertices);
+    CHECK(vertices.getVertexHandles().size() == 8);
+
+    // One half of each edge
+    Selection edges;
+    selectAll(edges, handle, mesh, SelectAllMode::Edges);
+    CHECK(edges.getEdgeHandles().size() == 12);
+    CHECK(edges.getVertexHandles().size() == 8);
+
+    Selection faces;
+    selectAll(faces, handle, mesh, SelectAllMode::Faces);
+    CHECK(faces.getFaceHandles().size() == 6);
+    CHECK(faces.getVertexHandles().size() == 8);
+
+    // Deselecting a face keeps the vertices other faces still use
+    deselectFace(faces, handle, mesh, mesh.getFaceHandles()[0]);
+    CHECK(faces.getFaceHandles().size() == 5);
+    CHECK(faces.getVertexHandles().size() == 8);
 }

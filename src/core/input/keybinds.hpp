@@ -252,6 +252,20 @@ namespace DefaultKeybinds {
         }
     };
 
+    inline Keybind IslandMode {
+        {
+            key(Key::M),
+            key(Key::I)
+        }
+    };
+
+    inline Keybind SelectAll {
+        {
+            key(Key::LeftCtrl),
+            key(Key::A)
+        }
+    };
+
     inline Keybind ConnectVertices {
         {
             key(Key::C)

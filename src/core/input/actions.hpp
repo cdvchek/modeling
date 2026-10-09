@@ -83,6 +83,11 @@ enum class Action : u8 {
     ClearEdgeMark,
     FrameSelected,
     FrameAll,
+    IslandMode,
+    SelectAll,
+    UVGrab,
+    UVScale,
+    UVRotate,
     ParentToActive,
     ClearParents,
     Count

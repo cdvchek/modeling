@@ -142,6 +142,9 @@ public:
     // Every half-edge's, in getEdgeHandles order (for saving)
     std::vector<Vec2> getCornerUVs() const;
     void setCornerUVs(const std::vector<Vec2>& uvs);
+    // The faces connected to this one in UV space (its island), itself included: neighbours across edges whose two
+    // sides have the same UVs at both ends, and theirs in turn
+    std::vector<FaceHandle> getUVIsland(FaceHandle handle) const;
 
     // ---- Smooth shading (mesh_data_shading.cpp) ----
 

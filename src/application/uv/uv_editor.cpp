@@ -1,5 +1,6 @@
 #include "application/uv/uv_editor.hpp"
 #include "application/viewport/material_view.hpp"
+#include "scene/selection/mesh_selection.hpp"
 #include "core/math/vec4.hpp"
 #include "ui/ui_style.hpp"
 
@@ -25,7 +26,101 @@ namespace {
     const Color GRID_LINE { 0.38f, 0.40f, 0.50f, 0.25f };
     const Color UNIT_LINE { 0.55f, 0.57f, 0.70f, 0.55f };
     const Color SQUARE_BORDER { 0.74f, 0.58f, 0.98f, 0.9f };
-    const Color WIRE { 0.90f, 0.91f, 0.95f, 0.85f };
+    const Color WIRE { 0.90f, 0.91f, 0.95f, 0.55f };
+    const Color SELECTED { 0.74f, 0.58f, 0.98f, 1.0f };
+    const Color SELECTED_FILL { 0.74f, 0.58f, 0.98f, 0.28f };
+    const Color POINT { 0.90f, 0.91f, 0.95f, 0.8f };
+    const Color GUIDE { 0.95f, 0.95f, 0.98f, 0.7f };
+    constexpr f32 SELECTED_WIRE_WIDTH = 2.5f;
+    constexpr f32 POINT_SIZE = 5.0f;
+    constexpr f32 SELECTED_POINT_SIZE = 7.0f;
+    constexpr f32 PICK_RADIUS = 10.0f;      // pixels
+
+    f32 distanceToSegment(Vec2 point, Vec2 a, Vec2 b) {
+        const Vec2 ab = b - a;
+        const f32 lengthSq = Vec2::dot(ab, ab);
+        const f32 t = lengthSq > 0.0f ? std::clamp(Vec2::dot(point - a, ab) / lengthSq, 0.0f, 1.0f) : 0.0f;
+        return (point - (a + ab * t)).length();
+    }
+
+    // Even-odd test against the face's UV outline
+    bool insideUVs(const std::vector<Vec2>& uvs, Vec2 point) {
+        bool inside = false;
+        for (std::size_t i = 0, j = uvs.size() - 1; i < uvs.size(); j = i++) {
+            const Vec2& a = uvs[i];
+            const Vec2& b = uvs[j];
+            if ((a.y > point.y) != (b.y > point.y) && point.x < (b.x - a.x) * (point.y - a.y) / (b.y - a.y) + a.x) inside = !inside;
+        }
+        return inside;
+    }
+
+    // A click in the editor, in the current mode: the nearest corner's vertex, the nearest edge, or the face under it
+    // (with its whole island in island mode). Shift adds or takes away; a click on nothing clears unless Shift is held.
+    void clickUVs(AppContext& ctx, const Rect& area, Vec2 mouse, bool toggling) {
+        const ObjectHandle handle = uvObject(ctx);
+        Object* object = ctx.scene.objects.tryGet(handle);
+        if (!object) return;
+        const MeshData& mesh = object->meshData;
+        Selection& selection = ctx.scene.selection;
+        const WorkspaceState& workspace = ctx.workspace;
+        const u32 mode = ctx.systems.input_ctx.getSelectionContext();
+
+        if (!toggling) selection.clearMeshElements();
+
+        if (mode == InputContext_SelectionVertex) {
+            VertexHandle best = INVALID_VERTEX;
+            f32 bestDistance = PICK_RADIUS;
+            for (FaceHandle face : mesh.getFaceHandles()) {
+                const std::vector<VertexHandle> vertices = mesh.getFaceVertices(face);
+                const std::vector<Vec2> uvs = mesh.getFaceUVs(face);
+                for (std::size_t i = 0; i < vertices.size() && i < uvs.size(); ++i) {
+                    const f32 distance = (uvToScreen(workspace, area, uvs[i]) - mouse).length();
+                    if (distance < bestDistance) {
+                        bestDistance = distance;
+                        best = vertices[i];
+                    }
+                }
+            }
+            if (best.isNull()) return;
+            if (toggling && selection.hasVertex(handle, best)) selection.removeVertex(handle, best);
+            else selection.addVertex(handle, best);
+        } else if (mode == InputContext_SelectionEdge) {
+            // A face's half-edges run in the same order as its UVs: half-edge i ends at corner i
+            EdgeHandle best = INVALID_EDGE;
+            f32 bestDistance = PICK_RADIUS;
+            for (FaceHandle face : mesh.getFaceHandles()) {
+                const std::vector<EdgeHandle> edges = mesh.getLoopEdges(mesh.getFace(face)->edge);
+                const std::vector<Vec2> uvs = mesh.getFaceUVs(face);
+                for (std::size_t i = 0; i < edges.size() && i < uvs.size(); ++i) {
+                    const Vec2 from = uvToScreen(workspace, area, uvs[(i + uvs.size() - 1) % uvs.size()]);
+                    const Vec2 to = uvToScreen(workspace, area, uvs[i]);
+                    const f32 distance = distanceToSegment(mouse, from, to);
+                    if (distance < bestDistance) {
+                        bestDistance = distance;
+                        best = edges[i];
+                    }
+                }
+            }
+            if (best.isNull()) return;
+            if (toggling && isEdgeSelected(selection, handle, mesh, best)) deselectEdge(selection, handle, mesh, best);
+            else selectEdge(selection, handle, mesh, best);
+        } else if (mode == InputContext_SelectionFace) {
+            // The last face drawn there is the one on top
+            const Vec2 point = screenToUV(workspace, area, mouse);
+            FaceHandle hit = INVALID_FACE;
+            for (FaceHandle face : mesh.getFaceHandles()) {
+                if (insideUVs(mesh.getFaceUVs(face), point)) hit = face;
+            }
+            if (hit.isNull()) return;
+
+            const std::vector<FaceHandle> faces = workspace.uvIslands ? mesh.getUVIsland(hit) : std::vector<FaceHandle> { hit };
+            const bool deselecting = toggling && selection.hasFace(handle, hit);
+            for (FaceHandle face : faces) {
+                if (deselecting) deselectFace(selection, handle, mesh, face);
+                else selectFace(selection, handle, mesh, face);
+            }
+        }
+    }
 
     // The selected corners' UVs, or every UV when nothing is selected or all is set
     bool uvBounds(const AppContext& ctx, bool all, Vec2& low, Vec2& high) {
@@ -120,6 +215,12 @@ void updateUVEditor(AppContext& ctx) {
         workspace.uvCenter = workspace.uvCenter - Vec2(static_cast<f32>(input.getMouseDeltaX()), static_cast<f32>(input.getMouseDeltaY())) / workspace.uvZoom;
     }
 
+    // A left click picks in the current mode
+    if (over && input.wasMousePressedThisFrame(static_cast<u16>(MouseButton::Left)) && workspace.uvZoom > 0.0f) {
+        const bool toggling = ctx.systems.actions.isActionDown(Action::ToggleSelection, input, contexts.getContext());
+        clickUVs(ctx, area, mouse, toggling);
+    }
+
     // Zooming keeps the UV under the cursor where it is
     const i32 scroll = input.getScroll();
     if (over && scroll != 0 && workspace.uvZoom > 0.0f) {
@@ -182,16 +283,88 @@ void drawUVEditor(AppContext& ctx, const Rect& area) {
     list.rect({ square.x, square.y, 1.0f, square.height }, SQUARE_BORDER);
     list.rect({ square.right() - 1.0f, square.y, 1.0f, square.height }, SQUARE_BORDER);
 
-    // Every face's UVs, as a closed outline
-    const Object* object = ctx.scene.objects.tryGet(uvObject(ctx));
+    const ObjectHandle handle = uvObject(ctx);
+    const Object* object = ctx.scene.objects.tryGet(handle);
     if (!object) return;
     const MeshData& mesh = object->meshData;
-    for (FaceHandle face : mesh.getFaceHandles()) {
-        const std::vector<Vec2> uvs = mesh.getFaceUVs(face);
-        for (std::size_t i = 0; i < uvs.size(); ++i) {
-            list.line(uvToScreen(workspace, area, uvs[i]), uvToScreen(workspace, area, uvs[(i + 1) % uvs.size()]), WIRE_WIDTH, WIRE);
+    const Selection& selection = ctx.scene.selection;
+    const u32 mode = ctx.systems.input_ctx.getSelectionContext();
+
+    // Selected faces filled first, so every outline draws over them
+    if (mode == InputContext_SelectionFace) {
+        for (FaceHandle face : selection.getFaceHandles()) {
+            const std::vector<VertexHandle> vertices = mesh.getFaceVertices(face);
+            const std::vector<Vec2> uvs = mesh.getFaceUVs(face);
+            const auto uvOf = [&](VertexHandle vertex) {
+                for (std::size_t i = 0; i < vertices.size() && i < uvs.size(); ++i) if (vertices[i] == vertex) return uvs[i];
+                return Vec2();
+            };
+            for (const Triangle& triangle : mesh.getFaceTriangles(face)) {
+                list.triangle(uvToScreen(workspace, area, uvOf(triangle.v0)), uvToScreen(workspace, area, uvOf(triangle.v1)),
+                              uvToScreen(workspace, area, uvOf(triangle.v2)), SELECTED_FILL);
+            }
         }
     }
+
+    // Every face's UVs as an outline, dim; the selection's edges bright on top: edges with both ends selected
+    // (vertex mode), selected edges, or selected faces' edges
+    std::vector<std::pair<Vec2, Vec2>> selectedLines;
+    for (FaceHandle face : mesh.getFaceHandles()) {
+        const std::vector<EdgeHandle> edges = mesh.getLoopEdges(mesh.getFace(face)->edge);
+        const std::vector<VertexHandle> vertices = mesh.getFaceVertices(face);
+        const std::vector<Vec2> uvs = mesh.getFaceUVs(face);
+        const bool faceSelected = mode == InputContext_SelectionFace && selection.hasFace(handle, face);
+
+        for (std::size_t i = 0; i < uvs.size(); ++i) {
+            const std::size_t previous = (i + uvs.size() - 1) % uvs.size();
+            const Vec2 from = uvToScreen(workspace, area, uvs[previous]);
+            const Vec2 to = uvToScreen(workspace, area, uvs[i]);
+
+            bool selected = faceSelected;
+            if (mode == InputContext_SelectionVertex && i < vertices.size()) {
+                selected = selection.hasVertex(handle, vertices[previous]) && selection.hasVertex(handle, vertices[i]);
+            } else if (mode == InputContext_SelectionEdge && i < edges.size()) {
+                selected = isEdgeSelected(selection, handle, mesh, edges[i]);
+            }
+
+            if (selected) selectedLines.push_back({ from, to });
+            else list.line(from, to, WIRE_WIDTH, WIRE);
+        }
+    }
+    for (const auto& [from, to] : selectedLines) list.line(from, to, SELECTED_WIRE_WIDTH, SELECTED);
+
+    // Scaling and rotating measure from the pivot: a line from it to the mouse
+    if (ctx.uvTool.active() && ctx.uvTool.kind != UVToolKind::Grab) {
+        const Vec2 pivot = uvToScreen(workspace, area, ctx.uvTool.pivot);
+        const Vec2 mouse(static_cast<f32>(ctx.systems.input.getMouseX()), static_cast<f32>(ctx.systems.input.getMouseY()));
+        list.line(pivot, mouse, 1.0f, GUIDE);
+        list.roundedRect({ pivot.x - 3.0f, pivot.y - 3.0f, 6.0f, 6.0f }, 3.0f, GUIDE);
+    }
+
+    // Vertex mode: a dot at every corner, the selected ones bigger and purple
+    if (mode == InputContext_SelectionVertex) {
+        for (FaceHandle face : mesh.getFaceHandles()) {
+            const std::vector<VertexHandle> vertices = mesh.getFaceVertices(face);
+            const std::vector<Vec2> uvs = mesh.getFaceUVs(face);
+            for (std::size_t i = 0; i < vertices.size() && i < uvs.size(); ++i) {
+                const bool selected = selection.hasVertex(handle, vertices[i]);
+                const f32 size = selected ? SELECTED_POINT_SIZE : POINT_SIZE;
+                const Vec2 at = uvToScreen(workspace, area, uvs[i]);
+                list.roundedRect({ at.x - size * 0.5f, at.y - size * 0.5f, size, size }, size * 0.5f, selected ? SELECTED : POINT);
+            }
+        }
+    }
+}
+
+void selectAllUVs(AppContext& ctx) {
+    const ObjectHandle handle = uvObject(ctx);
+    const Object* object = ctx.scene.objects.tryGet(handle);
+    if (!object) return;
+
+    const u32 mode = ctx.systems.input_ctx.getSelectionContext();
+    const SelectAllMode which = mode == InputContext_SelectionEdge ? SelectAllMode::Edges
+                              : mode == InputContext_SelectionFace ? SelectAllMode::Faces : SelectAllMode::Vertices;
+    selectAll(ctx.scene.selection, handle, object->meshData, which);
 }
 
 void frameUVs(AppContext& ctx, bool all) {

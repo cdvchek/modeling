@@ -42,6 +42,11 @@ void Application::registerDefaultActions(AppContext& ctx) {
     actions.subscribe(Action::FillFaceLoop,        DefaultKeybinds::FillFaceLoop,        InputContext_SelectionEdge);
     actions.subscribe(Action::FrameSelected,       DefaultKeybinds::FrameSelected,       InputContext_EditModes);
     actions.subscribe(Action::FrameAll,            DefaultKeybinds::FrameAll,            InputContext_EditModes);
+    actions.subscribe(Action::IslandMode,          DefaultKeybinds::IslandMode,          InputContext_EditModes);
+    actions.subscribe(Action::SelectAll,           DefaultKeybinds::SelectAll,           InputContext_EditModes);
+    actions.subscribe(Action::UVGrab,              DefaultKeybinds::GrabSelection,       InputContext_EditModes);
+    actions.subscribe(Action::UVScale,             DefaultKeybinds::ScaleSelection,      InputContext_EditModes);
+    actions.subscribe(Action::UVRotate,            DefaultKeybinds::RotateSelection,     InputContext_EditModes);
     actions.subscribe(Action::ConnectVertices,     DefaultKeybinds::ConnectVertices,     InputContext_SelectionVertex);
     actions.subscribe(Action::XAxis,               DefaultKeybinds::XAxis,               InputContext_Grab | InputContext_Scale | InputContext_Rotate);
     actions.subscribe(Action::YAxis,               DefaultKeybinds::YAxis,               InputContext_Grab | InputContext_Scale | InputContext_Rotate);
@@ -117,6 +122,15 @@ void Application::registerDefaultActions(AppContext& ctx) {
     auto hasUVObject = [&ctx] { return ctx.scene.objects.isValid(uvObject(ctx)); };
     actions.setHandler(Action::FrameSelected, { "Frame selected", hasUVObject, [&ctx] { frameView(ctx, false); } });
     actions.setHandler(Action::FrameAll, { "Frame all", hasUVObject, [&ctx] { frameView(ctx, true); } });
+    actions.setHandler(Action::IslandMode, { "Island", hasUVObject, [&ctx] {
+        setSelectionMode(ctx, InputContext_SelectionFace);
+        ctx.workspace.uvIslands = true;
+    } });
+    actions.setHandler(Action::SelectAll, { "Select all", hasUVObject, [&ctx] { selectAllUVs(ctx); } });
+    auto uvTool = [&ctx] { return canStartUVTool(ctx); };
+    actions.setHandler(Action::UVGrab, { "Grab", uvTool, [&ctx] { startUVTool(ctx, UVToolKind::Grab); } });
+    actions.setHandler(Action::UVScale, { "Scale", uvTool, [&ctx] { startUVTool(ctx, UVToolKind::Scale); } });
+    actions.setHandler(Action::UVRotate, { "Rotate", uvTool, [&ctx] { startUVTool(ctx, UVToolKind::Rotate); } });
     auto shading = [&ctx] { return canSetShading(ctx); };
     actions.setHandler(Action::ShadeFlat, { "Flat", shading, [&ctx] { setShading(ctx, ShadingMode::Flat); } });
     actions.setHandler(Action::ShadeSmooth, { "Smooth", shading, [&ctx] { setShading(ctx, ShadingMode::Smooth); } });

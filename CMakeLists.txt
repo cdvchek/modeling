@@ -55,6 +55,7 @@ set(CORE_SRC
     src/scene/objects/object_collection.cpp
     src/scene/objects/origin.cpp
     src/scene/selection/selection.cpp
+    src/scene/selection/mesh_selection.cpp
     src/scene/picking/ray.cpp
     src/scene/picking/scene_queries.cpp
     src/scene/transform.cpp
@@ -106,6 +107,7 @@ set(APP_SRC
     src/application/application.cpp
     src/application/workspace.cpp
     src/application/uv/uv_editor.cpp
+    src/application/uv/uv_tools.cpp
     src/application/ui/top_bar.cpp
     src/platform/keys/keys_win32.cpp
     src/platform/renderer/opengl_renderer_win32.cpp

@@ -2,6 +2,7 @@
 #include "application/workspace.hpp"
 #include "scene/picking/ray.hpp"
 #include "scene/picking/scene_queries.hpp"
+#include "scene/selection/mesh_selection.hpp"
 #include "application/viewport/light_markers.hpp"
 #include "application/viewport/origin_markers.hpp"
 #include "application/viewport/material_view.hpp"
@@ -28,55 +29,6 @@ namespace {
         const f32 lengthSq = Vec3::dot(ab, ab);
         const f32 t = lengthSq > 0.0f ? std::clamp(Vec3::dot(point - a, ab) / lengthSq, 0.0f, 1.0f) : 0.0f;
         return (point - (a + ab * t)).length();
-    }
-
-    bool isEdgeSelected(const Selection& selection, ObjectHandle object, const MeshData& mesh, EdgeHandle edge) {
-        return selection.hasEdge(object, edge) || selection.hasEdge(object, mesh.getEdge(edge)->pair);
-    }
-
-    void selectEdge(Selection& selection, ObjectHandle object, const MeshData& mesh, EdgeHandle edge) {
-        if (isEdgeSelected(selection, object, mesh, edge)) return;
-
-        selection.addEdge(object, edge);
-        selection.addVertex(object, mesh.getEdgeOrigin(edge));
-        selection.addVertex(object, mesh.getEdgeTip(edge));
-    }
-
-    void selectFace(Selection& selection, ObjectHandle object, const MeshData& mesh, FaceHandle face) {
-        selection.addFace(object, face);
-
-        for (VertexHandle vertex : mesh.getFaceVertices(face)) {
-            selection.addVertex(object, vertex);
-        }
-    }
-
-    // Deselect the vertices that no remaining selected edge or face uses.
-    void deselectUnusedVertices(Selection& selection, ObjectHandle object, const MeshData& mesh, const std::vector<VertexHandle>& vertices) {
-        for (VertexHandle vertex : vertices) {
-            bool used = false;
-
-            for (EdgeHandle edge : selection.getEdgeHandles()) {
-                if (mesh.getEdgeOrigin(edge) == vertex || mesh.getEdgeTip(edge) == vertex) used = true;
-            }
-
-            for (FaceHandle face : selection.getFaceHandles()) {
-                const std::vector<VertexHandle> corners = mesh.getFaceVertices(face);
-                if (std::find(corners.begin(), corners.end(), vertex) != corners.end()) used = true;
-            }
-
-            if (!used) selection.removeVertex(object, vertex);
-        }
-    }
-
-    void deselectEdge(Selection& selection, ObjectHandle object, const MeshData& mesh, EdgeHandle edge) {
-        selection.removeEdge(object, edge);
-        selection.removeEdge(object, mesh.getEdge(edge)->pair);
-        deselectUnusedVertices(selection, object, mesh, { mesh.getEdgeOrigin(edge), mesh.getEdgeTip(edge) });
-    }
-
-    void deselectFace(Selection& selection, ObjectHandle object, const MeshData& mesh, FaceHandle face) {
-        selection.removeFace(object, face);
-        deselectUnusedVertices(selection, object, mesh, mesh.getFaceVertices(face));
     }
 
     void selectLoop(AppContext& ctx, const Ray& ray, bool ring) {
@@ -299,10 +251,12 @@ void checkSelectionContext(AppContext& ctx) {
 
                     const MeshData& mesh = ctx.scene.objects.get(faceHit.object).meshData;
 
-                    if (toggling && selection.hasFace(faceHit.object, faceHit.face)) {
-                        deselectFace(selection, faceHit.object, mesh, faceHit.face);
-                    } else {
-                        selectFace(selection, faceHit.object, mesh, faceHit.face);
+                    // Island mode takes every face connected to it on the texture
+                    const std::vector<FaceHandle> faces = ctx.workspace.uvIslands ? mesh.getUVIsland(faceHit.face) : std::vector<FaceHandle> { faceHit.face };
+                    const bool deselecting = toggling && selection.hasFace(faceHit.object, faceHit.face);
+                    for (FaceHandle face : faces) {
+                        if (deselecting) deselectFace(selection, faceHit.object, mesh, face);
+                        else selectFace(selection, faceHit.object, mesh, face);
                     }
                 }
             }

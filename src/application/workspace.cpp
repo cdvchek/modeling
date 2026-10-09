@@ -66,7 +66,7 @@ bool projectToView(const Mat4& viewProjection, const Vec3& point, const Rect& vi
 }
 
 bool setWorkspace(AppContext& ctx, Workspace workspace) {
-    if (ctx.systems.input_ctx.getContext() & TOOL_CONTEXTS) return false;
+    if ((ctx.systems.input_ctx.getContext() & TOOL_CONTEXTS) || ctx.uvTool.active()) return false;
     ctx.workspace.current = workspace;
     ctx.radialMenu.open = false;
 
@@ -79,13 +79,19 @@ bool setWorkspace(AppContext& ctx, Workspace workspace) {
         selection.clearReferences();
         selection.clearOrigin();
         if (ctx.systems.input_ctx.getSelectionContext() == InputContext_SelectionObject) setSelectionMode(ctx, ctx.lastEditMode);
+    } else {
+        // Island mode is UV's own
+        ctx.workspace.uvIslands = false;
     }
     return true;
 }
 
 bool actionAllowed(Workspace workspace, Action action) {
     // Framing belongs to UV for now (F is Fill in Model)
-    if (workspace == Workspace::Model) return action != Action::FrameSelected && action != Action::FrameAll;
+    if (workspace == Workspace::Model) {
+        return action != Action::FrameSelected && action != Action::FrameAll && action != Action::IslandMode && action != Action::SelectAll
+            && action != Action::UVGrab && action != Action::UVScale && action != Action::UVRotate;
+    }
 
     switch (action) {
         case Action::Quit:
@@ -119,6 +125,11 @@ bool actionAllowed(Workspace workspace, Action action) {
         case Action::ToggleMaterials:
         case Action::FrameSelected:
         case Action::FrameAll:
+        case Action::IslandMode:
+        case Action::SelectAll:
+        case Action::UVGrab:
+        case Action::UVScale:
+        case Action::UVRotate:
             return true;
         default:
             return false;

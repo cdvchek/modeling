@@ -1,4 +1,6 @@
 #include "scene/mesh/mesh_data.hpp"
+
+#include <cmath>
 #include "scene/mesh/mesh_factory.hpp"
 
 void MeshData::setMesh(PresetMesh meshType) {
@@ -137,6 +139,40 @@ void MeshData::setFaceUVs(FaceHandle handle, const std::vector<Vec2>& uvs) {
     for (std::size_t i = 0; i < edges.size(); ++i) m_edges.get(edges[i]).uv = uvs[i];
     // The GPU copy's corners change everywhere on the face, so it's rebuilt
     m_uvStamp = nextStructureStamp();
+}
+
+std::vector<FaceHandle> MeshData::getUVIsland(FaceHandle handle) const {
+    std::vector<FaceHandle> island;
+    if (!m_faces.isValid(handle)) return island;
+
+    // UVs this close count as the same corner (a seam has them apart)
+    constexpr f32 SAME_UV = 1e-5f;
+    const auto same = [](const Vec2& a, const Vec2& b) { return std::fabs(a.x - b.x) <= SAME_UV && std::fabs(a.y - b.y) <= SAME_UV; };
+
+    std::vector<bool> seen(m_faces.size(), false);
+    std::vector<FaceHandle> pending { handle };
+    seen[handle.index] = true;
+    while (!pending.empty()) {
+        const FaceHandle face = pending.back();
+        pending.pop_back();
+        island.push_back(face);
+
+        for (EdgeHandle edge : getFaceEdges(face)) {
+            // This side: origin's UV on the previous half-edge, tip's on this one; the other side runs the other way
+            const Edge& half = m_edges.get(edge);
+            const Edge* pair = m_edges.tryGet(half.pair);
+            if (!pair || !m_faces.isValid(pair->face) || seen[pair->face.index]) continue;
+            const Edge* pairPrev = m_edges.tryGet(pair->prev);
+            const Edge* prev = m_edges.tryGet(half.prev);
+            if (!pairPrev || !prev) continue;
+
+            if (same(prev->uv, pair->uv) && same(half.uv, pairPrev->uv)) {
+                seen[pair->face.index] = true;
+                pending.push_back(pair->face);
+            }
+        }
+    }
+    return island;
 }
 
 std::vector<Vec2> MeshData::getCornerUVs() const {

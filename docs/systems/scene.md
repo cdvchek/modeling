@@ -272,6 +272,10 @@ Conventions kept by the application code:
 - Selecting an edge or face also selects its vertices. Tools that move geometry only look at the vertex list.
 - An edge counts as selected if either of its half-edges is in the list.
 
+### Selecting mesh elements
+
+[mesh_selection.hpp](../../src/scene/selection/mesh_selection.hpp): keeps a selection whole, shared by the 3D view and the UV editor. `selectEdge` / `selectFace` bring the element's vertices along (an edge counts once, whichever half is stored; `isEdgeSelected` checks both), and `deselectEdge` / `deselectFace` drop only the vertices no other selected edge or face still uses. `selectAll(selection, object, mesh, mode)` takes every vertex, every edge (one half each), or every face of the object.
+
 ## Origins
 
 [origin.hpp](../../src/scene/objects/origin.hpp)

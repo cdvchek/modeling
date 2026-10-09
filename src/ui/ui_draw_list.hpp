@@ -41,6 +41,8 @@ public:
     void roundedRect(const Rect& rect, f32 radius, Color fill, Color border = {}, f32 borderWidth = 0.0f);
     void shadow(const Rect& rect, f32 radius, f32 blur, Color color);
     // Square corners, each its own color, blended across (color pickers)
+    // A filled triangle (no anti-aliasing), e.g. to fill a face's outline
+    void triangle(Vec2 a, Vec2 b, Vec2 c, Color fill);
     void gradientRect(const Rect& rect, Color topLeft, Color topRight, Color bottomRight, Color bottomLeft);
     void line(Vec2 start, Vec2 end, f32 width, Color color);
     // A wedge of a ring centered on angle (radians, counterclockwise from right); gap is the pixel space between neighbors

@@ -54,6 +54,8 @@ void setSelectionMode(AppContext& ctx, u32 mode) {
 
     ctx.systems.input_ctx.setSelectionContext(mode);
     selection.clear();
+    // Any mode change leaves island mode; picking it sets it again after this
+    ctx.workspace.uvIslands = false;
 
     // Object mode starts with the object you were editing selected
     if (mode == InputContext_SelectionObject && ctx.scene.objects.isValid(selection.getActiveObject())) {

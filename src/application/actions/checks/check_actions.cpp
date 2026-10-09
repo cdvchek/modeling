@@ -37,6 +37,12 @@ bool Application::checkActions(AppContext& ctx) {
         chooseTexture(ctx, ctx.textureRequest.material);
     }
 
+    // A UV grab, scale, or rotate takes all input until it's kept or put back
+    if (ctx.uvTool.active()) {
+        updateUVTool(ctx);
+        return true;
+    }
+
     // The UV editor's own view: pan and zoom with the mouse over it
     if (ctx.workspace.current == Workspace::UV) updateUVEditor(ctx);
 

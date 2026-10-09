@@ -29,3 +29,6 @@ void frameUVs(AppContext& ctx, bool all);
 void frameScene(AppContext& ctx, bool all);
 // F and A: frames whichever view the mouse is over
 void frameView(AppContext& ctx, bool all);
+
+// Ctrl+A: every vertex, edge, or face of the object being UV-edited, by mode
+void selectAllUVs(AppContext& ctx);
