@@ -1,4 +1,5 @@
 #include "application/ui/stats_overlay.hpp"
+#include "application/workspace.hpp"
 #include "application/app_context.hpp"
 #include "ui/ui_style.hpp"
 
@@ -70,7 +71,8 @@ void drawStatsOverlay(const AppContext& ctx, UIDrawList& ui) {
     for (const auto& [label, value] : lines) widest = std::max(widest, value.size());
 
     const f32 lineHeight = font.glyphHeight + LINE_GAP;
-    const Rect box { MARGIN, MARGIN, (LABEL_COLUMNS + widest) * font.glyphWidth + PADDING * 2.0f, lines.size() * lineHeight - LINE_GAP + PADDING * 2.0f };
+    const Rect view = sceneView(ctx);
+    const Rect box { view.x + MARGIN, view.y + MARGIN, (LABEL_COLUMNS + widest) * font.glyphWidth + PADDING * 2.0f, lines.size() * lineHeight - LINE_GAP + PADDING * 2.0f };
     ui.roundedRect(box, UIStyle::CORNER_RADIUS, UIStyle::PANEL_BACKGROUND, UIStyle::PANEL_BORDER, 1.0f);
 
     f32 y = box.y + PADDING;

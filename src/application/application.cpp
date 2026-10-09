@@ -1,4 +1,5 @@
 #include "application/application.hpp"
+#include "application/ui/top_bar.hpp"
 
 #include "platform/window/window.hpp"
 #include "platform/platform.hpp"
@@ -214,11 +215,11 @@ void Application::renderFrame(AppContext& ctx) {
     ctx.materialPreviews.sync(ctx);
     ctx.renderer->beginMainPass(ctx.renderer->m_clearState);
 
-    f32 aspectRatio = static_cast<f32>(width) / static_cast<f32>(height);
-
-    Mat4 view = ctx.scene.camera.getViewMatrix();
-    Mat4 projection = ctx.scene.camera.getProjectionMatrix(aspectRatio);
-    Mat4 viewProjection = projection * view;
+    // The 3D scene draws only in its part of the window (all of it below the top bar, or the left side in UV)
+    const ScreenLayout layout = screenLayout(ctx);
+    const Rect& sceneRect = layout.scene;
+    ctx.renderer->setSceneViewport(static_cast<u32>(sceneRect.x), static_cast<u32>(sceneRect.y), static_cast<u32>(sceneRect.width), static_cast<u32>(sceneRect.height));
+    const Mat4 viewProjection = sceneViewProjection(ctx);
 
     LightingState lighting = buildLightingState(ctx.scene.lights, ctx.viewport.headlight, ctx.scene.camera, ctx.renderer->getBackground());
     lighting.uvChecker = ctx.viewport.showUVChecker;
@@ -337,11 +338,14 @@ void Application::renderFrame(AppContext& ctx) {
     UIDrawList& ui = ctx.uiDrawList;
     ui.clear();
 
-    drawReferenceOutlines(ctx, ui, viewProjection, static_cast<f32>(width), static_cast<f32>(height));
-    drawLightMarkers(ctx, ui, viewProjection, static_cast<f32>(width), static_cast<f32>(height));
-    drawParentLines(ctx, ui, viewProjection, static_cast<f32>(width), static_cast<f32>(height));
+    // Markers are clipped to the 3D view, so none spill into the top bar or the UV side
+    ui.pushClip(sceneRect);
+    drawReferenceOutlines(ctx, ui, viewProjection, sceneRect);
+    drawLightMarkers(ctx, ui, viewProjection, sceneRect);
+    drawParentLines(ctx, ui, viewProjection, sceneRect);
     // Origins win clicks over lights, so they draw over them too
-    drawOriginMarkers(ctx, ui, viewProjection, static_cast<f32>(width), static_cast<f32>(height));
+    drawOriginMarkers(ctx, ui, viewProjection, sceneRect);
+    ui.popClip();
     drawToolGuides(ctx, ui);
     drawStatusBar(ctx, ui, static_cast<f32>(width), static_cast<f32>(height));
     drawStatsOverlay(ctx, ui);
@@ -349,14 +353,16 @@ void Application::renderFrame(AppContext& ctx) {
     ctx.ui.setDrawList(&ui);
     ctx.ui.setFont(makeUIFont(FontId::UI, ctx.fonts.get(FontId::UI)));
     ctx.ui.beginDraw();
-    if (ctx.viewport.showPanel) drawMainPanel(ctx, { 0.0f, 0.0f, static_cast<f32>(width), static_cast<f32>(height) - statusBarHeight(ctx) });
+    drawWorkspaceChrome(ctx, layout);
+    // The floating panel belongs to the Model workspace
+    if (ctx.viewport.showPanel && ctx.workspace.current == Workspace::Model) drawMainPanel(ctx, layout.content);
     drawModal(ctx, { 0.0f, 0.0f, static_cast<f32>(width), static_cast<f32>(height) });
     ctx.ui.endDraw();
 
     drawRadialMenu(ctx, ui);
 
     if (ctx.systems.input_ctx.isActive(InputContext_Console)) {
-        drawConsole(ctx, ui, { 0.0f, 0.0f, static_cast<f32>(width), static_cast<f32>(height) - statusBarHeight(ctx) });
+        drawConsole(ctx, ui, layout.content);
     }
 
     ctx.renderer->drawUI(ui);

@@ -1,4 +1,5 @@
 #include "application/actions/checks/action_checks.hpp"
+#include "application/workspace.hpp"
 #include "scene/picking/ray.hpp"
 #include "scene/picking/scene_queries.hpp"
 #include "application/viewport/light_markers.hpp"
@@ -170,27 +171,18 @@ void checkSelectionContext(AppContext& ctx) {
     const bool selectingLoop = actions.wasActionPressedThisFrame(Action::SelectLoop, input, ictx.getContext());
     const bool selectingRing = actions.wasActionPressedThisFrame(Action::SelectRing, input, ictx.getContext());
 
+    // Clicks are measured inside the 3D view, which may not start at the window's corner
+    const Rect view = sceneView(ctx);
+    const f32 viewMouseX = static_cast<f32>(input.getMouseX()) - view.x;
+    const f32 viewMouseY = static_cast<f32>(input.getMouseY()) - view.y;
+    const u32 viewWidth = static_cast<u32>(view.width);
+    const u32 viewHeight = static_cast<u32>(view.height);
+
     if (selectingLoop || selectingRing) {
-        u32 width = 0;
-        u32 height = 0;
-
-        ctx.windows[0]->getDimensions(width, height);
-
-        Ray ray = makeRayFromScreenPosition(input.getMouseX(), input.getMouseY(), width, height, camera);
+        Ray ray = makeRayFromScreenPosition(static_cast<i32>(viewMouseX), static_cast<i32>(viewMouseY), viewWidth, viewHeight, camera);
         selectLoop(ctx, ray, selectingRing);
     } else if (actions.wasActionPressedThisFrame(Action::Select, input, ictx.getContext())) {
-        u32 width = 0;
-        u32 height = 0;
-
-        ctx.windows[0]->getDimensions(width, height);
-
-        Ray ray = makeRayFromScreenPosition(
-            input.getMouseX(),
-            input.getMouseY(),
-            width,
-            height,
-            camera
-        );
+        Ray ray = makeRayFromScreenPosition(static_cast<i32>(viewMouseX), static_cast<i32>(viewMouseY), viewWidth, viewHeight, camera);
 
         // Times the click's picking and selecting, for the stats readout
         struct PickTimer {
@@ -206,14 +198,12 @@ void checkSelectionContext(AppContext& ctx) {
 
         // Markers sit on top of the scene, so they're picked first: origins, then lights, then reference images and
         // mesh elements by which is in front
-        const Mat4 viewProjection = camera.getProjectionMatrix(static_cast<f32>(width) / static_cast<f32>(height)) * camera.getViewMatrix();
-        const f32 mouseX = static_cast<f32>(input.getMouseX());
-        const f32 mouseY = static_cast<f32>(input.getMouseY());
+        const Mat4 viewProjection = sceneViewProjection(ctx);
         const OriginHit originHit = ctx.viewport.showOrigins
-            ? pickOrigin(ctx.scene, viewProjection, mouseX, mouseY, static_cast<f32>(width), static_cast<f32>(height), ORIGIN_MARKER_PICK_RADIUS)
+            ? pickOrigin(ctx.scene, viewProjection, viewMouseX, viewMouseY, view.width, view.height, ORIGIN_MARKER_PICK_RADIUS)
             : OriginHit {};
         const LightHit lightHit = originHit.hit ? LightHit {}
-            : pickLight(ctx.scene, viewProjection, mouseX, mouseY, static_cast<f32>(width), static_cast<f32>(height), LIGHT_MARKER_PICK_RADIUS);
+            : pickLight(ctx.scene, viewProjection, viewMouseX, viewMouseY, view.width, view.height, LIGHT_MARKER_PICK_RADIUS);
 
         // A reference image wins when it's drawn over the mesh under the mouse
         ReferenceHit referenceHit = (originHit.hit || lightHit.hit) ? ReferenceHit {} : pickReference(ctx.scene, ray);

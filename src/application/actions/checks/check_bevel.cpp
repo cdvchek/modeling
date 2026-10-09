@@ -1,4 +1,5 @@
 #include "application/actions/checks/action_checks.hpp"
+#include "application/workspace.hpp"
 #include "core/math/vec4.hpp"
 
 #include <cmath>
@@ -6,29 +7,21 @@
 
 namespace {
     bool projectToScreen(AppContext& ctx, const Mat4& model, Vec3 point, f32& x, f32& y, f32& worldPerPixel) {
-        u32 width = 0;
-        u32 height = 0;
-        ctx.windows[0]->getDimensions(width, height);
-
-        if (width == 0 || height == 0) return false;
+        const Rect view = sceneView(ctx);
+        if (view.width <= 0.0f || view.height <= 0.0f) return false;
 
         const Camera& camera = ctx.scene.camera;
-        const f32 aspectRatio = static_cast<f32>(width) / static_cast<f32>(height);
-
-        const Mat4 mvp =
-            camera.getProjectionMatrix(aspectRatio) *
-            camera.getViewMatrix() *
-            model;
+        const Mat4 mvp = sceneViewProjection(ctx) * model;
 
         const Vec4 clip = mvp * Vec4(point.x, point.y, point.z, 1.0f);
 
         // For a perspective projection, w is the depth in front of the camera.
         if (clip.w <= 1e-6f) return false;
 
-        x = (clip.x / clip.w + 1.0f) * 0.5f * static_cast<f32>(width);
-        y = (1.0f - clip.y / clip.w) * 0.5f * static_cast<f32>(height);
+        x = view.x + (clip.x / clip.w + 1.0f) * 0.5f * view.width;
+        y = view.y + (1.0f - clip.y / clip.w) * 0.5f * view.height;
 
-        worldPerPixel = 2.0f * clip.w * std::tan(camera.fovRadians * 0.5f) / static_cast<f32>(height);
+        worldPerPixel = 2.0f * clip.w * std::tan(camera.fovRadians * 0.5f) / view.height;
 
         return true;
     }

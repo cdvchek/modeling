@@ -505,6 +505,19 @@ TEST_CASE(project_saves_exposure) {
     CHECK(!loadedView.showMaterials);
 }
 
+TEST_CASE(project_saves_the_workspace) {
+    ProjectFile::View view = sampleView();
+    view.workspace = 1;
+    view.uvSplit = 0.35f;
+
+    Scene loaded;
+    ProjectFile::View loadedView;
+    std::string error;
+    CHECK(ProjectFile::read(ProjectFile::write(sampleScene(), view), loaded, loadedView, error));
+    CHECK(loadedView.workspace == 1);
+    CHECK(loadedView.uvSplit == 0.35f);
+}
+
 TEST_CASE(project_saves_materials_and_which_objects_use_them) {
     Scene scene = sampleScene();
     scene.materials.get(scene.materials.defaultMaterial()).roughness = 0.9f;

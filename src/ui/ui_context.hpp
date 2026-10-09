@@ -96,6 +96,11 @@ public:
     void heading(std::string_view text);
     bool button(std::string_view label);
     bool button(std::string_view label, const Rect& rect, bool enabled = true);
+    // A tab in a bar of tabs: the selected one takes the panel's color with an accent underline; true when an
+    // unselected tab is clicked
+    bool tab(std::string_view label, const Rect& rect, bool selected);
+    // A vertical divider dragged left and right: x moves with the mouse while it's held; true when it moved
+    bool splitter(std::string_view id, const Rect& rect, f32& x);
     bool segmented(std::string_view label, i32& index, const std::vector<std::string_view>& options);
     // Same control in a given rect, no label; id tells same-looking switches apart
     bool segmented(std::string_view id, const Rect& rect, i32& index, const std::vector<std::string_view>& options);

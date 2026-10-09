@@ -1,4 +1,5 @@
 #include "application/viewport/reference_images.hpp"
+#include "application/workspace.hpp"
 #include "application/app_context.hpp"
 #include "application/actions/project_actions.hpp"
 #include "core/math/projection.hpp"
@@ -115,7 +116,7 @@ void drawReferenceImage(AppContext& ctx, const Mat4& viewProjection, ReferenceHa
     ctx.renderer->drawImage(command);
 }
 
-void drawReferenceOutlines(const AppContext& ctx, UIDrawList& ui, const Mat4& viewProjection, f32 width, f32 height) {
+void drawReferenceOutlines(const AppContext& ctx, UIDrawList& ui, const Mat4& viewProjection, const Rect& view) {
     for (ReferenceHandle handle : ctx.scene.selection.getReferences()) {
         const ReferenceImage* image = ctx.scene.references.tryGet(handle);
         if (!image || !image->visible) continue;
@@ -124,7 +125,7 @@ void drawReferenceOutlines(const AppContext& ctx, UIDrawList& ui, const Mat4& vi
         Vec2 screen[4];
         bool onScreen = true;
         const std::vector<Vec3> world = corners(*image);
-        for (u32 i = 0; i < 4 && onScreen; ++i) onScreen = projectToScreen(viewProjection, world[i], width, height, screen[i]);
+        for (u32 i = 0; i < 4 && onScreen; ++i) onScreen = projectToView(viewProjection, world[i], view, screen[i]);
         if (!onScreen) continue;
 
         for (u32 i = 0; i < 4; ++i) ui.line(screen[i], screen[(i + 1) % 4], OUTLINE_HALO_WIDTH, OUTLINE_HALO);

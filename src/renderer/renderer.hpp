@@ -184,6 +184,8 @@ public:
 
     virtual void beginFrame() = 0;
     virtual void beginMainPass(const ClearState& clearState) = 0;
+    // Where the 3D scene draws, in window pixels (origin top left); drawUI goes back to the whole window
+    virtual void setSceneViewport(u32 x, u32 y, u32 width, u32 height) = 0;
     virtual void setLighting(const LightingState& lighting) = 0;
     virtual void setBackground(const BackgroundGradient& background) = 0;
     virtual BackgroundGradient getBackground() const = 0;

@@ -41,6 +41,7 @@ Files: `src/renderer/`, plus [opengl_renderer_win32.cpp](../../src/platform/rend
 | `drawText3D(DrawText3DCommand)` | Text on a quad in world space. |
 | `drawDebugLine(start, end, mvp)` | One white line. |
 | `getStats()` | The last finished frame's `RenderStats` ([render_stats.hpp](../../src/renderer/render_stats.hpp)): draw calls, triangles, lines, points, uniform uploads, mesh rebuilds and patches with their bytes, and GPU time. Every draw call in the backend goes through `drawElements` / `drawArrays` in [opengl_counters.hpp](../../src/renderer/opengl/opengl_counters.hpp), which count it, and every `OpenGLShader` set counts as an upload; `beginFrame` resets the counts and `endFrame` keeps them. GPU time comes from `GL_TIME_ELAPSED` queries in a ring of four, read back once ready so reading never stalls (a few frames late; a frame whose slot isn't ready isn't timed). |
+| `setSceneViewport(x, y, width, height)` | Where the 3D scene draws, in window pixels from the top left (the 3D view of the current workspace); the background still fills the whole window, and `drawUI` goes back to the whole window. |
 | `drawUI(UIDrawList)` | All 2D UI for the frame (markers, status bar, panel, windows, menus, console) in one call. See [ui.md](ui.md). |
 | `endMainPass()` / `endFrame()` / `present()` | Resolve the MSAA framebuffer to the window, finish, and swap buffers. |
 

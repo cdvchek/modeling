@@ -1,4 +1,5 @@
 #include "application/viewport/light_markers.hpp"
+#include "application/workspace.hpp"
 #include "ui/ui_style.hpp"
 #include "core/math/projection.hpp"
 
@@ -42,11 +43,11 @@ namespace {
     }
 
     // Faint line from the light down to the grid plane, with a dot where it lands
-    void drawGroundLine(UIDrawList& ui, const Light& light, Vec2 orb, const Mat4& viewProjection, f32 width, f32 height) {
+    void drawGroundLine(UIDrawList& ui, const Light& light, Vec2 orb, const Mat4& viewProjection, const Rect& view) {
         if (light.position.y == 0.0f) return;
 
         Vec2 ground;
-        if (!projectToScreen(viewProjection, Vec3(light.position.x, 0.0f, light.position.z), width, height, ground)) return;
+        if (!projectToView(viewProjection, Vec3(light.position.x, 0.0f, light.position.z), view, ground)) return;
 
         // Start at the orb's edge so the line doesn't show through a disabled light's hollow ring
         const Vec2 delta = ground - orb;
@@ -60,14 +61,13 @@ namespace {
     struct WorldLines {
         UIDrawList& ui;
         const Mat4& viewProjection;
-        f32 width;
-        f32 height;
+        Rect view;
 
         void line(Vec3 a, Vec3 b, Color color) const {
             Vec2 screenA;
             Vec2 screenB;
-            if (!projectToScreen(viewProjection, a, width, height, screenA)) return;
-            if (!projectToScreen(viewProjection, b, width, height, screenB)) return;
+            if (!projectToView(viewProjection, a, view, screenA)) return;
+            if (!projectToView(viewProjection, b, view, screenB)) return;
             ui.line(screenA, screenB, DIRECTION_WIDTH, color);
         }
     };
@@ -88,7 +88,7 @@ namespace {
     // Arrows from the light along its direction: one for spot lights, three parallel ones for directional lights.
     // Sizes are in pixels and converted to world units at the light's distance, so they stay steady on screen.
     void drawDirection(const WorldLines& lines, const Light& light, const Camera& camera, f32 distance) {
-        const f32 unitsPerPixel = distance * 2.0f * std::tan(camera.fovRadians * 0.5f) / lines.height;
+        const f32 unitsPerPixel = distance * 2.0f * std::tan(camera.fovRadians * 0.5f) / lines.view.height;
         const Vec3 direction = light.direction.normalized();
 
         // Spread the side arrows across the view, falling back to any perpendicular when looking straight down the light
@@ -131,7 +131,7 @@ namespace {
     }
 }
 
-void drawLightMarkers(const AppContext& ctx, UIDrawList& ui, const Mat4& viewProjection, f32 width, f32 height) {
+void drawLightMarkers(const AppContext& ctx, UIDrawList& ui, const Mat4& viewProjection, const Rect& view) {
     const LightCollection& lights = ctx.scene.lights;
     const Vec3 cameraPosition = ctx.scene.camera.position;
 
@@ -147,7 +147,7 @@ void drawLightMarkers(const AppContext& ctx, UIDrawList& ui, const Mat4& viewPro
         const Light& light = lights.get(handle);
 
         Vec2 screen;
-        if (!projectToScreen(viewProjection, light.position, width, height, screen)) continue;
+        if (!projectToView(viewProjection, light.position, view, screen)) continue;
 
         markers.push_back({ &light, screen, (light.position - cameraPosition).length(), ctx.scene.selection.hasLight(handle) });
     }
@@ -157,10 +157,10 @@ void drawLightMarkers(const AppContext& ctx, UIDrawList& ui, const Mat4& viewPro
 
     // Ground lines sit under every marker
     for (const Marker& marker : markers) {
-        drawGroundLine(ui, *marker.light, marker.screen, viewProjection, width, height);
+        drawGroundLine(ui, *marker.light, marker.screen, viewProjection, view);
     }
 
-    const WorldLines lines { ui, viewProjection, width, height };
+    const WorldLines lines { ui, viewProjection, view };
 
     for (const Marker& marker : markers) {
         if (marker.light->type != LightType::Point) {

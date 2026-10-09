@@ -1,0 +1,69 @@
+#include "application/workspace.hpp"
+#include "application/app_context.hpp"
+#include "application/ui/status_bar.hpp"
+#include "core/math/projection.hpp"
+
+#include <algorithm>
+
+namespace {
+    constexpr u32 TOOL_CONTEXTS = InputContext_Grab | InputContext_Scale | InputContext_Rotate | InputContext_Bevel | InputContext_Inset;
+}
+
+const char* workspaceName(Workspace workspace) {
+    switch (workspace) {
+        case Workspace::Model: return "Model";
+        case Workspace::UV: return "UV";
+    }
+    return "";
+}
+
+ScreenLayout screenLayout(const AppContext& ctx) {
+    ScreenLayout layout;
+    u32 width = 0;
+    u32 height = 0;
+    if (!ctx.windows.empty()) ctx.windows[0]->getDimensions(width, height);
+    layout.window = { 0.0f, 0.0f, static_cast<f32>(width), static_cast<f32>(height) };
+
+    // Top bar, then everything else down to the status bar
+    const f32 top = std::min(TOP_BAR_HEIGHT, layout.window.height);
+    const f32 bottom = std::max(top, layout.window.height - statusBarHeight(ctx));
+    layout.topBar = { 0.0f, 0.0f, layout.window.width, top };
+    layout.content = { 0.0f, top, layout.window.width, bottom - top };
+    layout.scene = layout.content;
+
+    if (ctx.workspace.current == Workspace::UV) {
+        // The divider stays where the split says, kept so both sides have room when the window allows it
+        const Rect& area = layout.content;
+        const f32 usable = std::max(0.0f, area.width - DIVIDER_WIDTH);
+        const f32 minSide = std::min(MIN_SPLIT_WIDTH, usable * 0.5f);
+        const f32 left = std::clamp(std::floor(usable * ctx.workspace.uvSplit), minSide, usable - minSide);
+
+        layout.scene = { area.x, area.y, left, area.height };
+        layout.divider = { area.x + left, area.y, DIVIDER_WIDTH, area.height };
+        layout.uvEditor = { layout.divider.right(), area.y, area.right() - layout.divider.right(), area.height };
+    }
+    return layout;
+}
+
+Rect sceneView(const AppContext& ctx) {
+    return screenLayout(ctx).scene;
+}
+
+Mat4 sceneViewProjection(const AppContext& ctx) {
+    const Rect view = sceneView(ctx);
+    const f32 aspect = view.width > 0.0f && view.height > 0.0f ? view.width / view.height : 1.0f;
+    return ctx.scene.camera.getProjectionMatrix(aspect) * ctx.scene.camera.getViewMatrix();
+}
+
+bool projectToView(const Mat4& viewProjection, const Vec3& point, const Rect& view, Vec2& out) {
+    if (!projectToScreen(viewProjection, point, view.width, view.height, out)) return false;
+    out = out + Vec2(view.x, view.y);
+    return true;
+}
+
+bool setWorkspace(AppContext& ctx, Workspace workspace) {
+    if (ctx.systems.input_ctx.getContext() & TOOL_CONTEXTS) return false;
+    ctx.workspace.current = workspace;
+    ctx.radialMenu.open = false;
+    return true;
+}

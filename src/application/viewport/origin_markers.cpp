@@ -1,4 +1,5 @@
 #include "application/viewport/origin_markers.hpp"
+#include "application/workspace.hpp"
 #include "core/math/projection.hpp"
 #include "core/math/vec4.hpp"
 #include "ui/ui_style.hpp"
@@ -34,9 +35,9 @@ namespace {
     }
 
     // Lines from the dot along +X, +Y, +Z, a fixed length on screen whatever the distance
-    void drawAxes(UIDrawList& ui, const Transform& transform, Vec2 dot, const Camera& camera, const Mat4& viewProjection, f32 width, f32 height) {
+    void drawAxes(UIDrawList& ui, const Transform& transform, Vec2 dot, const Camera& camera, const Mat4& viewProjection, const Rect& view) {
         const f32 distance = (transform.position - camera.position).length();
-        const f32 unitsPerPixel = distance * 2.0f * std::tan(camera.fovRadians * 0.5f) / height;
+        const f32 unitsPerPixel = distance * 2.0f * std::tan(camera.fovRadians * 0.5f) / view.height;
 
         const Vec3 axes[3] = { Vec3(1, 0, 0), Vec3(0, 1, 0), Vec3(0, 0, 1) };
         const Color colors[3] = { UIStyle::AXIS_X, UIStyle::AXIS_Y, UIStyle::AXIS_Z };
@@ -45,7 +46,7 @@ namespace {
         bool visible[3];
         for (int i = 0; i < 3; ++i) {
             const Vec3 tip = transform.position + axisDirection(transform, axes[i]) * (AXIS_LENGTH * unitsPerPixel);
-            visible[i] = projectToScreen(viewProjection, tip, width, height, ends[i]);
+            visible[i] = projectToView(viewProjection, tip, view, ends[i]);
         }
 
         // Halos first so no axis draws over another's color
@@ -54,7 +55,7 @@ namespace {
     }
 }
 
-void drawParentLines(const AppContext& ctx, UIDrawList& ui, const Mat4& viewProjection, f32 width, f32 height) {
+void drawParentLines(const AppContext& ctx, UIDrawList& ui, const Mat4& viewProjection, const Rect& view) {
     if (ctx.systems.input_ctx.getSelectionContext() != InputContext_SelectionObject) return;
 
     const ObjectCollection& objects = ctx.scene.objects;
@@ -63,8 +64,8 @@ void drawParentLines(const AppContext& ctx, UIDrawList& ui, const Mat4& viewProj
         if (parent.isNull()) continue;
 
         Vec2 from, to;
-        if (!projectToScreen(viewProjection, objects.worldTransform(handle).position, width, height, from)) continue;
-        if (!projectToScreen(viewProjection, objects.worldTransform(parent).position, width, height, to)) continue;
+        if (!projectToView(viewProjection, objects.worldTransform(handle).position, view, from)) continue;
+        if (!projectToView(viewProjection, objects.worldTransform(parent).position, view, to)) continue;
 
         const Vec2 delta = to - from;
         const f32 length = delta.length();
@@ -78,7 +79,7 @@ void drawParentLines(const AppContext& ctx, UIDrawList& ui, const Mat4& viewProj
     }
 }
 
-void drawOriginMarkers(const AppContext& ctx, UIDrawList& ui, const Mat4& viewProjection, f32 width, f32 height) {
+void drawOriginMarkers(const AppContext& ctx, UIDrawList& ui, const Mat4& viewProjection, const Rect& view) {
     if (!ctx.viewport.showOrigins) return;
 
     const Selection& selection = ctx.scene.selection;
@@ -93,10 +94,10 @@ void drawOriginMarkers(const AppContext& ctx, UIDrawList& ui, const Mat4& viewPr
 
             const Transform transform = ctx.scene.objects.worldTransform(handle);
             Vec2 dot;
-            if (!projectToScreen(viewProjection, transform.position, width, height, dot)) continue;
+            if (!projectToView(viewProjection, transform.position, view, dot)) continue;
 
             if (handle == selected) {
-                drawAxes(ui, transform, dot, ctx.scene.camera, viewProjection, width, height);
+                drawAxes(ui, transform, dot, ctx.scene.camera, viewProjection, view);
                 ui.roundedRect(circle(dot, SELECTED_DOT_RADIUS), SELECTED_DOT_RADIUS, UIStyle::ACCENT, OUTLINE, OUTLINE_WIDTH);
             } else {
                 ui.roundedRect(circle(dot, DOT_RADIUS), DOT_RADIUS, handle == active ? ACTIVE_COLOR : GREYED_COLOR, OUTLINE, OUTLINE_WIDTH);

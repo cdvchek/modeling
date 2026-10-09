@@ -104,6 +104,8 @@ set(APP_SRC
     src/application/application_render.cpp
     src/application/application_scene.cpp
     src/application/application.cpp
+    src/application/workspace.cpp
+    src/application/ui/top_bar.cpp
     src/platform/keys/keys_win32.cpp
     src/platform/renderer/opengl_renderer_win32.cpp
     src/platform/window/window_event_callback_win32.cpp

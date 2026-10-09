@@ -22,6 +22,7 @@
 #include "application/ui/console_view_state.hpp"
 #include "application/tools/transform_tool.hpp"
 #include "application/project_state.hpp"
+#include "application/workspace.hpp"
 #include "application/ui/modal_state.hpp"
 #include "core/time/frame_timer.hpp"
 
@@ -49,6 +50,7 @@ struct AppContext {
     ConsoleViewState consoleView;
     ProjectState project;
     ModalState modal;
+    WorkspaceState workspace;
 
     // Import… was picked in the Objects tab; the file dialog opens in checkActions, not while drawing
     bool importRequested = false;

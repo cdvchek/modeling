@@ -44,6 +44,8 @@ namespace {
         view.exposure = ctx.viewport.exposure;
         view.showMaterials = ctx.viewport.showMaterials;
         view.showUVChecker = ctx.viewport.showUVChecker;
+        view.workspace = static_cast<u8>(ctx.workspace.current);
+        view.uvSplit = ctx.workspace.uvSplit;
         view.exportFolder = ProjectFile::storeFolder(ctx.project.exportFolder, projectFile);
         return view;
     }
@@ -57,6 +59,8 @@ namespace {
         ctx.viewport.exposure = view.exposure;
         ctx.viewport.showMaterials = view.showMaterials;
         ctx.viewport.showUVChecker = view.showUVChecker;
+        ctx.workspace.current = static_cast<Workspace>(view.workspace);
+        ctx.workspace.uvSplit = view.uvSplit;
         if (ctx.renderer) ctx.renderer->setBackFaceTint(view.backFaceTint);
 
         if (view.debug) ctx.systems.input_ctx.addContext(InputContext_Debug);

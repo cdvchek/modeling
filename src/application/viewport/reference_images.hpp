@@ -8,6 +8,7 @@
 #include "scene/references/reference_image.hpp"
 #include "application/viewport/pictures.hpp"
 #include "core/math/mat4.hpp"
+#include "ui/ui_types.hpp"
 
 struct AppContext;
 class IRenderer;
@@ -33,4 +34,4 @@ void drawReferenceImages(AppContext& ctx, const Mat4& viewProjection, ReferenceD
 void drawReferenceImage(AppContext& ctx, const Mat4& viewProjection, ReferenceHandle handle);
 
 // Outlines selected images in the selection color
-void drawReferenceOutlines(const AppContext& ctx, UIDrawList& ui, const Mat4& viewProjection, f32 width, f32 height);
+void drawReferenceOutlines(const AppContext& ctx, UIDrawList& ui, const Mat4& viewProjection, const Rect& view);

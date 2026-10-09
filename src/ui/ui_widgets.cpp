@@ -128,6 +128,40 @@ bool UIContext::button(std::string_view label, const Rect& rect, bool enabled) {
     return interaction.clicked;
 }
 
+bool UIContext::tab(std::string_view label, const Rect& rect, bool selected) {
+    const Interaction interaction = interact(makeId(label), rect);
+
+    if (selected) {
+        m_drawList->rect(rect, UIStyle::PANEL_BACKGROUND);
+        m_drawList->rect({ rect.x, rect.bottom() - UIStyle::TAB_UNDERLINE, rect.width, UIStyle::TAB_UNDERLINE }, UIStyle::ACCENT);
+    } else if (interaction.hovered || interaction.held) {
+        m_drawList->rect(rect, UIStyle::PANEL_HEADER_HOVER);
+    }
+
+    const f32 textWidth = measureText(m_font, label).x;
+    drawLabelText({ rect.x + std::floor((rect.width - textWidth) * 0.5f), rect.y, textWidth, rect.height }, label,
+                  selected || interaction.hovered ? UIStyle::TEXT : UIStyle::TEXT_DIM);
+
+    finishItem(interaction, false);
+    return interaction.clicked && !selected;
+}
+
+bool UIContext::splitter(std::string_view id, const Rect& rect, f32& x) {
+    const Interaction interaction = interact(makeId(id), rect);
+
+    // Moves only after the press, so the frame it's grabbed doesn't jump
+    const bool moved = interaction.held && !interaction.activated && m_input.mouseDelta.x != 0.0f;
+    if (moved) x += m_input.mouseDelta.x;
+    if (interaction.hovered || interaction.held) m_cursor = UICursor::ResizeHorizontal;
+
+    m_drawList->rect(rect, UIStyle::PANEL_HEADER);
+    const f32 lineX = std::floor(rect.x + rect.width * 0.5f);
+    m_drawList->rect({ lineX, rect.y, 1.0f, rect.height }, interaction.hovered || interaction.held ? UIStyle::ACCENT : UIStyle::PANEL_BORDER);
+
+    finishItem(interaction, moved);
+    return moved;
+}
+
 bool UIContext::segmented(std::string_view label, i32& index, const std::vector<std::string_view>& options) {
     const Rect row = nextRow();
     Rect labelRect;

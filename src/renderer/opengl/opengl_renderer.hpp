@@ -25,6 +25,7 @@ public:
     
     void beginFrame() override;
     void beginMainPass(const ClearState& clearState) override;
+    void setSceneViewport(u32 x, u32 y, u32 width, u32 height) override;
     void setLighting(const LightingState& lighting) override;
     void setBackground(const BackgroundGradient& background) override;
     BackgroundGradient getBackground() const override;

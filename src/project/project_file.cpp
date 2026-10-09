@@ -43,7 +43,7 @@ namespace {
 
     // The newest version of each chunk this build reads and writes
     constexpr std::array<ChunkVersion, 8> CHUNK_VERSIONS = { {
-        { CHUNK_VIEW, 4 }, { CHUNK_CAMERA, 1 }, { CHUNK_LIGHTS, 1 }, { CHUNK_OBJECT, 6 }, { CHUNK_EXPORT, 1 },
+        { CHUNK_VIEW, 5 }, { CHUNK_CAMERA, 1 }, { CHUNK_LIGHTS, 1 }, { CHUNK_OBJECT, 6 }, { CHUNK_EXPORT, 1 },
         { CHUNK_REFERENCE, 1 }, { CHUNK_MATERIALS, 2 }, { CHUNK_TEXTURE, 1 },
     } };
 
@@ -154,6 +154,9 @@ namespace {
         writeBool(writer, view.showMaterials);
         // Version 4
         writeBool(writer, view.showUVChecker);
+        // Version 5
+        writer.write(view.workspace);
+        writer.write(view.uvSplit);
         return finish(CHUNK_VIEW, writer);
     }
 
@@ -177,7 +180,8 @@ namespace {
         return first
             && (version < 2 || readBool(reader, view.showOrigins))
             && (version < 3 || (reader.read(view.exposure) && readBool(reader, view.showMaterials)))
-            && (version < 4 || readBool(reader, view.showUVChecker));
+            && (version < 4 || readBool(reader, view.showUVChecker))
+            && (version < 5 || (reader.read(view.workspace) && view.workspace <= 1 && reader.read(view.uvSplit) && view.uvSplit >= 0.0f && view.uvSplit <= 1.0f));
     }
 
     Chunk writeCamera(const Camera& camera) {

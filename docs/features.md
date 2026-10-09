@@ -10,19 +10,41 @@ Work that's decided on. Each area is broken into steps in the order they'd be bu
 
 | Area | Status | Depends on |
 |---|---|---|
-| [Textures](#textures) | Next | — (UVs and base color maps are done) |
+| [Textures](#textures) | Next | — (UVs and base color maps are done; workspaces and the UV editor are next) |
+| [Workspace interface](#workspace-interface) | Later | Starts with the UV workspace (Textures step 3) |
 | [Animation](#animation) | Later | — |
 | [Attachment points](#attachment-points) | Later | Animation for points that follow bones |
 | [Hitboxes and collision shapes](#hitboxes-and-collision-shapes) | Later | Animation for shapes that follow bones |
 
 ### Textures
-Paint and apply images to surfaces. Reading PNG files (`shared/image/`) and uploading them as GPU textures with mipmaps already work, from [reference images](#reference-images).
+Paint and apply images to surfaces, for a hand-painted, Studio Ghibli-like look. Textures stay layered in the project and are flattened only when exported.
 1. **UV coordinates** on the mesh: per face corner, kept through every editing tool. **Done**: every preset has UVs, the UV grid shows them, saved and exported.
-2. Unwrapping: simple projections first (planar, box, cylinder), then seams and an automatic unwrap.
-3. A UV editor view to see and adjust UVs over the texture.
-4. Materials use textures (base color first; later roughness, normal maps). **Done** for base color: textures in the project, a base color map on materials, saved and exported.
-5. Texture painting: brush color, size, and softness, painted in the viewport and the UV view; saved as PNG (needs a PNG writer in `shared/image/`).
-6. Textures included in export. **Done** (as PNG files inside the `.vlmobj`; ready-to-upload pixels can come later if load times need it).
+2. **Textures and base color maps.** **Done**: PNG textures (any size) shared by materials, a Base map on materials, a Textures section in the Materials tab with Reload from file, saved in the project and exported in the `.vlmobj` as PNG.
+3. **Workspaces and a UV editor** (Next). Each workspace is a screen layout for one kind of work; the scene is the same in all of them.
+   - **Switching:** a thin bar along the top of the window with a tab per workspace: **Model** and **UV** (**Paint** stays hidden until the painting step). The current workspace is saved with the project. **Done**, with the UV workspace's split views: the 3D view on the left and an empty UV editor area on the right, with a draggable divider (everything below is still to come).
+   - **Model** is today's screen: the 3D view and the floating panel, with the modeling tools and light scene management (objects, lights, materials, references, import and export). The floating panel belongs to Model only.
+   - **UV** works on **one object at a time**: the object being edited when you switch, changeable from the UV workspace's header.
+     - **Layout:** a header along the top (the object dropdown, which texture shows behind the UVs: the selected faces' material map by default or a checker, and a grid toggle), then the 3D view on the left and the UV editor on the right with a draggable divider between them, and a tools column on the right if UV tools need one. No floating panel.
+     - **The 3D view** shows only that object (no other objects, lights, or reference images). You can orbit, pan, zoom, and select vertices, edges, and faces, but nothing there changes the mesh.
+     - **The UV editor** shows the texture flat with **every UV of the object** drawn over it: unselected ones dim, selected ones bright. Pan with the middle mouse, zoom with the wheel toward the cursor. A frame marks the 0 to 1 square (the texture itself).
+     - **One selection shared by both views:** select faces on the model and they light up in the UV editor, and the other way round. Selection modes are vertex, edge, face, and island (faces connected in UV space). A UV vertex is every face corner that shares a vertex and the same spot in UV space, so connected pieces stay connected and pieces cut apart (a cube's sides) move on their own.
+     - **Keys (UV workspace only):** **F** frames the selection and **A** frames everything (in either view), G / S / R grab, scale, and rotate UVs with X / Y axis locks, plus selecting (click, Shift+click, select island, select all). Each change is one undo step, and the model updates live (turn on the UV grid in the 3D view to check that detail is even: equal checker squares everywhere means even detail).
+     - **Only UV tools and keys work in the UV workspace,** and only modeling tools and keys in Model. App-wide keys work in both: undo and redo, save, open, and new, the console, and the UV grid toggle.
+     - **No radial menu** in the UV workspace (see [Workspace interface](#workspace-interface)).
+     - **The console** stays an overlay for now; modeling commands (the ones that change meshes, objects, lights, or materials) refuse to run in the UV workspace and say so.
+4. **Seams and unwrapping:** mark seams on edges (shown like hard edges), simple projections first (planar, box, cylinder), then an automatic unwrap that cuts along the seams; several objects can be laid out on one texture (an atlas).
+5. **Paint core:** new textures made in Valuma (powers of two, 256 to 2048, rectangles allowed), painting in the UV view with a brush (color, size, softness, opacity) that follows a Wacom pen's pressure (Windows Ink), an eraser, and layers kept in the project and flattened on export. Needs a PNG writer in `shared/image/`.
+6. **Paint, part 2:** more brushes and fill, picking colors from the texture, layer opacity and order, and undo per stroke.
+7. **3D painting:** paint straight onto the model in the viewport, across seams.
+8. **Other maps:** roughness, metallic, emissive, and normal maps on materials (tangents in the export).
+9. **Stylized shading option:** a painterly look in the viewport (softer, banded light) to match the target art style, if the engine uses it too.
+
+### Workspace interface
+Move from today's minimal interface (one 3D view, a floating panel, a radial menu, an overlay console) to a fuller layout per workspace, now that the UI framework makes new interface quick to build. The UV workspace is the first one built this way.
+1. **UV workspace layout** (with Textures step 3): header, split views, tools column.
+2. **Model workspace layout:** the same treatment: a header, the 3D view, and docked areas for what the floating panel holds now (objects, materials, lights, references) and for tools.
+3. **Right-click context menus** in place of the radial menu: right-click something (a face, an object, a light, a UV island, empty space) and get the commands that make sense for it. The radial menu goes away once these cover what it does (it's already off in the UV workspace). Right-click currently cancels running tools, so that moves to Escape only.
+4. **A docked console:** a permanent area of the layout instead of an overlay.
 
 ### Attachment points
 Named spots on an asset (`hand_R`, `mouth`, `head`) where the game attaches weapons and effects or places cameras, so the asset tells the game where without containing code.
@@ -51,8 +73,11 @@ Animate models, including ones made elsewhere.
 Known limitations of what exists today.
 
 - Assets only go in and out as `.vlmobj`; no glTF or OBJ yet (a separate tool later).
-- Materials: without textures, Cutout can only show or hide a whole object (opacity is one value per material); it's ready for textures. See-through objects are sorted as whole objects, so two that pass through each other can blend in the wrong order in places. Material swatches use fixed studio lighting, not the scene's.
-- Reference images: PNG only, and not interlaced PNGs; JPEG comes later. A new image always faces the current view; a choice of Front / Side / Top (so it lines up with the axes) comes later. Clicking a fully transparent part of an image still selects it.
+- Materials: see-through objects are sorted as whole objects, so two that pass through each other can blend in the wrong order in places. Material swatches use fixed studio lighting, not the scene's.
+- Textures and reference images: PNG only, and not interlaced PNGs; JPEG comes later. Textures are always smooth-filtered (no pixelated switch) and exported as PNG, which the engine must decode (ready-to-upload pixels can be added if load times need it). A material has only a base color map so far.
+- Reference images: A new image always faces the current view; a choice of Front / Side / Top (so it lines up with the axes) comes later. Clicking a fully transparent part of an image still selects it.
+- Interface: the radial menu is on its way out, to be replaced by right-click context menus (see [Workspace interface](#workspace-interface)). The Model workspace still uses a floating panel and an overlay console.
+- No "frame selected" or "frame all" in the Model workspace's 3D view yet (F is Fill there); the UV workspace gets F and A.
 - Windows-only; only the OpenGL backend exists.
 
 ## Ideas
@@ -105,6 +130,11 @@ Small, builds on existing code, and useful day to day:
 ### Interface
 - Light type picker as a dropdown, matching the Objects tab.
 
+### Texturing
+- **Texel density view:** colors each face by how much of the texture it gets compared to its size in 3D, a more exact check than the UV grid's checker squares.
+- Box and lasso select in the UV editor (and in 3D).
+- Pack islands: arrange every island to fill the texture with even detail.
+
 ### Assets
 - Levels of detail: simpler versions of a mesh for far away, made in Valuma and carried in the asset (a section is reserved in the format).
 - glTF or OBJ export, as a separate tool, for other programs.
@@ -126,7 +156,7 @@ Small, builds on existing code, and useful day to day:
 - Mouse capture: a drag that ends outside the window still finishes cleanly.
 
 ### Rendering
-- Faces are drawn in their object's material (see [Materials](#materials); the Default gray otherwise) and flat-shaded per triangle, so a non-planar face shows its fold.
+- Faces are drawn in their object's material (see [Materials](#materials); the Default gray otherwise), with its base color map through the UVs when it has one. Flat shading lights each face on its own (a non-planar face shows its fold along its triangles); smooth and auto shading blend faces together (see Smooth shading under Materials).
 - In clay view, back faces are tinted pink so flipped or open faces stand out (`backface tint r g b` to change); in material view they're culled unless the material is double-sided.
 - Edges in dark gray; vertices as near-black round dots (vertices only shown in vertex mode).
 - 4× MSAA anti-aliasing.
@@ -284,21 +314,22 @@ How surfaces look, as in the game: the metallic-roughness set glTF, Unreal, and 
 ### Assets (.vlmobj)
 Finished assets go out to the game engine (Aevora) and back in as **`.vlmobj`**: one file is one complete asset, everything the engine needs for a monster, tree, or rock except the game code. A project can hold many assets (say, rocks that share materials) and export any of them.
 - **Export** (Ctrl+E, not while a tool runs): a window lists every top-level object with a checkbox (an object starts checked when it or one of its children is selected; in an edit mode, the object being edited), its children greyed underneath, the file it will write (`<object name>.vlmobj`, characters Windows doesn't allow become `_`), and its status: **new**, **exists** (orange), or **duplicate** (another checked object has the name). Colliding rows get Replace (default) / Rename / Skip; a header row checks everything and sets every colliding row at once. Duplicates always rename (`Rock 2.vlmobj`). The footer says what will happen; **Export N** (or Enter) writes the files, each safely through a temporary file, and Cancel (or Escape) closes. A summary goes to the console. Re-exporting is Ctrl+E, Enter.
-- Each file holds an object and all its children, and the materials they use (see [Materials](#materials)). The object's origin is the pivot: its position is dropped, its rotation and scale kept, so it looks exactly as it does around its origin. See [systems/vlmobj.md](systems/vlmobj.md).
-- **Built for loading:** a header, a table of contents, and independent, checksummed, versioned sections on 64-byte boundaries with offsets only, so the engine can memory-map a file, hand the vertex and index data straight to the GPU, and read sections on several threads. Meshes are baked at export: triangulated, flat shaded like the viewport, vertices with the same position and normal shared, 16- or 32-bit indices, bounds. An editor-only section keeps the original polygons so re-importing keeps n-gons. Sections a newer version adds are skipped; materials, textures, skeletons, animations, attachment points, and hitboxes and collision shapes have sections reserved, added with those areas.
+- Each file holds an object and all its children, the materials they use, and the textures those materials use, as PNG files (see [Materials](#materials)). The object's origin is the pivot: its position is dropped, its rotation and scale kept, so it looks exactly as it does around its origin. See [systems/vlmobj.md](systems/vlmobj.md).
+- **Built for loading:** a header, a table of contents, and independent, checksummed, versioned sections on 64-byte boundaries with offsets only, so the engine can memory-map a file, hand the vertex and index data straight to the GPU, and read sections on several threads. Meshes are baked at export: triangulated, shaded (flat or smooth) and UV-mapped exactly like the viewport, vertices with the same position, normal, and UV shared, 16- or 32-bit indices, bounds. An editor-only section keeps the original polygons so re-importing keeps n-gons. Sections a newer version adds are skipped; skeletons, animations, attachment points, and hitboxes and collision shapes have sections reserved, added with those areas.
 - The export folder (Browse… picks another) defaults to `Exports` next to the project and then remembers the last folder exported to, saved in the `.vlm` relative to the project when it's nearby. It doesn't count as an unsaved change.
-- **Import** (Ctrl+I, Import… at the end of the Objects tab's dropdown then +, or `import [<path>]`): adds each picked `.vlmobj` as a new object named after the file, placed like a new preset, with its n-gons, rotation, and scale. Undoable.
+- **Import** (Ctrl+I, Import… at the end of the Objects tab's dropdown then +, or `import [<path>]`): adds each picked `.vlmobj` as a new object named after the file, placed like a new preset, with its n-gons, UVs, shading, rotation, and scale; its materials and textures are reused when the project already has identical ones, otherwise added. Undoable.
 - The format lives in a shared library (`shared/vlmobj/`) the Aevora engine will use too.
 
 ### Interface
 - **Modal windows** (the Export window and prompts such as "Save changes?"): centered over a dimmed backdrop; while one is open, the panel, viewport, and shortcuts are off, Enter picks the default button (outlined) and Escape cancels.
 - **Color picker** (light, ambient, headlight, and material colors): click a swatch to open a saturation/value square with a hue strip, a hex field (`#c08a4f`), and typed R/G/B values; the swatch shows the color it had when opened beside the new one. A drag or a typed value is one undo step.
-- **Floating panel** (shown by default, `ui panel` toggles it): drag it by its header or tabs, resize it from any edge or corner (resize cursors, 240 × 160 minimum), and scroll it with the wheel or its scrollbar when the content doesn't fit. It always stays inside the viewport.
+- **Workspaces:** a thin bar along the top of the window has a tab per workspace. **Model** is the 3D view with the floating panel; **UV** puts the 3D view on the left and the UV editor's area on the right (empty for now), with a divider you drag to resize them. You can't switch while a tool is running. The workspace and the divider's place are saved with the project; a new project starts in Model.
+- **Floating panel** (Model workspace; shown by default, `ui panel` toggles it): drag it by its header or tabs, resize it from any edge or corner (resize cursors, 240 × 160 minimum), and scroll it with the wheel or its scrollbar when the content doesn't fit. It always stays inside the viewport.
 - **Objects tab** (first):
   - A preset dropdown (cube, plane, grid, circle, cylinder, cone, UV sphere, ico sphere, torus, and Import… for `.vlmobj` files), + to add that preset (or import), − to remove the object being edited.
   - A fixed-height object list that scrolls on its own; click a row to edit that object (synced with clicking it in the viewport). In object mode it shows and sets the selected objects.
-  - The selected object: name field, vertex/edge/face counts, position, rotation, and scale fields, and its material (a dropdown with swatches).
-- **Materials tab:** see [Materials](#materials).
+  - The selected object: name field, vertex/edge/face counts, position, rotation, and scale fields, **Apply transform**, its material (a dropdown with swatches), and its shading (Flat / Smooth / Auto, with an angle for Auto).
+- **Materials tab:** materials and, below them, textures (see [Materials](#materials)).
 - **Lights tab:**
   - A type button (click to cycle point → spot → directional), + to add that type, − to delete the selected light (dimmed when nothing is selected).
   - A fixed-height light list that scrolls on its own; click a row to select the light (synced with the viewport).
@@ -308,10 +339,10 @@ Finished assets go out to the game engine (Aevora) and back in as **`.vlmobj`**:
 - Clicks and scrolling over the panel don't reach the viewport.
 - Long names in lists and labels that don't fit are shortened with "..." instead of running into their neighbors, so a narrow panel stays readable.
 - **Text fields** (object and light names): click to edit with everything selected, type to replace it. Arrow keys, Home/End (Shift extends the selection), Backspace/Delete, Ctrl+A, and Ctrl+C/X/V with the system clipboard; click inside to place the caret or drag to select. Enter or a click anywhere else keeps the edit (one undo step), Escape restores the old text, and an empty name is ignored. While editing, keyboard shortcuts are off, so typing `g` or `/` just types.
-- **X/Y/Z fields**: drag to change; click without dragging (under 3 px of movement) to type an exact value, with the same keys. Text that isn't a number leaves the value alone. A value too wide for its box shows fewer decimals rather than overlapping the axis letter (the panel is 360 px wide by default, enough for values like −12.50).
+- **X/Y/Z fields**: drag to change; click without dragging (under 3 px of movement) to type an exact value, with the same keys. Text that isn't a number leaves the value alone. A value too wide for its box shows fewer decimals rather than overlapping the axis letter (the panel is 380 px wide by default, enough for values like −12.50).
 - Held keys repeat after the system's repeat delay, in text fields and in the console.
 - **Status bar** along the bottom: frames per second, selection mode, active tool, and axis lock (`-` outside grab/scale/rotate, `Free`, or the locked axes in red/green/cyan). Items keep fixed positions as values change. An error that happens while the console is closed (an unknown command, a refused bevel/extrude/inset/dissolve) shows in red at the right end for 4 seconds, fading out at the end.
-- **Console** (/): a panel docked above the status bar with commands, their output, and errors (red) above an input line with a blinking caret. `help` lists every command; an unknown command shows an error; tools report refusals there too (bevel, extrude, inset, dissolve). Long lines wrap. Output or errors longer than one line can be collapsed and expanded by clicking; closing the console collapses everything so far, so only new or reopened ones show expanded. The wheel scrolls the list; command history (Up/Down, with the recalled command highlighted in the list, which scrolls to keep it in view) and cursor movement; Backspace, Delete, and the arrow keys repeat while held. Commands: `help`, `save`, `open`, `new`, `import`, `origin`, `fileinfo`, `debug`, `validate`, `merge`, `dissolve`, `light`, `object`, `material`, `reference`, `exposure`, `stats`, `headlight`, `backface`, `vsync`, `ui`. See [systems/console.md](systems/console.md).
+- **Console** (/): a panel docked above the status bar with commands, their output, and errors (red) above an input line with a blinking caret. `help` lists every command; an unknown command shows an error; tools report refusals there too (bevel, extrude, inset, dissolve). Long lines wrap. Output or errors longer than one line can be collapsed and expanded by clicking; closing the console collapses everything so far, so only new or reopened ones show expanded. The wheel scrolls the list; command history (Up/Down, with the recalled command highlighted in the list, which scrolls to keep it in view) and cursor movement; Backspace, Delete, and the arrow keys repeat while held. Commands: `help`, `save`, `open`, `new`, `import`, `origin`, `fileinfo`, `debug`, `validate`, `merge`, `dissolve`, `light`, `object`, `material`, `texture`, `shading`, `reference`, `exposure`, `stats`, `headlight`, `backface`, `vsync`, `ui`. See [systems/console.md](systems/console.md).
 - Built on a from-scratch immediate-mode UI (tabs, buttons, dropdowns, list rows, checkboxes, sliders, X/Y/Z and single number fields, text fields, color swatches, type switches, scrolling list boxes) and a batched 2D draw list. See [systems/ui.md](systems/ui.md).
 - Two embedded fonts: the 16×24 console font and a 10×16 UI font (the console font trimmed and scaled down).
 

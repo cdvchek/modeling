@@ -1,4 +1,5 @@
 #include "application/tools/tool_guides.hpp"
+#include "application/workspace.hpp"
 #include "core/math/projection.hpp"
 #include "core/math/screen_drag.hpp"
 #include "core/math/vec4.hpp"
@@ -81,15 +82,9 @@ bool initTransformTool(AppContext& ctx) {
     TransformTool& tool = ctx.transformTool;
     if (tool.initialized) return true;
 
-    u32 width = 0;
-    u32 height = 0;
-    ctx.windows[0]->getDimensions(width, height);
-    if (width == 0 || height == 0) return false;
-
-    const Camera& camera = ctx.scene.camera;
-    const Mat4 viewProjection = camera.getProjectionMatrix(static_cast<f32>(width) / static_cast<f32>(height)) * camera.getViewMatrix();
-
-    if (!projectToScreen(viewProjection, selectionCenter(ctx), static_cast<f32>(width), static_cast<f32>(height), tool.pivot)) return false;
+    const Rect view = sceneView(ctx);
+    if (view.width <= 0.0f || view.height <= 0.0f) return false;
+    if (!projectToView(sceneViewProjection(ctx), selectionCenter(ctx), view, tool.pivot)) return false;
 
     const Vec2 mouse = mousePosition(ctx);
     tool.startDistance = std::max((mouse - tool.pivot).length(), MIN_START_DISTANCE);

@@ -146,8 +146,16 @@ bool OpenGLRenderer::loadFonts(const FontLibrary& fonts) {
     return allLoaded;
 }
 
+void OpenGLRenderer::setSceneViewport(u32 x, u32 y, u32 width, u32 height) {
+    if (!m_initialized) return;
+    // GL counts rows from the bottom
+    const i32 bottom = static_cast<i32>(m_height) - static_cast<i32>(y + height);
+    glViewport(static_cast<GLint>(x), bottom, static_cast<GLsizei>(width), static_cast<GLsizei>(height));
+}
+
 void OpenGLRenderer::drawUI(const UIDrawList& list) {
     if (!m_initialized) return;
+    glViewport(0, 0, static_cast<GLsizei>(m_width), static_cast<GLsizei>(m_height));
     m_ui.draw(list, m_shaders.get(ShaderId::UI), m_fonts, m_width, m_height);
 }
 

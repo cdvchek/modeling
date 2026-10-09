@@ -40,6 +40,9 @@ namespace ProjectFile {
         // Material view; off is clay view
         bool showMaterials = true;
         bool showUVChecker = false;
+        // The workspace (0 Model, 1 UV) and the UV workspace's split, as a fraction of the width
+        u8 workspace = 0;
+        f32 uvSplit = 0.5f;
 
         // Where assets were last exported, as storeFolder gives it (relative to the project file when nearby);
         // empty means the default, an Exports folder next to the project file
