@@ -40,3 +40,6 @@ Transform originAtVertices(const ObjectCollection& objects, ObjectHandle handle,
 Transform originAtWorld(const ObjectCollection& objects, ObjectHandle handle);
 // Turned back to line up with the world's axes, where it is
 Transform originAlignedToWorld(const ObjectCollection& objects, ObjectHandle handle);
+// Where the object's own transform is none at all (position 0, rotation 0, scale 1 relative to its parent): moving the
+// origin there applies the transform to the mesh
+Transform originApplied(const ObjectCollection& objects, ObjectHandle handle);

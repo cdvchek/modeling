@@ -23,6 +23,10 @@ bool moveOrigin(AppContext& ctx, OriginTarget target);
 // The object a console `origin` command acts on: the selected origin's, else the active object
 ObjectHandle originCommandObject(const AppContext& ctx);
 
+// Bakes the object's position, rotation, and scale into its mesh, leaving its transform at none (relative to its
+// parent); the mesh and its children stay where they are. One undo step
+void applyTransform(AppContext& ctx, ObjectHandle handle);
+
 // View menu: shows or hides every origin marker; hiding drops a selected origin
 void toggleOrigins(AppContext& ctx);
 

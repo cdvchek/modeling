@@ -200,6 +200,7 @@ Modal tools are confirmed with left click and cancelled with right click.
 - A selected origin is purple with short lines along its own +X, +Y, +Z (red, green, cyan).
 - **Grab** (G, with X/Y/Z locks) moves the origin and **Rotate** (R) turns its axes while the mesh stays exactly where it is (its vertices shift the opposite way), and so do the object's children. Scale doesn't apply. Each is one undo step.
 - With an origin selected, the radial menu shows the origin commands: **To geometry** (middle of the bounding box), **To bottom** (middle of the bottom, where an asset stands), **To world** (0, 0, 0), **Reset rotation** (axes back in line with the world). In edit mode, Edit ▸ **Origin here** puts it at the average of the selected vertices. All are undoable and also in the console as `origin geometry | bottom | world | rotation | selection`.
+- **Apply transform** (Objects tab button under Scale, or `object <id> apply`): bakes the object's position, rotation, and scale into its mesh, so the mesh stays where it is and the object reads position 0, rotation 0, scale 1 (relative to its parent). Undoable.
 - Export uses each object's origin as the asset's pivot, so set it where the asset should stand. Whether origins show is saved with the project.
 
 ### Parenting

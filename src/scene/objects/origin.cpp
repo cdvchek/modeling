@@ -100,6 +100,11 @@ Transform originAtWorld(const ObjectCollection& objects, ObjectHandle handle) {
     return result;
 }
 
+Transform originApplied(const ObjectCollection& objects, ObjectHandle handle) {
+    const ObjectHandle parent = objects.parentOf(handle);
+    return objects.isValid(parent) ? objects.worldTransform(parent) : Transform();
+}
+
 Transform originAlignedToWorld(const ObjectCollection& objects, ObjectHandle handle) {
     Transform result = objects.worldTransform(handle);
     result.rotation = Vec3(0.0f);

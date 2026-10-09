@@ -158,3 +158,33 @@ TEST_CASE(origin_selection_never_mixes) {
     selection.clear();
     CHECK(!selection.hasOrigin() && selection.getActiveObject() == cube);
 }
+
+TEST_CASE(apply_bakes_the_transform_into_the_mesh) {
+    ObjectCollection objects;
+    const ObjectHandle cube = addTurnedCube(objects);
+    const ObjectHandle child = objects.add("Wheel", PresetMesh::Cylinder);
+    objects.get(child).transform.position = Vec3(1.0f, 0.0f, 0.5f);
+    objects.setParent(child, cube);
+
+    const std::vector<Vec3> before = worldPositions(objects, cube);
+    const std::vector<Vec3> childMesh = worldPositions(objects, child);
+
+    // The cube's own transform becomes none; its mesh and its child stay where they are
+    setOrigin(objects, cube, originApplied(objects, cube));
+    const Transform& applied = objects.get(cube).transform;
+    CHECK(same(applied.position, Vec3(0.0f)) && same(applied.rotation, Vec3(0.0f)) && same(applied.scale, Vec3(1.0f)));
+    CHECK(sameWorld(worldPositions(objects, cube), before));
+    CHECK(sameWorld(worldPositions(objects, child), childMesh));
+
+    // A child applies relative to its parent: its own transform is none, its mesh stays put
+    Transform turned = objects.get(cube).transform;
+    turned.rotation = Vec3(0.0f, 0.7f, 0.0f);
+    turned.position = Vec3(0.0f, 2.0f, 0.0f);
+    objects.get(cube).transform = turned;
+    const std::vector<Vec3> childBefore = worldPositions(objects, child);
+    setOrigin(objects, child, originApplied(objects, child));
+    const Transform& childApplied = objects.get(child).transform;
+    CHECK(same(childApplied.position, Vec3(0.0f)) && same(childApplied.rotation, Vec3(0.0f)) && same(childApplied.scale, Vec3(1.0f)));
+    CHECK(sameWorld(worldPositions(objects, child), childBefore));
+    CHECK(objects.parentOf(child) == cube);
+}

@@ -4,6 +4,7 @@
 #include "application/commands/object_commands.hpp"
 #include "application/viewport/reference_images.hpp"
 #include "application/commands/material_commands.hpp"
+#include "application/actions/origin_actions.hpp"
 #include "ui/ui_style.hpp"
 
 #include <algorithm>
@@ -208,6 +209,15 @@ namespace {
             changed = true;
         }
         trackUndo(ctx);
+
+        // Bakes position, rotation, and scale into the mesh; dimmed when there's nothing to apply
+        const Transform& own = object.transform;
+        const auto equals = [](const Vec3& v, f32 value) { return v.x == value && v.y == value && v.z == value; };
+        const bool applied = equals(own.position, 0.0f) && equals(own.rotation, 0.0f) && equals(own.scale, 1.0f);
+        if (ui.button("Apply transform", ui.row(), !applied)) {
+            applyTransform(ctx, handle);
+            changed = false;
+        }
 
         // The object's material, with swatches; picking one is an undo step
         const MaterialCollection& materials = ctx.scene.materials;

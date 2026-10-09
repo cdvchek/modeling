@@ -144,6 +144,7 @@ An object's `<id>` is its slot index, shown by `object list`.
 | `object <id>` | Prints one object. |
 | `object <id> edit` | Makes it the active object. |
 | `object <id> remove` | Removes it. If it was active, the first remaining object becomes active. |
+| `object <id> apply` | Applies its transform: bakes position, rotation, and scale into the mesh so its own transform reads 0, 0, 1 (relative to its parent); the mesh and its children stay where they are. Undoable. |
 | `object <id> name <n>` | Renames it (one word). |
 | `object <id> parent <id \| none>` | Gives it a parent, or none, keeping it where it is in the world. Refused if the parent is the object or one of its children. |
 | `object <id> position <x> <y> <z>` | Moves it. |

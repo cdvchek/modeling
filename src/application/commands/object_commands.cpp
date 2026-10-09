@@ -1,5 +1,6 @@
 #include "application/commands/object_commands.hpp"
 #include "application/commands/command_parsing.hpp"
+#include "application/actions/origin_actions.hpp"
 
 #include <iostream>
 #include <optional>
@@ -14,7 +15,7 @@ namespace {
     const char* USAGE =
         "usage: object list\n"
         "       object add <preset> [name]   (cube, plane, grid, circle, cylinder, cone, uvsphere, icosphere, torus)\n"
-        "       object <id> [edit | remove | name <n> | parent <id | none> | position <x> <y> <z> | rotation <x> <y> <z> | scale <x> <y> <z>]\n"
+        "       object <id> [edit | remove | apply | name <n> | parent <id | none> | position <x> <y> <z> | rotation <x> <y> <z> | scale <x> <y> <z>]\n"
         "       (position, rotation, and scale are relative to the parent)";
 
     const ObjectPreset* findPreset(const std::string& text) {
@@ -125,6 +126,13 @@ namespace {
                 return;
             }
             if (setObjectParent(ctx, handle, parent)) printObject(ctx, handle);
+            return;
+        }
+
+        // The mesh takes the transform: it stays where it is, and the object's own transform goes back to none
+        if (args[1] == "apply" && args.size() == 2) {
+            applyTransform(ctx, handle);
+            printObject(ctx, handle);
             return;
         }
 

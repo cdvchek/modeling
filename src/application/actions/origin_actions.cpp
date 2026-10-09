@@ -49,6 +49,14 @@ bool moveOrigin(AppContext& ctx, OriginTarget target) {
     return true;
 }
 
+void applyTransform(AppContext& ctx, ObjectHandle handle) {
+    if (!ctx.scene.objects.isValid(handle) || (ctx.systems.input_ctx.getContext() & TOOL_CONTEXTS)) return;
+
+    ctx.history.begin(ctx.scene);
+    setOrigin(ctx.scene.objects, handle, originApplied(ctx.scene.objects, handle));
+    ctx.history.commit();
+}
+
 void toggleOrigins(AppContext& ctx) {
     ctx.viewport.showOrigins = !ctx.viewport.showOrigins;
     if (!ctx.viewport.showOrigins) ctx.scene.selection.clearOrigin();

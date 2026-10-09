@@ -264,6 +264,7 @@ An object's origin is its transform: the point its mesh is built around and the 
 | `originAtVertices(objects, h, vertices)` | Target: their average. |
 | `originAtWorld(objects, h)` | Target: the world's 0, 0, 0, axes unchanged. |
 | `originAlignedToWorld(objects, h)` | Target: rotation reset to 0 in the world, position unchanged. |
+| `originApplied(objects, h)` | Target: the object's own transform at none (its parent's world transform, or the world's origin for a top-level object). Moving the origin there bakes position, rotation, and scale into the mesh (Apply transform). |
 
 Targets keep the object's rotation and scale unless they say otherwise.
 
