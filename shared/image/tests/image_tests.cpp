@@ -198,3 +198,27 @@ TEST_CASE(inflate_reads_a_hand_made_stored_block) {
     // Larger than the caller allows
     CHECK(!inflateZlib(stream, sizeof(stream), out, error, 2));
 }
+
+TEST_CASE(png_encodes_and_reads_back) {
+    // Larger than one stored block, with every byte value, and a 1 x 1
+    image::Image picture;
+    picture.width = 300;
+    picture.height = 70;
+    picture.pixels.resize(std::size_t(picture.width) * picture.height * 4);
+    for (std::size_t i = 0; i < picture.pixels.size(); ++i) picture.pixels[i] = static_cast<image::u8>(i * 7 + i / 300);
+
+    const std::vector<image::u8> png = image::encodePng(picture);
+    CHECK(image::isPng(png.data(), png.size()));
+    image::Image back;
+    std::string error;
+    CHECK(image::decodePng(png.data(), png.size(), back, error));
+    CHECK(back.width == 300 && back.height == 70);
+    CHECK(back.pixels == picture.pixels);
+
+    image::Image dot;
+    dot.width = dot.height = 1;
+    dot.pixels = { 10, 20, 30, 40 };
+    const std::vector<image::u8> small = image::encodePng(dot);
+    CHECK(image::decodePng(small.data(), small.size(), back, error));
+    CHECK(back.pixels == dot.pixels);
+}

@@ -7,6 +7,7 @@
 #include "application/commands/shading_commands.hpp"
 #include "application/uv/uv_editor.hpp"
 #include "application/uv/uv_operations.hpp"
+#include "application/paint/paint_workspace.hpp"
 #include "application/actions/checks/action_checks.hpp"
 
 void Application::registerDefaultActions(AppContext& ctx) {
@@ -49,6 +50,8 @@ void Application::registerDefaultActions(AppContext& ctx) {
     actions.subscribe(Action::UVScale,             DefaultKeybinds::ScaleSelection,      InputContext_EditModes);
     actions.subscribe(Action::UVRotate,            DefaultKeybinds::RotateSelection,     InputContext_EditModes);
     actions.subscribe(Action::UVUnwrap,            DefaultKeybinds::UVUnwrap,            InputContext_EditModes);
+    actions.subscribe(Action::TogglePaintView,     DefaultKeybinds::TogglePaintView,     InputContext_AnySelection);
+    actions.subscribe(Action::PickPaintTexture,    DefaultKeybinds::PickPaintTexture,    InputContext_AnySelection);
     actions.subscribe(Action::ConnectVertices,     DefaultKeybinds::ConnectVertices,     InputContext_SelectionVertex);
     actions.subscribe(Action::XAxis,               DefaultKeybinds::XAxis,               InputContext_Grab | InputContext_Scale | InputContext_Rotate);
     actions.subscribe(Action::YAxis,               DefaultKeybinds::YAxis,               InputContext_Grab | InputContext_Scale | InputContext_Rotate);
@@ -134,6 +137,8 @@ void Application::registerDefaultActions(AppContext& ctx) {
     actions.setHandler(Action::UVScale, { "Scale", uvTool, [&ctx] { startUVTool(ctx, UVToolKind::Scale); } });
     actions.setHandler(Action::UVRotate, { "Rotate", uvTool, [&ctx] { startUVTool(ctx, UVToolKind::Rotate); } });
     actions.setHandler(Action::UVUnwrap, { "Unwrap", [&ctx] { return ::hasUVObject(ctx); }, [&ctx] { unwrapUVs(ctx); } });
+    actions.setHandler(Action::TogglePaintView, { "3D/2D", always, [&ctx] { togglePaintView(ctx); } });
+    actions.setHandler(Action::PickPaintTexture, { "Pick texture", [&ctx] { return canPickPaintTexture(ctx); }, [&ctx] { pickPaintTexture(ctx); } });
     auto shading = [&ctx] { return canSetShading(ctx); };
     actions.setHandler(Action::ShadeFlat, { "Flat", shading, [&ctx] { setShading(ctx, ShadingMode::Flat); } });
     actions.setHandler(Action::ShadeSmooth, { "Smooth", shading, [&ctx] { setShading(ctx, ShadingMode::Smooth); } });

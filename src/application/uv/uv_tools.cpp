@@ -27,7 +27,7 @@ namespace {
 
     // Where the pivot sits in the editor, in window pixels
     Vec2 pivotOnScreen(const AppContext& ctx) {
-        return uvToScreen(ctx.workspace, screenLayout(ctx).uvEditor, ctx.uvTool.pivot);
+        return uvToScreen(ctx.workspace.uvView, screenLayout(ctx).uvEditor, ctx.uvTool.pivot);
     }
 }
 
@@ -105,7 +105,7 @@ void updateUVTool(AppContext& ctx) {
     // Where the corners are now, worked out from where they started so a long drag never drifts
     const Vec2 mouse = mousePosition(ctx);
     const Vec2 pivot = pivotOnScreen(ctx);
-    const f32 zoom = std::max(ctx.workspace.uvZoom, 1.0f);
+    const f32 zoom = std::max(ctx.workspace.uvView.zoom, 1.0f);
     std::vector<Vec2> uvs = tool.startUVs;
 
     if (tool.kind == UVToolKind::Grab) {

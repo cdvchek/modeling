@@ -42,7 +42,7 @@ Holds the line being typed, the cursor, the history of entered lines (for Up/Dow
 
 ## Commands
 
-In the UV workspace, the commands that change meshes, objects, lights, materials, textures, or reference images (`merge`, `dissolve`, `light`, `material`, `texture`, `shading`, `reference`, `origin`, `import`, `object`) refuse to run with an error saying they're modeling commands; the rest work in both workspaces.
+In the UV and Paint workspaces, the commands that change meshes, objects, lights, materials, textures, or reference images (`merge`, `dissolve`, `light`, `material`, `texture`, `shading`, `reference`, `origin`, `import`, `object`) refuse to run with an error saying they're modeling commands; the rest work in every workspace.
 
 | Command | Arguments | Description |
 |---|---|---|

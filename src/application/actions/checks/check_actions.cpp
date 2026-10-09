@@ -2,6 +2,7 @@
 #include "application/actions/checks/action_checks.hpp"
 #include "application/commands/texture_commands.hpp"
 #include "application/uv/uv_editor.hpp"
+#include "application/paint/paint_workspace.hpp"
 #include "application/ui/radial_menu.hpp"
 #include "application/ui/modal_windows.hpp"
 #include "application/actions/asset_actions.hpp"
@@ -45,6 +46,8 @@ bool Application::checkActions(AppContext& ctx) {
 
     // The UV editor's own view: pan and zoom with the mouse over it
     if (ctx.workspace.current == Workspace::UV) updateUVEditor(ctx);
+    // The paint canvas's, in 2D
+    if (ctx.workspace.current == Workspace::Paint) updatePaintCanvas(ctx);
 
     // While the radial menu is open it takes all other input, so tools and the camera hold still
     if (updateRadialMenu(ctx)) return true;

@@ -40,13 +40,17 @@ namespace ProjectFile {
         // Material view; off is clay view
         bool showMaterials = true;
         bool showUVChecker = false;
-        // The workspace (0 Model, 1 UV) and the UV workspace's split, as a fraction of the width
+        // The workspace (0 Model, 1 UV, 2 Paint) and the UV workspace's split, as a fraction of the width
         u8 workspace = 0;
         f32 uvSplit = 0.5f;
         // The UV editor's view (zoom 0: frame everything when first shown) and whether its grid shows
         f32 uvCenter[2] = { 0.5f, 0.5f };
         f32 uvZoom = 0.0f;
         bool uvGrid = true;
+        // Paint: 2D (the flat texture) or 3D, and the 2D view (zoom 0: frame the texture when first shown)
+        bool paint2D = false;
+        f32 paintCenter[2] = { 0.5f, 0.5f };
+        f32 paintZoom = 0.0f;
 
         // Where assets were last exported, as storeFolder gives it (relative to the project file when nearby);
         // empty means the default, an Exports folder next to the project file

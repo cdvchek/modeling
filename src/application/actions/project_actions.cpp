@@ -46,10 +46,14 @@ namespace {
         view.showUVChecker = ctx.viewport.showUVChecker;
         view.workspace = static_cast<u8>(ctx.workspace.current);
         view.uvSplit = ctx.workspace.uvSplit;
-        view.uvCenter[0] = ctx.workspace.uvCenter.x;
-        view.uvCenter[1] = ctx.workspace.uvCenter.y;
-        view.uvZoom = ctx.workspace.uvZoom;
+        view.uvCenter[0] = ctx.workspace.uvView.center.x;
+        view.uvCenter[1] = ctx.workspace.uvView.center.y;
+        view.uvZoom = ctx.workspace.uvView.zoom;
         view.uvGrid = ctx.workspace.uvGrid;
+        view.paint2D = ctx.workspace.paint2D;
+        view.paintCenter[0] = ctx.workspace.paintView.center.x;
+        view.paintCenter[1] = ctx.workspace.paintView.center.y;
+        view.paintZoom = ctx.workspace.paintView.zoom;
         view.exportFolder = ProjectFile::storeFolder(ctx.project.exportFolder, projectFile);
         return view;
     }
@@ -64,12 +68,16 @@ namespace {
         ctx.viewport.showMaterials = view.showMaterials;
         ctx.viewport.showUVChecker = view.showUVChecker;
         ctx.workspace.uvSplit = view.uvSplit;
-        ctx.workspace.uvCenter = Vec2(view.uvCenter[0], view.uvCenter[1]);
-        ctx.workspace.uvZoom = view.uvZoom;
+        ctx.workspace.uvView.center = Vec2(view.uvCenter[0], view.uvCenter[1]);
+        ctx.workspace.uvView.zoom = view.uvZoom;
         ctx.workspace.uvGrid = view.uvGrid;
         // Textures aren't part of the view, so the background goes back to the material's
         ctx.workspace.uvBackground = UVBackground::Material;
         ctx.workspace.uvTexture = INVALID_TEXTURE;
+        ctx.workspace.paint2D = view.paint2D;
+        ctx.workspace.paintView.center = Vec2(view.paintCenter[0], view.paintCenter[1]);
+        ctx.workspace.paintView.zoom = view.paintZoom;
+        ctx.workspace.paintTexture = INVALID_TEXTURE;
         if (ctx.renderer) ctx.renderer->setBackFaceTint(view.backFaceTint);
 
         if (view.debug) ctx.systems.input_ctx.addContext(InputContext_Debug);

@@ -89,6 +89,8 @@ enum class Action : u8 {
     UVScale,
     UVRotate,
     UVUnwrap,
+    TogglePaintView,
+    PickPaintTexture,
     ParentToActive,
     ClearParents,
     Count

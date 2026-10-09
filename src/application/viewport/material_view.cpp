@@ -1,4 +1,5 @@
 #include "application/viewport/material_view.hpp"
+#include "application/paint/paint_workspace.hpp"
 #include "application/app_context.hpp"
 #include "scene/objects/origin.hpp"
 #include "core/math/vec4.hpp"
@@ -12,6 +13,17 @@ namespace {
         return (material.alphaMode == AlphaMode::Blend && material.opacity <= 0.0f)
             || (material.alphaMode == AlphaMode::Cutout && material.opacity < material.alphaCutoff);
     }
+
+    // Faces that can't take paint: darker, and no glow
+    constexpr f32 DIM = 0.3f;
+    void dim(SurfaceLook& look) {
+        look.baseColor = look.baseColor * DIM;
+        look.emissiveStrength = 0.0f;
+    }
+}
+
+bool materialView(const AppContext& ctx) {
+    return ctx.viewport.showMaterials || ctx.workspace.current == Workspace::Paint;
 }
 
 u32 mapTexture(const AppContext& ctx, const Material& material) {
@@ -45,7 +57,7 @@ SurfaceLook surfaceOf(const Material& material, u32 map) {
 }
 
 std::optional<SurfaceLook> surfaceFor(const AppContext& ctx, const Object& object) {
-    if (!ctx.viewport.showMaterials) return claySurface();
+    if (!materialView(ctx)) return claySurface();
 
     const MaterialCollection& materials = ctx.scene.materials;
     const Material& material = materials.get(materials.resolve(object.material));
@@ -89,10 +101,14 @@ u32 MaterialPreviewCache::texture(MaterialHandle handle) const {
 
 ObjectParts partsFor(const AppContext& ctx, const Object& object, const IMesh& mesh) {
     ObjectParts parts;
-    if (!ctx.viewport.showMaterials) {
+    if (!materialView(ctx)) {
         parts.whole = true;
         return parts;
     }
+
+    // Paint: faces whose material's map isn't the texture being painted are dimmed
+    const bool painting = ctx.workspace.current == Workspace::Paint;
+    const TextureHandle painted = painting ? activePaintTexture(ctx) : INVALID_TEXTURE;
 
     // A group's material, or the object's for faces without their own; a material that shows nothing isn't drawn
     const MaterialCollection& materials = ctx.scene.materials;
@@ -101,7 +117,8 @@ ObjectParts partsFor(const AppContext& ctx, const Object& object, const IMesh& m
         const Material& material = materials.get(handle);
         if (hidden(material)) continue;
 
-        const DrawPart part { group.firstIndex, group.indexCount, surfaceOf(material, mapTexture(ctx, material)) };
+        DrawPart part { group.firstIndex, group.indexCount, surfaceOf(material, mapTexture(ctx, material)) };
+        if (painting && (material.baseColorMap != painted || !ctx.scene.textures.isValid(painted))) dim(part.surface);
         if (part.surface.blend) parts.seeThrough.push_back(part);
         else parts.solid.push_back(part);
     }
@@ -115,7 +132,7 @@ FaceGroupOf faceGroupsFor(const AppContext& ctx) {
 
 bool backFacesCulled(const AppContext& ctx, ObjectHandle handle) {
     const Object* object = ctx.scene.objects.tryGet(handle);
-    if (!ctx.viewport.showMaterials || !object) return false;
+    if (!materialView(ctx) || !object) return false;
     return !ctx.scene.materials.get(ctx.scene.materials.resolve(object->material)).doubleSided;
 }
 

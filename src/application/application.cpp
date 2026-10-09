@@ -229,8 +229,11 @@ void Application::renderFrame(AppContext& ctx) {
     ctx.renderer->setSceneViewport(static_cast<u32>(sceneRect.x), static_cast<u32>(sceneRect.y), static_cast<u32>(sceneRect.width), static_cast<u32>(sceneRect.height));
     const Mat4 viewProjection = sceneViewProjection(ctx);
 
-    // The UV workspace shows only the object being UV-edited: no other objects, reference images, or markers
-    const bool uvWorkspace = ctx.workspace.current == Workspace::UV;
+    // UV and Paint show only the object being worked on: no other objects, reference images, or markers. Paint shows
+    // it without the wireframe, and in 2D nothing 3D draws at all.
+    const bool isolated = ctx.workspace.current != Workspace::Model;
+    const bool painting = ctx.workspace.current == Workspace::Paint;
+    const bool flat = painting && ctx.workspace.paint2D;
     const ObjectHandle uvTarget = uvObject(ctx);
 
     LightingState lighting = buildLightingState(ctx.scene.lights, ctx.viewport.headlight, ctx.scene.camera, ctx.renderer->getBackground());
@@ -242,7 +245,7 @@ void Application::renderFrame(AppContext& ctx) {
     ctx.pictureTextures.prune(*ctx.renderer);
 
     // Backdrop images go first so everything draws over them
-    if (!uvWorkspace) drawReferenceImages(ctx, viewProjection, ReferenceDepth::Behind);
+    if (!isolated) drawReferenceImages(ctx, viewProjection, ReferenceDepth::Behind);
 
     // See-through objects and reference images among them wait until everything solid is drawn, then go farthest first
     struct SeeThrough {
@@ -255,7 +258,7 @@ void Application::renderFrame(AppContext& ctx) {
     const FaceGroupOf groupOf = faceGroupsFor(ctx);
 
     for (ObjectHandle handle : ctx.scene.objects.handles()) {
-        if (uvWorkspace && handle != uvTarget) continue;
+        if (flat || (isolated && handle != uvTarget)) continue;
         Object& object = ctx.scene.objects.get(handle);
 
         Mat4 model = ctx.scene.objects.worldMatrix(handle);
@@ -273,16 +276,17 @@ void Application::renderFrame(AppContext& ctx) {
         cmd.showVerts = active && (selectionContext & InputContext_SelectionVertex);
         cmd.showEdges = objectMode ? selection.hasObject(handle) : active;
         cmd.showFaces = true;
+        if (painting) cmd.showVerts = cmd.showEdges = false;
 
         // In object mode a selected object is outlined: every edge in the selection color
         if (objectMode) {
             cmd.outlineAll = selection.hasObject(handle);
-        } else if (active) {
+        } else if (active && !painting) {
             cmd.highlightedVerts = selection.getVertexHandles();
             cmd.highlightedEdges = selection.getEdgeHandles();
             cmd.highlightedFaces = selection.getFaceHandles();
             cmd.hardEdges = object.meshData.getHardEdges();
-            if (uvWorkspace) cmd.seamEdges = object.meshData.getSeamEdges();
+            if (ctx.workspace.current == Workspace::UV) cmd.seamEdges = object.meshData.getSeamEdges();
 
             // Selected faces are outlined with the same treatment as selected edges
             for (FaceHandle face : cmd.highlightedFaces) {
@@ -321,7 +325,7 @@ void Application::renderFrame(AppContext& ctx) {
 
     for (ReferenceHandle handle : ctx.scene.references.handles()) {
         const ReferenceImage& image = ctx.scene.references.get(handle);
-        if (!uvWorkspace && image.visible && image.depth == ReferenceDepth::InScene && image.opacity > 0.0f) {
+        if (!isolated && image.visible && image.depth == ReferenceDepth::InScene && image.opacity > 0.0f) {
             seeThrough.push_back({ (image.position - ctx.scene.camera.position).length(), {}, handle });
         }
     }
@@ -338,8 +342,8 @@ void Application::renderFrame(AppContext& ctx) {
     gridCmd.cameraDistance = ctx.scene.camera.distance;
     gridCmd.farPlane = ctx.scene.camera.farPlane;
 
-    ctx.renderer->drawGrid(gridCmd);
-    if (!uvWorkspace) drawReferenceImages(ctx, viewProjection, ReferenceDepth::InFront);
+    if (!flat) ctx.renderer->drawGrid(gridCmd);
+    if (!isolated) drawReferenceImages(ctx, viewProjection, ReferenceDepth::InFront);
 
     if (ctx.systems.input_ctx.isActive(InputContext_Debug)) {
         ctx.debug_renderer.render(
@@ -353,7 +357,7 @@ void Application::renderFrame(AppContext& ctx) {
     ui.clear();
 
     // Markers are clipped to the 3D view, so none spill into the top bar or the UV side
-    if (!uvWorkspace) {
+    if (!isolated) {
         ui.pushClip(sceneRect);
         drawReferenceOutlines(ctx, ui, viewProjection, sceneRect);
         drawLightMarkers(ctx, ui, viewProjection, sceneRect);

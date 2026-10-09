@@ -3,6 +3,8 @@
 #include "project/project_file.hpp"
 #include "scene/history.hpp"
 #include "scene/scene.hpp"
+#include "scene/textures/paint_targets.hpp"
+#include "image/image.hpp"
 #include "vlmobj/vlmobj.hpp"
 
 #include <filesystem>
@@ -186,4 +188,58 @@ TEST_CASE(vlmobj_refuses_bad_texture_links) {
     std::memcpy(damaged.data() + entry->offset, &record, sizeof(record));
     vlmobj::File bad;
     CHECK(!bad.open(damaged.data(), damaged.size(), unchecked));
+}
+
+TEST_CASE(paint_targets_list_textures_with_their_materials) {
+    TextureHandle used, unused;
+    MaterialHandle bark;
+    Scene scene = texturedScene(used, unused, bark);
+    const ObjectHandle trunk = scene.objects.handles().front();
+    Object& object = scene.objects.get(trunk);
+    const std::vector<FaceHandle> faces = object.meshData.getFaceHandles();
+
+    // A second material on the same texture, and one with none, each on a face of their own
+    Material knot;
+    knot.name = "Knot";
+    knot.baseColorMap = used;
+    const MaterialHandle knotHandle = scene.materials.add(knot);
+    Material leaf;
+    leaf.name = "Leaf";
+    const MaterialHandle leafHandle = scene.materials.add(leaf);
+    object.meshData.setFaceMaterial(faces[1], knotHandle);
+    object.meshData.setFaceMaterial(faces[2], leafHandle);
+
+    // The texture once with both materials, then the material without a map; the unused texture isn't listed
+    const std::vector<PaintTarget> targets = paintTargets(scene, trunk);
+    CHECK(targets.size() == 2);
+    CHECK(targets[0].texture == used);
+    CHECK(targets[0].materials.size() == 2 && targets[0].materials[0] == bark && targets[0].materials[1] == knotHandle);
+    CHECK(!scene.textures.isValid(targets[1].texture));
+    CHECK(targets[1].materials.size() == 1 && targets[1].materials[0] == leafHandle);
+
+    // Only faces whose material maps the texture take its paint
+    CHECK(facePaints(scene, object, faces[0], used));
+    CHECK(facePaints(scene, object, faces[1], used));
+    CHECK(!facePaints(scene, object, faces[2], used));
+    CHECK(!facePaints(scene, object, faces[0], unused));
+    CHECK(faceDrawMaterial(scene, object, faces[2]) == leafHandle);
+
+    // No object, no targets
+    CHECK(paintTargets(scene, INVALID_OBJECT).empty());
+}
+
+TEST_CASE(solid_pictures_are_one_color) {
+    const std::shared_ptr<const Picture> picture = solidPicture("Leaf.png", 8, 4, Vec3(1.0f, 0.5f, 0.0f));
+    CHECK(picture->fileName == "Leaf.png");
+    CHECK(picture->width == 8 && picture->height == 4);
+
+    image::Image decoded;
+    std::string error;
+    CHECK(image::decodePng(picture->png.data(), picture->png.size(), decoded, error));
+    CHECK(decoded.width == 8 && decoded.height == 4);
+    bool same = decoded.pixels.size() == 8 * 4 * 4;
+    for (std::size_t i = 0; same && i < decoded.pixels.size(); i += 4) {
+        same = decoded.pixels[i] == 255 && decoded.pixels[i + 1] == 128 && decoded.pixels[i + 2] == 0 && decoded.pixels[i + 3] == 255;
+    }
+    CHECK(same);
 }

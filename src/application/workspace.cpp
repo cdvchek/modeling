@@ -14,6 +14,7 @@ const char* workspaceName(Workspace workspace) {
     switch (workspace) {
         case Workspace::Model: return "Model";
         case Workspace::UV: return "UV";
+        case Workspace::Paint: return "Paint";
     }
     return "";
 }
@@ -34,9 +35,9 @@ ScreenLayout screenLayout(const AppContext& ctx) {
 
     if (ctx.workspace.current == Workspace::UV) {
         // The header takes the top of the content; the views share what's below it
-        layout.header = { layout.content.x, layout.content.y, layout.content.width, std::min(UV_HEADER_HEIGHT, layout.content.height) };
+        layout.header = { layout.content.x, layout.content.y, layout.content.width, std::min(WORKSPACE_HEADER_HEIGHT, layout.content.height) };
         // The tools column takes the right edge (narrower when the window is)
-        const f32 toolsWidth = std::min(UV_TOOLS_WIDTH, std::max(0.0f, layout.content.width * 0.3f));
+        const f32 toolsWidth = std::min(TOOLS_WIDTH, std::max(0.0f, layout.content.width * 0.3f));
         const f32 below = layout.content.height - layout.header.height;
         layout.uvTools = { layout.content.right() - toolsWidth, layout.header.bottom(), toolsWidth, below };
         const Rect area { layout.content.x, layout.header.bottom(), layout.content.width - toolsWidth, below };
@@ -49,6 +50,14 @@ ScreenLayout screenLayout(const AppContext& ctx) {
         layout.scene = { area.x, area.y, left, area.height };
         layout.divider = { area.x + left, area.y, DIVIDER_WIDTH, area.height };
         layout.uvEditor = { layout.divider.right(), area.y, area.right() - layout.divider.right(), area.height };
+    } else if (ctx.workspace.current == Workspace::Paint) {
+        // A header, the tools column at the right edge, and one viewport for the rest
+        layout.header = { layout.content.x, layout.content.y, layout.content.width, std::min(WORKSPACE_HEADER_HEIGHT, layout.content.height) };
+        const f32 toolsWidth = std::min(TOOLS_WIDTH, std::max(0.0f, layout.content.width * 0.3f));
+        const f32 below = layout.content.height - layout.header.height;
+        layout.paintTools = { layout.content.right() - toolsWidth, layout.header.bottom(), toolsWidth, below };
+        layout.scene = { layout.content.x, layout.header.bottom(), layout.content.width - toolsWidth, below };
+        if (ctx.workspace.paint2D) layout.paintCanvas = layout.scene;
     }
     return layout;
 }
@@ -74,7 +83,7 @@ bool setWorkspace(AppContext& ctx, Workspace workspace) {
     ctx.workspace.current = workspace;
     ctx.radialMenu.open = false;
 
-    if (workspace == Workspace::UV) {
+    if (workspace != Workspace::Model) {
         Selection& selection = ctx.scene.selection;
         if (!ctx.scene.objects.isValid(selection.getActiveObject()) && ctx.scene.objects.count() > 0) {
             selection.setActiveObject(ctx.scene.objects.handles().front());
@@ -83,10 +92,9 @@ bool setWorkspace(AppContext& ctx, Workspace workspace) {
         selection.clearReferences();
         selection.clearOrigin();
         if (ctx.systems.input_ctx.getSelectionContext() == InputContext_SelectionObject) setSelectionMode(ctx, ctx.lastEditMode);
-    } else {
-        // Island mode is UV's own
-        ctx.workspace.uvIslands = false;
     }
+    // Island mode is UV's own
+    if (workspace != Workspace::UV) ctx.workspace.uvIslands = false;
     return true;
 }
 
@@ -94,9 +102,11 @@ bool actionAllowed(Workspace workspace, Action action) {
     // Framing belongs to UV for now (F is Fill in Model)
     if (workspace == Workspace::Model) {
         return action != Action::FrameSelected && action != Action::FrameAll && action != Action::IslandMode && action != Action::SelectAll
-            && action != Action::UVGrab && action != Action::UVScale && action != Action::UVRotate && action != Action::UVUnwrap;
+            && action != Action::UVGrab && action != Action::UVScale && action != Action::UVRotate && action != Action::UVUnwrap
+            && action != Action::TogglePaintView && action != Action::PickPaintTexture;
     }
 
+    // What every workspace but Model shares: quitting, the console, the camera, undo, files, modal windows, framing
     switch (action) {
         case Action::Quit:
         case Action::ToggleConsole:
@@ -110,13 +120,6 @@ bool actionAllowed(Workspace workspace, Action action) {
         case Action::ViewportOrbit:
         case Action::ViewportPan:
         case Action::ViewportZoom:
-        case Action::VertexMode:
-        case Action::EdgeMode:
-        case Action::FaceMode:
-        case Action::Select:
-        case Action::ToggleSelection:
-        case Action::SelectLoop:
-        case Action::SelectRing:
         case Action::Undo:
         case Action::Redo:
         case Action::SaveProject:
@@ -125,10 +128,28 @@ bool actionAllowed(Workspace workspace, Action action) {
         case Action::NewProject:
         case Action::ModalConfirm:
         case Action::ModalCancel:
-        case Action::ToggleUVChecker:
-        case Action::ToggleMaterials:
         case Action::FrameSelected:
         case Action::FrameAll:
+            return true;
+        default:
+            break;
+    }
+
+    // Paint shows materials always, so only the UV checker toggles; nothing selects yet
+    if (workspace == Workspace::Paint) {
+        return action == Action::TogglePaintView || action == Action::PickPaintTexture || action == Action::ToggleUVChecker;
+    }
+
+    switch (action) {
+        case Action::VertexMode:
+        case Action::EdgeMode:
+        case Action::FaceMode:
+        case Action::Select:
+        case Action::ToggleSelection:
+        case Action::SelectLoop:
+        case Action::SelectRing:
+        case Action::ToggleUVChecker:
+        case Action::ToggleMaterials:
         case Action::IslandMode:
         case Action::SelectAll:
         case Action::UVGrab:

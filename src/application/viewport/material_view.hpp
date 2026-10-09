@@ -42,6 +42,9 @@ private:
 // The plain look of clay view (View > Materials off): the Default gray, back faces tinted
 SurfaceLook claySurface();
 
+// Materials show: View > Materials is on, or the Paint workspace (always)
+bool materialView(const AppContext& ctx);
+
 // How an object's faces draw: its material's look in material view, clay otherwise. Empty when nothing would show,
 // so it isn't drawn at all: blended at opacity 0, or a cutout whose opacity is below its cutoff (a map can only
 // lower it further). Blend at full opacity draws as opaque, which is the same picture for less work.
@@ -51,7 +54,8 @@ std::optional<SurfaceLook> surfaceFor(const AppContext& ctx, const Object& objec
 bool backFacesCulled(const AppContext& ctx, ObjectHandle handle);
 
 // An object's faces split by material for drawing: solid parts draw with the object, see-through ones are sorted
-// with the rest. In clay view there are no parts: every face draws at once in claySurface().
+// with the rest. In clay view there are no parts: every face draws at once in claySurface(). In Paint, faces whose
+// material's base map isn't the texture being painted draw dimmed.
 struct ObjectParts {
     bool whole = false;
     std::vector<DrawPart> solid;

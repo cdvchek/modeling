@@ -43,7 +43,7 @@ namespace {
 
     // The newest version of each chunk this build reads and writes
     constexpr std::array<ChunkVersion, 8> CHUNK_VERSIONS = { {
-        { CHUNK_VIEW, 6 }, { CHUNK_CAMERA, 1 }, { CHUNK_LIGHTS, 1 }, { CHUNK_OBJECT, 7 }, { CHUNK_EXPORT, 1 },
+        { CHUNK_VIEW, 7 }, { CHUNK_CAMERA, 1 }, { CHUNK_LIGHTS, 1 }, { CHUNK_OBJECT, 7 }, { CHUNK_EXPORT, 1 },
         { CHUNK_REFERENCE, 1 }, { CHUNK_MATERIALS, 2 }, { CHUNK_TEXTURE, 1 },
     } };
 
@@ -162,6 +162,11 @@ namespace {
         writer.write(view.uvCenter[1]);
         writer.write(view.uvZoom);
         writeBool(writer, view.uvGrid);
+        // Version 7
+        writeBool(writer, view.paint2D);
+        writer.write(view.paintCenter[0]);
+        writer.write(view.paintCenter[1]);
+        writer.write(view.paintZoom);
         return finish(CHUNK_VIEW, writer);
     }
 
@@ -186,9 +191,11 @@ namespace {
             && (version < 2 || readBool(reader, view.showOrigins))
             && (version < 3 || (reader.read(view.exposure) && readBool(reader, view.showMaterials)))
             && (version < 4 || readBool(reader, view.showUVChecker))
-            && (version < 5 || (reader.read(view.workspace) && view.workspace <= 1 && reader.read(view.uvSplit) && view.uvSplit >= 0.0f && view.uvSplit <= 1.0f))
+            && (version < 5 || (reader.read(view.workspace) && view.workspace <= 2 && reader.read(view.uvSplit) && view.uvSplit >= 0.0f && view.uvSplit <= 1.0f))
             && (version < 6 || (reader.read(view.uvCenter[0]) && reader.read(view.uvCenter[1]) && reader.read(view.uvZoom) && view.uvZoom >= 0.0f
-                                && readBool(reader, view.uvGrid)));
+                                && readBool(reader, view.uvGrid)))
+            && (version < 7 || (readBool(reader, view.paint2D) && reader.read(view.paintCenter[0]) && reader.read(view.paintCenter[1])
+                                && reader.read(view.paintZoom) && view.paintZoom >= 0.0f));
     }
 
     Chunk writeCamera(const Camera& camera) {

@@ -525,6 +525,24 @@ TEST_CASE(project_saves_the_workspace) {
     CHECK(!loadedView.uvGrid);
 }
 
+TEST_CASE(project_saves_the_paint_view) {
+    ProjectFile::View view = sampleView();
+    view.workspace = 2;
+    view.paint2D = true;
+    view.paintCenter[0] = 0.3f;
+    view.paintCenter[1] = 0.6f;
+    view.paintZoom = 900.0f;
+
+    Scene loaded;
+    ProjectFile::View loadedView;
+    std::string error;
+    CHECK(ProjectFile::read(ProjectFile::write(sampleScene(), view), loaded, loadedView, error));
+    CHECK(loadedView.workspace == 2);
+    CHECK(loadedView.paint2D);
+    CHECK(loadedView.paintCenter[0] == 0.3f && loadedView.paintCenter[1] == 0.6f);
+    CHECK(loadedView.paintZoom == 900.0f);
+}
+
 TEST_CASE(project_saves_materials_and_which_objects_use_them) {
     Scene scene = sampleScene();
     scene.materials.get(scene.materials.defaultMaterial()).roughness = 0.9f;

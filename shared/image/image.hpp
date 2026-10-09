@@ -29,6 +29,9 @@ namespace image {
     // True if the bytes start with the PNG signature
     bool isPng(const u8* data, std::size_t size);
 
+    // A PNG of the image: 8-bit RGBA, not interlaced. Stored without compression for now (every PNG reader opens it).
+    std::vector<u8> encodePng(const Image& image);
+
     // zlib-wrapped DEFLATE (RFC 1950/1951): stored, fixed, and dynamic Huffman blocks, with the Adler-32 check.
     // The output is allocated once at maxSize; output past it fails.
     bool inflateZlib(const u8* data, std::size_t size, std::vector<u8>& out, std::string& error, std::size_t maxSize);

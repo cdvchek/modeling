@@ -14,7 +14,8 @@
 enum class ModalKind : u8 {
     None,
     Prompt,
-    Export
+    Export,
+    NewTexture
 };
 
 // A question with a row of buttons. The answer is handled in checkActions on the next frame, not while drawing.
@@ -48,8 +49,20 @@ struct ExportWindowState {
     bool closeRequested = false;
 };
 
+// New texture for a material: its size, as indices into 256, 512, 1024, 2048
+struct NewTextureState {
+    MaterialHandle material = INVALID_MATERIAL;
+    i32 width = 2;
+    i32 height = 2;
+
+    // Set by clicks while drawing, acted on next frame
+    bool createRequested = false;
+    bool closeRequested = false;
+};
+
 struct ModalState {
     ModalKind kind = ModalKind::None;
     PromptState prompt;
     ExportWindowState exportWindow;
+    NewTextureState newTexture;
 };

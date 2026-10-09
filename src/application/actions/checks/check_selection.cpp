@@ -152,7 +152,7 @@ void checkSelectionContext(AppContext& ctx) {
         // mesh elements by which is in front
         const Mat4 viewProjection = sceneViewProjection(ctx);
         // The UV workspace shows only its one object, so markers, images, and other objects can't be clicked there
-        const bool uvWorkspace = ctx.workspace.current == Workspace::UV;
+        const bool uvWorkspace = ctx.workspace.current != Workspace::Model;
         const OriginHit originHit = ctx.viewport.showOrigins && !uvWorkspace
             ? pickOrigin(ctx.scene, viewProjection, viewMouseX, viewMouseY, view.width, view.height, ORIGIN_MARKER_PICK_RADIUS)
             : OriginHit {};

@@ -76,7 +76,7 @@ struct AppContext {
     MaterialPreviewCache materialPreviews;   // material swatch textures
     ProjectState project;     // the open file, unsaved changes, and the export folder
     ModalState modal;         // the open modal window (prompt or Export window), if any
-    WorkspaceState workspace; // the current workspace (Model or UV) and the UV workspace's split
+    WorkspaceState workspace; // the current workspace (Model, UV, or Paint), the UV split and editor view, Paint's view and texture
     RadialMenuState radialMenu;
     ConsoleViewState consoleView; // console scroll and clickable rows
     u32 lastEditMode;         // where Tab returns to from object mode

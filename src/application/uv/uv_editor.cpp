@@ -1,5 +1,6 @@
 #include "application/uv/uv_editor.hpp"
 #include "application/viewport/material_view.hpp"
+#include "application/paint/paint_workspace.hpp"
 #include "scene/selection/mesh_selection.hpp"
 #include "core/math/vec4.hpp"
 #include "ui/ui_style.hpp"
@@ -76,7 +77,7 @@ namespace {
                 const std::vector<VertexHandle> vertices = mesh.getFaceVertices(face);
                 const std::vector<Vec2> uvs = mesh.getFaceUVs(face);
                 for (std::size_t i = 0; i < vertices.size() && i < uvs.size(); ++i) {
-                    const f32 distance = (uvToScreen(workspace, area, uvs[i]) - mouse).length();
+                    const f32 distance = (uvToScreen(workspace.uvView, area, uvs[i]) - mouse).length();
                     if (distance < bestDistance) {
                         bestDistance = distance;
                         best = vertices[i];
@@ -94,8 +95,8 @@ namespace {
                 const std::vector<EdgeHandle> edges = mesh.getLoopEdges(mesh.getFace(face)->edge);
                 const std::vector<Vec2> uvs = mesh.getFaceUVs(face);
                 for (std::size_t i = 0; i < edges.size() && i < uvs.size(); ++i) {
-                    const Vec2 from = uvToScreen(workspace, area, uvs[(i + uvs.size() - 1) % uvs.size()]);
-                    const Vec2 to = uvToScreen(workspace, area, uvs[i]);
+                    const Vec2 from = uvToScreen(workspace.uvView, area, uvs[(i + uvs.size() - 1) % uvs.size()]);
+                    const Vec2 to = uvToScreen(workspace.uvView, area, uvs[i]);
                     const f32 distance = distanceToSegment(mouse, from, to);
                     if (distance < bestDistance) {
                         bestDistance = distance;
@@ -108,7 +109,7 @@ namespace {
             else selectEdge(selection, handle, mesh, best);
         } else if (mode == InputContext_SelectionFace) {
             // The last face drawn there is the one on top
-            const Vec2 point = screenToUV(workspace, area, mouse);
+            const Vec2 point = screenToUV(workspace.uvView, area, mouse);
             FaceHandle hit = INVALID_FACE;
             for (FaceHandle face : mesh.getFaceHandles()) {
                 if (insideUVs(mesh.getFaceUVs(face), point)) hit = face;
@@ -163,72 +164,106 @@ namespace {
         return true;
     }
 
-    void fitUVs(WorkspaceState& workspace, const Rect& area, Vec2 low, Vec2 high) {
-        const f32 width = std::max(high.x - low.x, MIN_FRAME_SIZE);
-        const f32 height = std::max(high.y - low.y, MIN_FRAME_SIZE);
-        workspace.uvCenter = (low + high) * 0.5f;
-        workspace.uvZoom = std::clamp(std::min(area.width / width, area.height / height) * FRAME_MARGIN, MIN_ZOOM, MAX_ZOOM);
-    }
-
     // Grid lines across the visible part of the editor, every step in UV units; whole units stronger
-    void drawGrid(UIDrawList& list, const WorkspaceState& workspace, const Rect& area) {
-        if (workspace.uvZoom * GRID_STEP < MIN_GRID_SPACING) return;
-        const Vec2 topLeft = screenToUV(workspace, area, Vec2(area.x, area.y));
-        const Vec2 bottomRight = screenToUV(workspace, area, Vec2(area.right(), area.bottom()));
+    void drawGrid(UIDrawList& list, const UVView& view, const Rect& area) {
+        if (view.zoom * GRID_STEP < MIN_GRID_SPACING) return;
+        const Vec2 topLeft = screenToUV(view, area, Vec2(area.x, area.y));
+        const Vec2 bottomRight = screenToUV(view, area, Vec2(area.right(), area.bottom()));
 
         for (f32 u = std::floor(topLeft.x / GRID_STEP) * GRID_STEP; u <= bottomRight.x; u += GRID_STEP) {
-            const f32 x = uvToScreen(workspace, area, Vec2(u, 0.0f)).x;
+            const f32 x = uvToScreen(view, area, Vec2(u, 0.0f)).x;
             const bool unit = std::fabs(u - std::round(u)) < 1e-4f;
             list.rect({ std::floor(x), area.y, 1.0f, area.height }, unit ? UNIT_LINE : GRID_LINE);
         }
         for (f32 v = std::floor(topLeft.y / GRID_STEP) * GRID_STEP; v <= bottomRight.y; v += GRID_STEP) {
-            const f32 y = uvToScreen(workspace, area, Vec2(0.0f, v)).y;
+            const f32 y = uvToScreen(view, area, Vec2(0.0f, v)).y;
             const bool unit = std::fabs(v - std::round(v)) < 1e-4f;
             list.rect({ area.x, std::floor(y), area.width, 1.0f }, unit ? UNIT_LINE : GRID_LINE);
         }
     }
 }
 
-Vec2 uvToScreen(const WorkspaceState& workspace, const Rect& area, Vec2 uv) {
-    return area.center() + (uv - workspace.uvCenter) * workspace.uvZoom;
+void drawTextureSquare(UIDrawList& list, const UVView& view, const Rect& area, u32 texture, bool grid) {
+    list.rect(area, EDITOR_BACKGROUND);
+
+    // The texture itself: the 0 to 1 square, with the picture or a checker
+    const Vec2 squareTopLeft = uvToScreen(view, area, Vec2(0.0f, 0.0f));
+    const Vec2 squareBottomRight = uvToScreen(view, area, Vec2(1.0f, 1.0f));
+    const Rect square { squareTopLeft.x, squareTopLeft.y, squareBottomRight.x - squareTopLeft.x, squareBottomRight.y - squareTopLeft.y };
+    if (texture != 0) {
+        list.image(square, texture);
+    } else {
+        const f32 cell = square.width / CHECKER_CELLS;
+        for (u32 y = 0; y < CHECKER_CELLS; ++y) {
+            for (u32 x = 0; x < CHECKER_CELLS; ++x) {
+                list.rect({ square.x + x * cell, square.y + y * cell, cell + 0.5f, cell + 0.5f }, (x + y) % 2 == 0 ? CHECKER_LIGHT : CHECKER_DARK);
+            }
+        }
+    }
+
+    if (grid) drawGrid(list, view, area);
+
+    // Its edge, so the texture's bounds stay clear over any picture
+    list.rect({ square.x, square.y, square.width, 1.0f }, SQUARE_BORDER);
+    list.rect({ square.x, square.bottom() - 1.0f, square.width, 1.0f }, SQUARE_BORDER);
+    list.rect({ square.x, square.y, 1.0f, square.height }, SQUARE_BORDER);
+    list.rect({ square.right() - 1.0f, square.y, 1.0f, square.height }, SQUARE_BORDER);
 }
 
-Vec2 screenToUV(const WorkspaceState& workspace, const Rect& area, Vec2 screen) {
-    return workspace.uvCenter + (screen - area.center()) / std::max(workspace.uvZoom, MIN_ZOOM);
+Vec2 uvToScreen(const UVView& view, const Rect& area, Vec2 uv) {
+    return area.center() + (uv - view.center) * view.zoom;
 }
 
-void updateUVEditor(AppContext& ctx) {
-    WorkspaceState& workspace = ctx.workspace;
+Vec2 screenToUV(const UVView& view, const Rect& area, Vec2 screen) {
+    return view.center + (screen - area.center()) / std::max(view.zoom, MIN_ZOOM);
+}
+
+bool navigateUVView(AppContext& ctx, UVView& view, const Rect& area) {
     const InputState& input = ctx.systems.input;
-    const Rect area = screenLayout(ctx).uvEditor;
     const Vec2 mouse(static_cast<f32>(input.getMouseX()), static_cast<f32>(input.getMouseY()));
 
-    // Only while nothing else owns the mouse: no open list from the header, console, or modal window
+    // Only while nothing else owns the mouse: no open list from a header, console, or modal window
     const ContextManager& contexts = ctx.systems.input_ctx;
     const bool free = !ctx.ui.popupOpen() && !contexts.isActive(InputContext_Console) && !contexts.isActive(InputContext_Modal);
     const bool over = free && area.contains(mouse);
 
-    // A drag started over the editor keeps going wherever the mouse goes
+    // A drag started over the view keeps going wherever the mouse goes
     const u16 middle = static_cast<u16>(MouseButton::Middle);
     const u16 right = static_cast<u16>(MouseButton::Right);
-    if (over && (input.wasMousePressedThisFrame(middle) || input.wasMousePressedThisFrame(right))) workspace.uvPanning = true;
-    if (!input.isMouseDown(middle) && !input.isMouseDown(right)) workspace.uvPanning = false;
-    if (workspace.uvPanning && workspace.uvZoom > 0.0f) {
-        workspace.uvCenter = workspace.uvCenter - Vec2(static_cast<f32>(input.getMouseDeltaX()), static_cast<f32>(input.getMouseDeltaY())) / workspace.uvZoom;
-    }
-
-    // A left click picks in the current mode
-    if (over && input.wasMousePressedThisFrame(static_cast<u16>(MouseButton::Left)) && workspace.uvZoom > 0.0f) {
-        const bool toggling = ctx.systems.actions.isActionDown(Action::ToggleSelection, input, contexts.getContext());
-        clickUVs(ctx, area, mouse, toggling);
+    if (over && (input.wasMousePressedThisFrame(middle) || input.wasMousePressedThisFrame(right))) view.panning = true;
+    if (!input.isMouseDown(middle) && !input.isMouseDown(right)) view.panning = false;
+    if (view.panning && view.zoom > 0.0f) {
+        view.center = view.center - Vec2(static_cast<f32>(input.getMouseDeltaX()), static_cast<f32>(input.getMouseDeltaY())) / view.zoom;
     }
 
     // Zooming keeps the UV under the cursor where it is
     const i32 scroll = input.getScroll();
-    if (over && scroll != 0 && workspace.uvZoom > 0.0f) {
-        const Vec2 under = screenToUV(workspace, area, mouse);
-        workspace.uvZoom = std::clamp(workspace.uvZoom * std::pow(ZOOM_STEP, static_cast<f32>(scroll) / WHEEL_NOTCH), MIN_ZOOM, MAX_ZOOM);
-        workspace.uvCenter = under - (mouse - area.center()) / workspace.uvZoom;
+    if (over && scroll != 0 && view.zoom > 0.0f) {
+        const Vec2 under = screenToUV(view, area, mouse);
+        view.zoom = std::clamp(view.zoom * std::pow(ZOOM_STEP, static_cast<f32>(scroll) / WHEEL_NOTCH), MIN_ZOOM, MAX_ZOOM);
+        view.center = under - (mouse - area.center()) / view.zoom;
+    }
+    return over;
+}
+
+void fitUVView(UVView& view, const Rect& area, Vec2 low, Vec2 high) {
+    const f32 width = std::max(high.x - low.x, MIN_FRAME_SIZE);
+    const f32 height = std::max(high.y - low.y, MIN_FRAME_SIZE);
+    view.center = (low + high) * 0.5f;
+    view.zoom = std::clamp(std::min(area.width / width, area.height / height) * FRAME_MARGIN, MIN_ZOOM, MAX_ZOOM);
+}
+
+void updateUVEditor(AppContext& ctx) {
+    UVView& view = ctx.workspace.uvView;
+    const Rect area = screenLayout(ctx).uvEditor;
+    const bool over = navigateUVView(ctx, view, area);
+
+    // A left click picks in the current mode
+    const InputState& input = ctx.systems.input;
+    if (over && input.wasMousePressedThisFrame(static_cast<u16>(MouseButton::Left)) && view.zoom > 0.0f) {
+        const Vec2 mouse(static_cast<f32>(input.getMouseX()), static_cast<f32>(input.getMouseY()));
+        const bool toggling = ctx.systems.actions.isActionDown(Action::ToggleSelection, input, ctx.systems.input_ctx.getContext());
+        clickUVs(ctx, area, mouse, toggling);
     }
 }
 
@@ -255,35 +290,11 @@ u32 uvBackgroundTexture(const AppContext& ctx) {
 
 void drawUVEditor(AppContext& ctx, const Rect& area) {
     WorkspaceState& workspace = ctx.workspace;
-    if (workspace.uvZoom <= 0.0f) frameUVs(ctx, true);
-    if (workspace.uvZoom <= 0.0f) workspace.uvZoom = std::max(MIN_ZOOM, std::min(area.width, area.height) * FRAME_MARGIN);
+    if (workspace.uvView.zoom <= 0.0f) frameUVs(ctx, true);
+    if (workspace.uvView.zoom <= 0.0f) workspace.uvView.zoom = std::max(MIN_ZOOM, std::min(area.width, area.height) * FRAME_MARGIN);
 
     UIDrawList& list = ctx.ui.drawList();
-    list.rect(area, EDITOR_BACKGROUND);
-
-    // The texture itself: the 0 to 1 square, with the picture or a checker
-    const Vec2 squareTopLeft = uvToScreen(workspace, area, Vec2(0.0f, 0.0f));
-    const Vec2 squareBottomRight = uvToScreen(workspace, area, Vec2(1.0f, 1.0f));
-    const Rect square { squareTopLeft.x, squareTopLeft.y, squareBottomRight.x - squareTopLeft.x, squareBottomRight.y - squareTopLeft.y };
-    const u32 background = uvBackgroundTexture(ctx);
-    if (background != 0) {
-        list.image(square, background);
-    } else {
-        const f32 cell = square.width / CHECKER_CELLS;
-        for (u32 y = 0; y < CHECKER_CELLS; ++y) {
-            for (u32 x = 0; x < CHECKER_CELLS; ++x) {
-                list.rect({ square.x + x * cell, square.y + y * cell, cell + 0.5f, cell + 0.5f }, (x + y) % 2 == 0 ? CHECKER_LIGHT : CHECKER_DARK);
-            }
-        }
-    }
-
-    if (workspace.uvGrid) drawGrid(list, workspace, area);
-
-    // Its edge, so the texture's bounds stay clear over any picture
-    list.rect({ square.x, square.y, square.width, 1.0f }, SQUARE_BORDER);
-    list.rect({ square.x, square.bottom() - 1.0f, square.width, 1.0f }, SQUARE_BORDER);
-    list.rect({ square.x, square.y, 1.0f, square.height }, SQUARE_BORDER);
-    list.rect({ square.right() - 1.0f, square.y, 1.0f, square.height }, SQUARE_BORDER);
+    drawTextureSquare(list, workspace.uvView, area, uvBackgroundTexture(ctx), workspace.uvGrid);
 
     const ObjectHandle handle = uvObject(ctx);
     const Object* object = ctx.scene.objects.tryGet(handle);
@@ -302,8 +313,8 @@ void drawUVEditor(AppContext& ctx, const Rect& area) {
                 return Vec2();
             };
             for (const Triangle& triangle : mesh.getFaceTriangles(face)) {
-                list.triangle(uvToScreen(workspace, area, uvOf(triangle.v0)), uvToScreen(workspace, area, uvOf(triangle.v1)),
-                              uvToScreen(workspace, area, uvOf(triangle.v2)), SELECTED_FILL);
+                list.triangle(uvToScreen(workspace.uvView, area, uvOf(triangle.v0)), uvToScreen(workspace.uvView, area, uvOf(triangle.v1)),
+                              uvToScreen(workspace.uvView, area, uvOf(triangle.v2)), SELECTED_FILL);
             }
         }
     }
@@ -319,8 +330,8 @@ void drawUVEditor(AppContext& ctx, const Rect& area) {
 
         for (std::size_t i = 0; i < uvs.size(); ++i) {
             const std::size_t previous = (i + uvs.size() - 1) % uvs.size();
-            const Vec2 from = uvToScreen(workspace, area, uvs[previous]);
-            const Vec2 to = uvToScreen(workspace, area, uvs[i]);
+            const Vec2 from = uvToScreen(workspace.uvView, area, uvs[previous]);
+            const Vec2 to = uvToScreen(workspace.uvView, area, uvs[i]);
 
             bool selected = faceSelected;
             if (mode == InputContext_SelectionVertex && i < vertices.size()) {
@@ -338,7 +349,7 @@ void drawUVEditor(AppContext& ctx, const Rect& area) {
 
     // Scaling and rotating measure from the pivot: a line from it to the mouse
     if (ctx.uvTool.active() && ctx.uvTool.kind != UVToolKind::Grab) {
-        const Vec2 pivot = uvToScreen(workspace, area, ctx.uvTool.pivot);
+        const Vec2 pivot = uvToScreen(workspace.uvView, area, ctx.uvTool.pivot);
         const Vec2 mouse(static_cast<f32>(ctx.systems.input.getMouseX()), static_cast<f32>(ctx.systems.input.getMouseY()));
         list.line(pivot, mouse, 1.0f, GUIDE);
         list.roundedRect({ pivot.x - 3.0f, pivot.y - 3.0f, 6.0f, 6.0f }, 3.0f, GUIDE);
@@ -352,7 +363,7 @@ void drawUVEditor(AppContext& ctx, const Rect& area) {
             for (std::size_t i = 0; i < vertices.size() && i < uvs.size(); ++i) {
                 const bool selected = selection.hasVertex(handle, vertices[i]);
                 const f32 size = selected ? SELECTED_POINT_SIZE : POINT_SIZE;
-                const Vec2 at = uvToScreen(workspace, area, uvs[i]);
+                const Vec2 at = uvToScreen(workspace.uvView, area, uvs[i]);
                 list.roundedRect({ at.x - size * 0.5f, at.y - size * 0.5f, size, size }, size * 0.5f, selected ? SELECTED : POINT);
             }
         }
@@ -374,7 +385,7 @@ void frameUVs(AppContext& ctx, bool all) {
     const Rect area = screenLayout(ctx).uvEditor;
     Vec2 low, high;
     if (area.width <= 0.0f || area.height <= 0.0f || !uvBounds(ctx, all, low, high)) return;
-    fitUVs(ctx.workspace, area, low, high);
+    fitUVView(ctx.workspace.uvView, area, low, high);
 }
 
 void frameScene(AppContext& ctx, bool all) {
@@ -418,6 +429,12 @@ void frameScene(AppContext& ctx, bool all) {
 }
 
 void frameView(AppContext& ctx, bool all) {
+    // Paint has one view: the flat texture, or the whole model
+    if (ctx.workspace.current == Workspace::Paint) {
+        if (ctx.workspace.paint2D) framePaintCanvas(ctx, all);
+        else frameScene(ctx, true);
+        return;
+    }
     const Vec2 mouse(static_cast<f32>(ctx.systems.input.getMouseX()), static_cast<f32>(ctx.systems.input.getMouseY()));
     if (screenLayout(ctx).uvEditor.contains(mouse)) frameUVs(ctx, all);
     else frameScene(ctx, all);

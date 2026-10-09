@@ -265,6 +265,19 @@ namespace DefaultKeybinds {
         }
     };
 
+    inline Keybind TogglePaintView {
+        {
+            key(Key::Tab)
+        }
+    };
+
+    inline Keybind PickPaintTexture {
+        {
+            mouse(MouseButton::Left),
+            key(Key::LeftAlt)
+        }
+    };
+
     inline Keybind SelectAll {
         {
             key(Key::LeftCtrl),

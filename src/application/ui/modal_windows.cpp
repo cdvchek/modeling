@@ -1,5 +1,6 @@
 #include "application/ui/modal_windows.hpp"
 #include "application/actions/asset_actions.hpp"
+#include "application/paint/paint_workspace.hpp"
 #include "ui/ui_style.hpp"
 
 #include <algorithm>
@@ -77,6 +78,7 @@ void closeModal(AppContext& ctx) {
 void confirmModal(AppContext& ctx) {
     if (ctx.modal.kind == ModalKind::Prompt) ctx.modal.prompt.chosen = ctx.modal.prompt.confirmButton;
     else if (ctx.modal.kind == ModalKind::Export) confirmExportWindow(ctx);
+    else if (ctx.modal.kind == ModalKind::NewTexture) confirmNewTextureWindow(ctx);
 }
 
 void cancelModal(AppContext& ctx) {
@@ -84,17 +86,24 @@ void cancelModal(AppContext& ctx) {
         if (ctx.modal.prompt.cancelButton >= 0) ctx.modal.prompt.chosen = ctx.modal.prompt.cancelButton;
     } else if (ctx.modal.kind == ModalKind::Export) {
         closeModal(ctx);
+    } else if (ctx.modal.kind == ModalKind::NewTexture) {
+        ctx.modal.newTexture.closeRequested = true;
     }
 }
 
 void drawModal(AppContext& ctx, const Rect& viewport) {
     if (ctx.modal.kind == ModalKind::Prompt) drawPrompt(ctx, viewport);
     else if (ctx.modal.kind == ModalKind::Export) drawExportWindow(ctx, viewport);
+    else if (ctx.modal.kind == ModalKind::NewTexture) drawNewTextureWindow(ctx, viewport);
 }
 
 void updateModal(AppContext& ctx) {
     if (ctx.modal.kind == ModalKind::Export) {
         updateExportWindow(ctx);
+        return;
+    }
+    if (ctx.modal.kind == ModalKind::NewTexture) {
+        updateNewTextureWindow(ctx);
         return;
     }
 

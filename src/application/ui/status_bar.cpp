@@ -118,12 +118,15 @@ void drawStatusBar(const AppContext& ctx, UIDrawList& ui, f32 width, f32 height)
     ui.rect({ 0.0f, top, width, 1.0f }, BORDER_COLOR);
 
     const ContextManager& contexts = ctx.systems.input_ctx;
-    const std::vector<StatusItem> items = {
-        fpsItem(ctx.frameTimer.getFps()),
-        { { { ctx.workspace.uvIslands ? MODE_NAMES[4].data() : selectionModeName(contexts), TEXT_COLOR } }, longest(MODE_NAMES) },
-        { { { ctx.uvTool.active() ? uvToolName(ctx.uvTool.kind) : activeToolName(contexts), TEXT_COLOR } }, longest(TOOL_NAMES) },
-        ctx.uvTool.active() ? uvAxisItem(ctx.uvTool) : axisLockItem(contexts),
-    };
+    std::vector<StatusItem> items = { fpsItem(ctx.frameTimer.getFps()) };
+    if (ctx.workspace.current == Workspace::Paint) {
+        // Painting has no modes or tools yet: just which view shows
+        items.push_back({ { { ctx.workspace.paint2D ? "2D" : "3D", TEXT_COLOR } }, 2 });
+    } else {
+        items.push_back({ { { ctx.workspace.uvIslands ? MODE_NAMES[4].data() : selectionModeName(contexts), TEXT_COLOR } }, longest(MODE_NAMES) });
+        items.push_back({ { { ctx.uvTool.active() ? uvToolName(ctx.uvTool.kind) : activeToolName(contexts), TEXT_COLOR } }, longest(TOOL_NAMES) });
+        items.push_back(ctx.uvTool.active() ? uvAxisItem(ctx.uvTool) : axisLockItem(contexts));
+    }
 
     // Left to right, with a divider between items
     f32 x = PADDING_X;

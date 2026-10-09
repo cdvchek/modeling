@@ -53,6 +53,7 @@ set(CORE_SRC
     src/scene/references/reference_collection.cpp
     src/scene/materials/material_collection.cpp
     src/scene/textures/texture_collection.cpp
+    src/scene/textures/paint_targets.cpp
     src/scene/objects/object_collection.cpp
     src/scene/objects/origin.cpp
     src/scene/selection/selection.cpp
@@ -110,6 +111,7 @@ set(APP_SRC
     src/application/uv/uv_editor.cpp
     src/application/uv/uv_tools.cpp
     src/application/uv/uv_operations.cpp
+    src/application/paint/paint_workspace.cpp
     src/application/ui/top_bar.cpp
     src/platform/keys/keys_win32.cpp
     src/platform/renderer/opengl_renderer_win32.cpp
@@ -136,7 +138,7 @@ add_library(vlmobj STATIC shared/vlmobj/vlmobj.cpp)
 target_include_directories(vlmobj PUBLIC ${CMAKE_SOURCE_DIR}/shared)
 
 # Image files (PNG), shared the same way
-add_library(image STATIC shared/image/png.cpp shared/image/inflate.cpp)
+add_library(image STATIC shared/image/png.cpp shared/image/png_write.cpp shared/image/inflate.cpp)
 target_include_directories(image PUBLIC ${CMAKE_SOURCE_DIR}/shared)
 
 add_library(modeling_core STATIC ${CORE_SRC})

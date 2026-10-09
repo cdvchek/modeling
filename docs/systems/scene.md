@@ -183,6 +183,15 @@ A material's `baseColorMap` that isn't valid (none set, or its texture removed) 
 | `uniqueName(base)` | `base`, or `base N` with the lowest free N. |
 | `findSamePicture(picture)` | A texture whose PNG is byte for byte the same (import reuses it). |
 
+[paint_targets.hpp](../../src/scene/textures/paint_targets.hpp): what an object can be painted into.
+
+| Function | Description |
+|---|---|
+| `paintTargets(scene, object)` | One `PaintTarget` per texture the object's faces draw with as a base map (`texture`, and the `materials` using it), in the order their first faces come, then one per material without a valid map (`texture` invalid). Only materials some face uses count. |
+| `faceDrawMaterial(scene, object, face)` | The face's own material, else the object's, resolved (Default when neither is valid). |
+| `facePaints(scene, object, face, texture)` | The face's material's base map is that (valid) texture. |
+| `solidPicture(fileName, width, height, color)` | A `Picture` of one opaque sRGB color, encoded with `image::encodePng`. |
+
 ## Reference images
 
 [reference_image.hpp](../../src/scene/references/reference_image.hpp), [reference_collection.hpp](../../src/scene/references/reference_collection.hpp)
