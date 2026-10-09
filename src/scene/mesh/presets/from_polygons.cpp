@@ -10,7 +10,8 @@ namespace {
 }
 
 PackagedMesh MeshFactory::fromPolygons(const std::vector<Vec3>& positions, const std::vector<std::vector<u32>>& faces,
-                                       const std::vector<std::vector<Vec2>>& faceUVs, const std::vector<std::vector<EdgeMark>>& faceMarks) {
+                                       const std::vector<std::vector<Vec2>>& faceUVs, const std::vector<std::vector<EdgeMark>>& faceMarks,
+                                       const std::vector<std::vector<bool>>& faceSeams) {
     PackagedMesh mesh;
 
     // 1. Vertices
@@ -31,6 +32,7 @@ PackagedMesh MeshFactory::fromPolygons(const std::vector<Vec3>& positions, const
         assert(sides >= 3);
         const bool hasUVs = f < faceUVs.size() && faceUVs[f].size() == sides;
         const bool hasMarks = f < faceMarks.size() && faceMarks[f].size() == sides;
+        const bool hasSeams = f < faceSeams.size() && faceSeams[f].size() == sides;
 
         const FaceHandle face = mesh.faces.insert({});
         std::vector<EdgeHandle> loop(sides);
@@ -45,6 +47,7 @@ PackagedMesh MeshFactory::fromPolygons(const std::vector<Vec3>& positions, const
             // A half-edge holds the UV of the corner it points to
             if (hasUVs) edge.uv = faceUVs[f][(i + 1) % sides];
             if (hasMarks) edge.mark = faceMarks[f][(i + 1) % sides];
+            if (hasSeams) edge.seam = faceSeams[f][(i + 1) % sides];
 
             loop[i] = mesh.edges.insert(edge);
 
@@ -87,6 +90,7 @@ PackagedMesh MeshFactory::fromPolygons(const std::vector<Vec3>& positions, const
         border.face = INVALID_FACE;
         border.pair = handle;
         border.mark = mesh.edges.get(handle).mark;
+        border.seam = mesh.edges.get(handle).seam;
 
         const EdgeHandle borderHandle = mesh.edges.insert(border);
         mesh.edges.get(handle).pair = borderHandle;

@@ -54,6 +54,7 @@ bool OpenGLMesh::create(const MeshData& mesh, const FaceGroupOf& groupOf, u64 gr
     createSet(m_vertexSet, m_vbo, false);
     createSet(m_edgeSet, m_vbo, false);
     createSet(m_hardEdgeSet, m_vbo, false);
+    createSet(m_seamEdgeSet, m_vbo, false);
     createSet(m_faceSet, m_faceVbo, true);
 
     m_initialized = true;
@@ -200,7 +201,7 @@ void OpenGLMesh::upload(const MeshData& mesh, const FaceGroupOf& groupOf, u64 gr
     m_fIndCount = static_cast<u32>(faceData.indices.size());
 
     // The element maps changed, so every selection set is rebuilt on its next draw
-    m_vertexSet.built = m_edgeSet.built = m_hardEdgeSet.built = m_faceSet.built = false;
+    m_vertexSet.built = m_edgeSet.built = m_hardEdgeSet.built = m_seamEdgeSet.built = m_faceSet.built = false;
 
     // Element buffers bind to the VAO, so bind the VAO before uploading each one
     glBindVertexArray(m_vao);
@@ -276,6 +277,10 @@ void OpenGLMesh::drawHardEdgeSet(const std::vector<EdgeHandle>& edges) {
     drawEdgesIn(m_hardEdgeSet, edges);
 }
 
+void OpenGLMesh::drawSeamEdgeSet(const std::vector<EdgeHandle>& edges) {
+    drawEdgesIn(m_seamEdgeSet, edges);
+}
+
 void OpenGLMesh::drawEdgesIn(ElementSet& set, const std::vector<EdgeHandle>& edges) {
     if (m_vao == 0) return;
 
@@ -316,6 +321,7 @@ void OpenGLMesh::destroy() {
     destroySet(m_vertexSet);
     destroySet(m_edgeSet);
     destroySet(m_hardEdgeSet);
+    destroySet(m_seamEdgeSet);
     destroySet(m_faceSet);
 
     if (m_edgeEbo != 0) glDeleteBuffers(1, &m_edgeEbo);

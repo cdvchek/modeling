@@ -60,6 +60,7 @@ struct DrawCommand {
     std::vector<DrawPart> parts;   // faces by material: firstIndex, indexCount, surface (one FaceGroup each)
     bool outlineAll;      // object mode: every edge in the selection style, one draw per pass
     std::vector<EdgeHandle> hardEdges;   // edit mode: edges that shade hard (MeshData::getHardEdges)
+    std::vector<EdgeHandle> seamEdges;   // UV workspace: UV seams
 };
 
 struct SurfaceLook {      // a material's values, colors sRGB
@@ -139,7 +140,7 @@ Everything between `beginMainPass` and `endMainPass` is drawn into an offscreen 
    **UV checker** (`LightingState::uvChecker`, set from `ctx.viewport.showUVChecker`): the base color is replaced by a colored grid read from the face's UVs (`v_UV`, attribute 2): 8 × 8 cells, hue by column and darker by row so each cell is unique, alternate cells lighter, thin lines between cells (`fwidth`, so they stay one pixel wide). Stretched or flipped cells show bad UVs at a glance. It's sent in `u_CameraPosition.w`. It replaces the map's color too (not its alpha).
 
    Point and spot lighting varies across a face because it depends on each pixel's world position (`v_WorldPosition` from `lit.vert`). Normals come from the face buffer, transformed by `transpose(inverse(model))`.
-2. Highlighted edges (one draw per pass with `drawEdgeSet`, or the whole wireframe with `outlineAll`): two translucent purple glow bands (9 px and 5 px, no depth writes) under a crisp 2.5 px purple line. Then hard edges (`hardEdges`, smooth-shaded meshes in edit mode) in Dracula cyan, 2.5 px, with `drawHardEdgeSet`, under the selection (the depth test keeps the line drawn first). Then all edges in dark gray, 2 px. Selected faces' boundary edges are added to the highlighted edges by `renderFrame`, so selected faces get the same outline.
+2. Highlighted edges (one draw per pass with `drawEdgeSet`, or the whole wireframe with `outlineAll`): two translucent purple glow bands (9 px and 5 px, no depth writes) under a crisp 2.5 px purple line. Then hard edges (`hardEdges`, smooth-shaded meshes in edit mode) in Dracula cyan, 2.5 px, with `drawHardEdgeSet`, then UV seams (`seamEdges`) in Dracula green the same way with `drawSeamEdgeSet`, under the selection (the depth test keeps the line drawn first). Then all edges in dark gray, 2 px. Selected faces' boundary edges are added to the highlighted edges by `renderFrame`, so selected faces get the same outline.
 3. Highlighted vertices, layered like a light marker: a 22 px soft purple glow, an 11 px dark disc, then an 8 px purple disc (only the last writes depth). Then all vertices as 7 px near-black discs. Points use a small depth bias (`u_DepthBias`) so they draw over the edges meeting at them.
 
 Blending is on for edges and vertices; selection colors match the light markers (`light_markers.cpp`).
@@ -213,7 +214,7 @@ Tunables:
 | `drawVertices()` / `drawEdges()` / `drawFaces()` | Draw everything. |
 | `faceGroups()` / `drawFaceRange(first, count)` | The faces' runs, one per material, and one run's draw. |
 | `matches(meshData, groupingStamp)` | Whether the copy was built from this layout and grouping (moved positions aside); `ObjectMeshCache::sync` rebuilds when it isn't. |
-| `drawHardEdgeSet(handles)` | Like `drawEdgeSet`, in a set of its own so the selection and the hard edges don't upload over each other every frame. |
+| `drawHardEdgeSet(handles)` / `drawSeamEdgeSet(handles)` | Like `drawEdgeSet`, each in a set of its own so the selection and the hard edges don't upload over each other every frame. |
 | `drawVertexSet(handles)` / `drawEdgeSet(handles)` / `drawFaceSet(handles)` | A selection in one draw call: the set's indices (from the export's index maps) go into its own index buffer, uploaded again only when the set's handles (or the mesh) change, so drawing the same selection every frame costs one call. |
 | `destroy()` | Free GL objects. |
 

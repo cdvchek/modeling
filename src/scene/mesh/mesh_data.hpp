@@ -146,6 +146,22 @@ public:
     // sides have the same UVs at both ends, and theirs in turn
     std::vector<FaceHandle> getUVIsland(FaceHandle handle) const;
 
+    // ---- UV seams: edges unwrapping cuts along; kept on both half-edges (mesh_data_access.cpp) ----
+
+    bool isSeam(EdgeHandle handle) const;
+    void setSeam(EdgeHandle handle, bool seam);
+    // One half of each seam
+    std::vector<EdgeHandle> getSeamEdges() const;
+    // The seam flags of the edges ending at each corner, in getFaceVertices order
+    std::vector<bool> getFaceEdgeSeams(FaceHandle handle) const;
+    // Every half-edge's, in getEdgeHandles order (for saving)
+    std::vector<bool> getEdgeSeams() const;
+    void setEdgeSeams(const std::vector<bool>& seams);
+    bool hasSeams() const;
+    // Marks a seam on every edge between two faces whose UVs differ there, so the current layout's cuts become seams;
+    // returns how many edges it marked
+    u32 markSeamsFromIslands();
+
     // ---- Smooth shading (mesh_data_shading.cpp) ----
 
     ShadingMode getShading() const { return m_shading; }

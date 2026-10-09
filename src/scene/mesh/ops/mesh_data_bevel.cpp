@@ -5,6 +5,7 @@
 #include <cmath>
 #include <limits>
 #include <map>
+#include <set>
 
 namespace {
     enum class SpokeRole : u8 {
@@ -457,11 +458,13 @@ bool MeshData::replaceFaces(
 
     // Edge marks by their ends, so a rebuilt edge between the same two vertices keeps its mark
     std::map<u64, EdgeMark> oldMarks;
+    std::set<u64> oldSeams;
 
     for (FaceHandle face : oldFaces) {
         for (EdgeHandle edge : getFaceEdges(face)) {
             removed.push_back(edge);
             if (m_edges.get(edge).mark != EdgeMark::None) oldMarks[edgeKey(getEdgeOrigin(edge), getEdgeTip(edge))] = m_edges.get(edge).mark;
+            if (m_edges.get(edge).seam) oldSeams.insert(edgeKey(getEdgeOrigin(edge), getEdgeTip(edge)));
 
             const EdgeHandle pair = m_edges.get(edge).pair;
             if (!isOld(m_edges.get(pair).face)) {
@@ -585,6 +588,7 @@ bool MeshData::replaceFaces(
         const u64 reverse = (key << 32) | (key >> 32);
         const auto oldMark = oldMarks.find(key);
         if (oldMark != oldMarks.end()) m_edges.get(handle).mark = oldMark->second;
+        if (oldSeams.contains(key) || oldSeams.contains(reverse)) m_edges.get(handle).seam = true;
 
         auto twin = created.find(reverse);
         if (twin != created.end()) {
@@ -598,6 +602,7 @@ bool MeshData::replaceFaces(
             m_edges.get(outer->second).pair = handle;
             // The outside half was never removed, so it still holds the edge's mark
             m_edges.get(handle).mark = m_edges.get(outer->second).mark;
+            m_edges.get(handle).seam = m_edges.get(outer->second).seam;
             usedOutside.push_back(key);
             continue;
         }
@@ -608,6 +613,7 @@ bool MeshData::replaceFaces(
         border.tip = m_edges.get(m_edges.get(handle).prev).tip;
         border.pair = handle;
         border.mark = m_edges.get(handle).mark;
+        border.seam = m_edges.get(handle).seam;
 
         m_edges.get(handle).pair = m_edges.insert(border);
         bordersChanged = true;

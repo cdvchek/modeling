@@ -88,6 +88,7 @@ enum class Action : u8 {
     UVGrab,
     UVScale,
     UVRotate,
+    UVUnwrap,
     ParentToActive,
     ClearParents,
     Count

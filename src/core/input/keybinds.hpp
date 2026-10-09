@@ -259,6 +259,12 @@ namespace DefaultKeybinds {
         }
     };
 
+    inline Keybind UVUnwrap {
+        {
+            key(Key::U)
+        }
+    };
+
     inline Keybind SelectAll {
         {
             key(Key::LeftCtrl),

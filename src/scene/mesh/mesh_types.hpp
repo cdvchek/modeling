@@ -37,6 +37,8 @@ struct Edge {
     // v going down, as glTF has it.
     Vec2 uv;
     EdgeMark mark = EdgeMark::None;
+    // A UV seam: unwrapping cuts the surface here; the same on both half-edges
+    bool seam = false;
 };
 
 struct Vertex {

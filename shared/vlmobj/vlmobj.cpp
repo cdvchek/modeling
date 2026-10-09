@@ -34,7 +34,7 @@ namespace vlmobj {
                 case Section::MATERIALS:
                     return 2;
                 case Section::EDIT:
-                    return 4;
+                    return 5;
                 default:
                     return 0;
             }
@@ -122,6 +122,9 @@ namespace vlmobj {
                 append(bytes, mesh.smoothAngle);
                 append(bytes, static_cast<u32>(mesh.edgeMarks.size()));
                 appendArray(bytes, mesh.edgeMarks);
+                // Version 5
+                append(bytes, static_cast<u32>(mesh.edgeSeams.size()));
+                appendArray(bytes, mesh.edgeSeams);
             }
 
             return bytes;
@@ -449,6 +452,14 @@ namespace vlmobj {
             if (markCount != 0 && markCount != cornerCount) return false;
             if (!cursor.readArray(mesh.edgeMarks, markCount)) return false;
             for (u8 mark : mesh.edgeMarks) if (mark > 2) return false;
+
+            // Version 4 meshes have no seams
+            if (entry->version < 5) continue;
+            u32 seamCount = 0;
+            if (!cursor.read(seamCount)) return false;
+            if (seamCount != 0 && seamCount != cornerCount) return false;
+            if (!cursor.readArray(mesh.edgeSeams, seamCount)) return false;
+            for (u8 seam : mesh.edgeSeams) if (seam > 1) return false;
         }
 
         out = std::move(edit);

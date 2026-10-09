@@ -22,4 +22,5 @@ public:
     virtual void drawFaceSet(const std::vector<FaceHandle>& faces) = 0;
     // A second edge set, kept apart from the selection's so neither uploads every frame
     virtual void drawHardEdgeSet(const std::vector<EdgeHandle>& edges) = 0;
+    virtual void drawSeamEdgeSet(const std::vector<EdgeHandle>& edges) = 0;
 };

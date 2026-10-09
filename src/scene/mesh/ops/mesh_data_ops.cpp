@@ -109,6 +109,7 @@ VertexHandle MeshData::splitEdge(EdgeHandle handle) {
     m_edges.get(secondPair).uv = (pairTipUV + pairOriginUV) * 0.5f;
     // Both pieces keep the edge's mark
     m_edges.get(second).mark = m_edges.get(secondPair).mark = m_edges.get(handle).mark;
+    m_edges.get(second).seam = m_edges.get(secondPair).seam = m_edges.get(handle).seam;
 
     // 2. The original pair becomes origin -> mid / mid -> origin.
     m_edges.get(handle).tip = mid;

@@ -47,6 +47,7 @@ set(CORE_SRC
     src/scene/mesh/mesh_data_validate.cpp
     src/scene/mesh/mesh_data_gpu.cpp
     src/scene/mesh/mesh_data_shading.cpp
+    src/scene/mesh/uv_unwrap.cpp
     src/scene/mesh/mesh_data_serialize.cpp
     src/scene/lights/light_collection.cpp
     src/scene/references/reference_collection.cpp
@@ -108,6 +109,7 @@ set(APP_SRC
     src/application/workspace.cpp
     src/application/uv/uv_editor.cpp
     src/application/uv/uv_tools.cpp
+    src/application/uv/uv_operations.cpp
     src/application/ui/top_bar.cpp
     src/platform/keys/keys_win32.cpp
     src/platform/renderer/opengl_renderer_win32.cpp

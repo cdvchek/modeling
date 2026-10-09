@@ -31,6 +31,8 @@ namespace {
     const Color SELECTED_FILL { 0.74f, 0.58f, 0.98f, 0.28f };
     const Color POINT { 0.90f, 0.91f, 0.95f, 0.8f };
     const Color GUIDE { 0.95f, 0.95f, 0.98f, 0.7f };
+    const Color SEAM { 0.31f, 0.98f, 0.48f, 1.0f };
+    constexpr f32 SEAM_WIDTH = 2.0f;
     constexpr f32 SELECTED_WIRE_WIDTH = 2.5f;
     constexpr f32 POINT_SIZE = 5.0f;
     constexpr f32 SELECTED_POINT_SIZE = 7.0f;
@@ -328,6 +330,7 @@ void drawUVEditor(AppContext& ctx, const Rect& area) {
             }
 
             if (selected) selectedLines.push_back({ from, to });
+            else if (i < edges.size() && mesh.isSeam(edges[i])) list.line(from, to, SEAM_WIDTH, SEAM);
             else list.line(from, to, WIRE_WIDTH, WIRE);
         }
     }

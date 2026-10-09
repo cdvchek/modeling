@@ -66,7 +66,8 @@ namespace {
     }
 
     bool buildMesh(const std::vector<Vec3>& positions, const std::vector<std::vector<u32>>& faces, MeshData& mesh, std::string& error,
-                   const std::vector<std::vector<Vec2>>& faceUVs = {}, const std::vector<std::vector<EdgeMark>>& faceMarks = {}) {
+                   const std::vector<std::vector<Vec2>>& faceUVs = {}, const std::vector<std::vector<EdgeMark>>& faceMarks = {},
+                   const std::vector<std::vector<bool>>& faceSeams = {}) {
         if (faces.empty()) {
             error = "the asset's mesh has no faces";
             return false;
@@ -77,7 +78,7 @@ namespace {
         }
 
         MeshData built;
-        built.setMesh(MeshFactory::fromPolygons(positions, faces, faceUVs, faceMarks));
+        built.setMesh(MeshFactory::fromPolygons(positions, faces, faceUVs, faceMarks, faceSeams));
         if (!built.validate()) {
             error = "the asset's mesh couldn't be rebuilt";
             return false;
@@ -257,11 +258,13 @@ namespace {
             for (VertexHandle corner : corners) editMesh.corners.push_back(vertexIndex.at(corner.index));
             for (const Vec2& uv : mesh.getFaceUVs(face)) editMesh.uvs.insert(editMesh.uvs.end(), { uv.x, uv.y });
             for (EdgeMark mark : mesh.getFaceEdgeMarks(face)) editMesh.edgeMarks.push_back(static_cast<u8>(mark));
+            for (bool seam : mesh.getFaceEdgeSeams(face)) editMesh.edgeSeams.push_back(seam ? 1 : 0);
         }
         editMesh.shading = static_cast<u32>(mesh.getShading());
         editMesh.smoothAngle = mesh.getSmoothAngle();
         // No marks anywhere writes none
         if (!mesh.hasEdgeMarks()) editMesh.edgeMarks.clear();
+        if (!mesh.hasSeams()) editMesh.edgeSeams.clear();
         return editMesh;
     }
 
@@ -425,7 +428,9 @@ namespace {
             std::vector<std::vector<u32>> faces;
             std::vector<std::vector<Vec2>> faceUVs;
             std::vector<std::vector<EdgeMark>> faceMarks;
+            std::vector<std::vector<bool>> faceSeams;
             faces.reserve(editMesh.faceSizes.size());
+            const bool hasSeams = editMesh.edgeSeams.size() == editMesh.corners.size();
             const bool hasUVs = editMesh.uvs.size() == editMesh.corners.size() * 2;
             const bool hasMarks = editMesh.edgeMarks.size() == editMesh.corners.size();
             std::size_t at = 0;
@@ -441,9 +446,14 @@ namespace {
                     for (std::size_t k = at; k < at + sides; ++k) marks.push_back(static_cast<EdgeMark>(editMesh.edgeMarks[k]));
                     faceMarks.push_back(std::move(marks));
                 }
+                if (hasSeams) {
+                    std::vector<bool> seams;
+                    for (std::size_t k = at; k < at + sides; ++k) seams.push_back(editMesh.edgeSeams[k] == 1);
+                    faceSeams.push_back(std::move(seams));
+                }
                 at += sides;
             }
-            if (!buildMesh(positions, faces, result.meshData, error, faceUVs, faceMarks)) return false;
+            if (!buildMesh(positions, faces, result.meshData, error, faceUVs, faceMarks, faceSeams)) return false;
             result.meshData.setShading(static_cast<ShadingMode>(editMesh.shading));
             result.meshData.setSmoothAngle(editMesh.smoothAngle);
             return true;

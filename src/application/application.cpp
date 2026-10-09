@@ -282,6 +282,7 @@ void Application::renderFrame(AppContext& ctx) {
             cmd.highlightedEdges = selection.getEdgeHandles();
             cmd.highlightedFaces = selection.getFaceHandles();
             cmd.hardEdges = object.meshData.getHardEdges();
+            if (uvWorkspace) cmd.seamEdges = object.meshData.getSeamEdges();
 
             // Selected faces are outlined with the same treatment as selected edges
             for (FaceHandle face : cmd.highlightedFaces) {

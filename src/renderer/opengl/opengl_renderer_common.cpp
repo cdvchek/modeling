@@ -16,6 +16,8 @@ namespace {
     const Vec3 OUTLINE_COLOR { 0.06f, 0.06f, 0.08f };
     // Hard edges on a smooth-shaded mesh: Dracula cyan
     const Vec3 HARD_EDGE_COLOR { 0.55f, 0.91f, 0.99f };
+    // UV seams: Dracula green
+    const Vec3 SEAM_COLOR { 0.31f, 0.98f, 0.48f };
 
     // Selection matches the light markers and UI accent: Dracula purple with a soft glow
     const Vec3 SELECTED_COLOR { 0.74f, 0.58f, 0.98f };
@@ -486,6 +488,12 @@ void OpenGLRenderer::draw(const DrawCommand& command) {
             shader.setFloat("u_Alpha", 1.0f);
             glLineWidth(SELECTED_EDGE_WIDTH);
             mesh.drawHardEdgeSet(command.hardEdges);
+        }
+        if (!command.outlineAll && !command.seamEdges.empty()) {
+            shader.setVec3("u_Color", SEAM_COLOR);
+            shader.setFloat("u_Alpha", 1.0f);
+            glLineWidth(SELECTED_EDGE_WIDTH);
+            mesh.drawSeamEdgeSet(command.seamEdges);
         }
 
         // An outlined object's own lines are all drawn already, in the selection color

@@ -175,6 +175,73 @@ std::vector<FaceHandle> MeshData::getUVIsland(FaceHandle handle) const {
     return island;
 }
 
+bool MeshData::isSeam(EdgeHandle handle) const {
+    const Edge* edge = m_edges.tryGet(handle);
+    return edge && edge->seam;
+}
+
+void MeshData::setSeam(EdgeHandle handle, bool seam) {
+    Edge* edge = m_edges.tryGet(handle);
+    if (!edge) return;
+    edge->seam = seam;
+    if (Edge* pair = m_edges.tryGet(edge->pair)) pair->seam = seam;
+}
+
+std::vector<EdgeHandle> MeshData::getSeamEdges() const {
+    std::vector<EdgeHandle> seams;
+    for (EdgeHandle handle : m_edges.getActiveHandles()) {
+        const Edge& edge = m_edges.get(handle);
+        if (edge.seam && !(edge.pair.index < handle.index && m_edges.isValid(edge.pair))) seams.push_back(handle);
+    }
+    return seams;
+}
+
+std::vector<bool> MeshData::getFaceEdgeSeams(FaceHandle handle) const {
+    std::vector<bool> seams;
+    for (EdgeHandle edge : getFaceEdges(handle)) seams.push_back(m_edges.get(edge).seam);
+    return seams;
+}
+
+std::vector<bool> MeshData::getEdgeSeams() const {
+    std::vector<bool> seams;
+    for (EdgeHandle handle : m_edges.getActiveHandles()) seams.push_back(m_edges.get(handle).seam);
+    return seams;
+}
+
+void MeshData::setEdgeSeams(const std::vector<bool>& seams) {
+    const std::vector<EdgeHandle> edges = m_edges.getActiveHandles();
+    if (edges.size() != seams.size()) return;
+    for (std::size_t i = 0; i < edges.size(); ++i) m_edges.get(edges[i]).seam = seams[i];
+}
+
+bool MeshData::hasSeams() const {
+    for (EdgeHandle handle : m_edges.getActiveHandles()) if (m_edges.get(handle).seam) return true;
+    return false;
+}
+
+u32 MeshData::markSeamsFromIslands() {
+    constexpr f32 SAME_UV = 1e-5f;
+    const auto same = [](const Vec2& a, const Vec2& b) { return std::fabs(a.x - b.x) <= SAME_UV && std::fabs(a.y - b.y) <= SAME_UV; };
+
+    u32 marked = 0;
+    for (EdgeHandle handle : m_edges.getActiveHandles()) {
+        Edge& half = m_edges.get(handle);
+        const Edge* pair = m_edges.tryGet(half.pair);
+        // Each edge once, between two faces, not already a seam
+        if (half.seam || !pair || half.pair.index < handle.index || !m_faces.isValid(half.face) || !m_faces.isValid(pair->face)) continue;
+        const Edge* prev = m_edges.tryGet(half.prev);
+        const Edge* pairPrev = m_edges.tryGet(pair->prev);
+        if (!prev || !pairPrev) continue;
+
+        // The same two corners, as each side's face has them
+        if (!same(prev->uv, pair->uv) || !same(half.uv, pairPrev->uv)) {
+            setSeam(handle, true);
+            ++marked;
+        }
+    }
+    return marked;
+}
+
 std::vector<Vec2> MeshData::getCornerUVs() const {
     std::vector<Vec2> uvs;
     for (EdgeHandle edge : m_edges.getActiveHandles()) uvs.push_back(m_edges.get(edge).uv);

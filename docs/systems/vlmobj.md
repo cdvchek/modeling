@@ -230,7 +230,7 @@ Any size is allowed, powers of two or not. PNG keeps files small; a later format
 
 Raw bytes. Each mesh's vertices are `vertexCount × vertexStride` bytes at its `vertexOffset`. Its indices are `indexCount × indexSize` bytes at its `indexOffset`, and they index that mesh's vertices only. Keeping all vertex data in one section and all index data in another means the engine can upload each in one go and draw meshes by offset.
 
-### EDIT: editable polygons (editor only, version 4)
+### EDIT: editable polygons (editor only, version 5)
 
 Lets Valuma rebuild the exact mesh it exported, with n-gons, face order, winding, and materials. The engine skips it (directory flag bit 0).
 
@@ -258,9 +258,12 @@ per mesh:
     f32  smoothAngle                auto: faces meeting at more than this (radians, 0 to π) stay hard
     u32  markCount                  0 when no edge is marked, otherwise cornerCount
     u8   edgeMarks[markCount]       the edge ending at each corner: 0 none, 1 hard, 2 smooth
+    version 5:
+    u32  seamCount                  0 when there are no UV seams, otherwise cornerCount
+    u8   edgeSeams[seamCount]       whether the edge ending at each corner is a UV seam (0 or 1)
 ```
 
-Version 1 files (no materials) still read; their objects get the first part's material. Version 2 files have no UVs; their faces get zeros. Version 3 files are flat with no marks.
+Version 1 files (no materials) still read; their objects get the first part's material. Version 2 files have no UVs; their faces get zeros. Version 3 files are flat with no marks; version 4 files have no seams.
 
 The baked normals already carry the shading (a smooth vertex is shared by every face around it, a hard edge splits it), so the engine needs nothing from `EDIT` to draw it.
 

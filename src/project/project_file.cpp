@@ -43,7 +43,7 @@ namespace {
 
     // The newest version of each chunk this build reads and writes
     constexpr std::array<ChunkVersion, 8> CHUNK_VERSIONS = { {
-        { CHUNK_VIEW, 6 }, { CHUNK_CAMERA, 1 }, { CHUNK_LIGHTS, 1 }, { CHUNK_OBJECT, 6 }, { CHUNK_EXPORT, 1 },
+        { CHUNK_VIEW, 6 }, { CHUNK_CAMERA, 1 }, { CHUNK_LIGHTS, 1 }, { CHUNK_OBJECT, 7 }, { CHUNK_EXPORT, 1 },
         { CHUNK_REFERENCE, 1 }, { CHUNK_MATERIALS, 2 }, { CHUNK_TEXTURE, 1 },
     } };
 
@@ -465,6 +465,13 @@ namespace {
         }
         writer.write(static_cast<u32>(marks.size()));
         writer.writeArray(marks.data(), marks.size());
+        // Version 7: every half-edge's seam flag (none written when there are no seams)
+        std::vector<u8> seams;
+        if (object.meshData.hasSeams()) {
+            for (bool seam : object.meshData.getEdgeSeams()) seams.push_back(seam ? 1 : 0);
+        }
+        writer.write(static_cast<u32>(seams.size()));
+        writer.writeArray(seams.data(), seams.size());
         return finish(CHUNK_OBJECT, writer);
     }
 
@@ -509,6 +516,20 @@ namespace {
                 object.meshData.setShading(static_cast<ShadingMode>(shading));
                 object.meshData.setSmoothAngle(angle);
                 if (!marks.empty()) object.meshData.setEdgeMarks(marks);
+                return true;
+            }())
+            && (version < 7 || [&] {
+                u32 seamCount = 0;
+                std::vector<u8> values;
+                if (!reader.read(seamCount) || !reader.readVector(values, seamCount)) return false;
+                if (seamCount != 0 && seamCount != object.meshData.getEdgeHandles().size()) return false;
+                if (seamCount == 0) return true;
+                std::vector<bool> seams;
+                for (u8 value : values) {
+                    if (value > 1) return false;
+                    seams.push_back(value == 1);
+                }
+                object.meshData.setEdgeSeams(seams);
                 return true;
             }());
 

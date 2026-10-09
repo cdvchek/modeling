@@ -245,6 +245,8 @@ namespace vlmobj {
         u32 shading = 0;
         f32 smoothAngle = 0.5235988f;
         std::vector<u8> edgeMarks;
+        // Version 5: whether the edge ending at each corner is a UV seam (0 or 1), in corner order; empty for none
+        std::vector<u8> edgeSeams;
     };
 
     struct EditData {

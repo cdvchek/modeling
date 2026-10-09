@@ -1,5 +1,6 @@
 #include "application/ui/top_bar.hpp"
 #include "application/uv/uv_editor.hpp"
+#include "application/uv/uv_operations.hpp"
 #include "ui/ui_style.hpp"
 
 #include <algorithm>
@@ -98,6 +99,41 @@ namespace {
         ui.endRegion();
     }
 
+    void drawUVToolsPanel(AppContext& ctx, const Rect& area) {
+        UIContext& ui = ctx.ui;
+        ui.drawList().rect(area, UIStyle::PANEL_BACKGROUND);
+        ui.drawList().rect({ area.x, area.y, 1.0f, area.height }, UIStyle::PANEL_BORDER);
+        const bool object = hasUVObject(ctx);
+
+        // Seams: edges unwrapping cuts along, marked in edge mode
+        ui.heading("Seams");
+        const bool edges = canMarkSeams(ctx);
+        if (ui.button("Mark seam", ui.row(), edges)) markSeams(ctx, true);
+        if (ui.button("Clear seam", ui.row(), edges)) markSeams(ctx, false);
+        if (!edges) ui.label("Edges, in edge mode", true);
+        if (ui.button("From islands", ui.row(), object)) seamsFromIslands(ctx);
+        ui.spacing();
+
+        // Unwrap the selected faces (or all), cutting along seams
+        ui.heading("Unwrap");
+        const bool everything = object && uvTargetFaces(ctx).size() == ctx.scene.objects.get(uvObject(ctx)).meshData.getFaceHandles().size();
+        if (ui.button(everything ? "Unwrap all (U)" : "Unwrap selected (U)", ui.row(), object)) unwrapUVs(ctx);
+        ui.spacing();
+
+        ui.heading("Project");
+        if (ui.button("From view", ui.row(), object)) projectUVs(ctx, UVProjection::View);
+        if (ui.button("Box", ui.row(), object)) projectUVs(ctx, UVProjection::Box);
+        if (ui.button("Cylinder", ui.row(), object)) projectUVs(ctx, UVProjection::Cylinder);
+        if (ui.button("Sphere", ui.row(), object)) projectUVs(ctx, UVProjection::Sphere);
+        ui.spacing();
+
+        // Pack every island; the margin is in percent of the texture
+        ui.heading("Pack");
+        f32& margin = ctx.workspace.uvMargin;
+        if (ui.dragFloat("Gap", margin, 0.05f, "%.1f %%")) margin = std::clamp(margin, 0.0f, 10.0f);
+        if (ui.button("Pack islands", ui.row(), object)) packUVs(ctx);
+    }
+
     void uvSide(AppContext& ctx, const ScreenLayout& layout) {
         UIContext& ui = ctx.ui;
 
@@ -105,7 +141,7 @@ namespace {
         ui.beginRegion(layout.divider);
         f32 x = layout.divider.x;
         if (ui.splitter("uv divider", layout.divider, x)) {
-            const f32 usable = std::max(1.0f, layout.content.width - DIVIDER_WIDTH);
+            const f32 usable = std::max(1.0f, layout.content.width - layout.uvTools.width - DIVIDER_WIDTH);
             ctx.workspace.uvSplit = std::clamp((x - layout.content.x) / usable, 0.0f, 1.0f);
         }
         ui.endRegion();
@@ -113,6 +149,11 @@ namespace {
         // The UV editor: a region, so clicks there stay out of the 3D view
         ui.beginRegion(layout.uvEditor);
         drawUVEditor(ctx, layout.uvEditor);
+        ui.endRegion();
+
+        // The tools column: seams, unwrapping, projections, packing
+        ui.beginRegion(layout.uvTools);
+        drawUVToolsPanel(ctx, layout.uvTools);
         ui.endRegion();
     }
 }

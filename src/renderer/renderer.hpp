@@ -144,6 +144,8 @@ struct DrawCommand {
     bool outlineAll = false;
     // Edges that shade hard (smooth shading), drawn in their own color under the selection
     std::vector<EdgeHandle> hardEdges;
+    // UV seams (UV workspace), drawn in their own color over the hard edges
+    std::vector<EdgeHandle> seamEdges;
 };
 
 struct DrawText3DCommand {

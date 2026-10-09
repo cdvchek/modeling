@@ -33,6 +33,7 @@ public:
     void drawVertexSet(const std::vector<VertexHandle>& vertices) override;
     void drawEdgeSet(const std::vector<EdgeHandle>& edges) override;
     void drawHardEdgeSet(const std::vector<EdgeHandle>& edges) override;
+    void drawSeamEdgeSet(const std::vector<EdgeHandle>& edges) override;
     void drawFaceSet(const std::vector<FaceHandle>& faces) override;
 
 private:
@@ -79,6 +80,7 @@ private:
     ElementSet m_vertexSet;
     ElementSet m_edgeSet;
     ElementSet m_hardEdgeSet;
+    ElementSet m_seamEdgeSet;
     ElementSet m_faceSet;
 
     bool m_initialized = false;

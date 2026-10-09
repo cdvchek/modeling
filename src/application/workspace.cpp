@@ -35,7 +35,11 @@ ScreenLayout screenLayout(const AppContext& ctx) {
     if (ctx.workspace.current == Workspace::UV) {
         // The header takes the top of the content; the views share what's below it
         layout.header = { layout.content.x, layout.content.y, layout.content.width, std::min(UV_HEADER_HEIGHT, layout.content.height) };
-        const Rect area { layout.content.x, layout.header.bottom(), layout.content.width, layout.content.height - layout.header.height };
+        // The tools column takes the right edge (narrower when the window is)
+        const f32 toolsWidth = std::min(UV_TOOLS_WIDTH, std::max(0.0f, layout.content.width * 0.3f));
+        const f32 below = layout.content.height - layout.header.height;
+        layout.uvTools = { layout.content.right() - toolsWidth, layout.header.bottom(), toolsWidth, below };
+        const Rect area { layout.content.x, layout.header.bottom(), layout.content.width - toolsWidth, below };
 
         // The divider stays where the split says, kept so both sides have room when the window allows it
         const f32 usable = std::max(0.0f, area.width - DIVIDER_WIDTH);
@@ -90,7 +94,7 @@ bool actionAllowed(Workspace workspace, Action action) {
     // Framing belongs to UV for now (F is Fill in Model)
     if (workspace == Workspace::Model) {
         return action != Action::FrameSelected && action != Action::FrameAll && action != Action::IslandMode && action != Action::SelectAll
-            && action != Action::UVGrab && action != Action::UVScale && action != Action::UVRotate;
+            && action != Action::UVGrab && action != Action::UVScale && action != Action::UVRotate && action != Action::UVUnwrap;
     }
 
     switch (action) {
@@ -130,6 +134,7 @@ bool actionAllowed(Workspace workspace, Action action) {
         case Action::UVGrab:
         case Action::UVScale:
         case Action::UVRotate:
+        case Action::UVUnwrap:
             return true;
         default:
             return false;

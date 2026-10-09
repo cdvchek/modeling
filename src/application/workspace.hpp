@@ -40,6 +40,8 @@ struct WorkspaceState {
     bool uvPanning = false;     // a drag that started over the editor is moving the view
     // Island mode (UV workspace): face mode, but a click takes every face connected to it on the texture
     bool uvIslands = false;
+    // The gap left around each island when packing, in percent of the texture's width
+    f32 uvMargin = 1.0f;
 };
 
 // Where everything sits in the window this frame, in window pixels (origin top left, y down)
@@ -51,6 +53,7 @@ struct ScreenLayout {
     Rect scene;         // the 3D view
     Rect divider;       // UV workspace: between the 3D view and the UV editor; empty otherwise
     Rect uvEditor;      // UV workspace: right of the divider; empty otherwise
+    Rect uvTools;       // UV workspace: the tools column at the right edge; empty otherwise
 };
 
 inline constexpr f32 TOP_BAR_HEIGHT = 30.0f;
@@ -58,6 +61,7 @@ inline constexpr f32 UV_HEADER_HEIGHT = 34.0f;
 inline constexpr f32 DIVIDER_WIDTH = 6.0f;
 // Neither side of the UV workspace gets narrower than this (unless the window itself is too narrow)
 inline constexpr f32 MIN_SPLIT_WIDTH = 200.0f;
+inline constexpr f32 UV_TOOLS_WIDTH = 210.0f;
 
 ScreenLayout screenLayout(const AppContext& ctx);
 
