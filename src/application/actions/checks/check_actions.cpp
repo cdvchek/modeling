@@ -1,5 +1,6 @@
 #include "application/application.hpp"
 #include "application/actions/checks/action_checks.hpp"
+#include "application/commands/texture_commands.hpp"
 #include "application/ui/radial_menu.hpp"
 #include "application/ui/modal_windows.hpp"
 #include "application/actions/asset_actions.hpp"
@@ -28,6 +29,11 @@ bool Application::checkActions(AppContext& ctx) {
     if (ctx.referenceRequested) {
         ctx.referenceRequested = false;
         chooseReferenceImages(ctx);
+    }
+
+    if (ctx.textureRequest.open) {
+        ctx.textureRequest.open = false;
+        chooseTexture(ctx, ctx.textureRequest.material);
     }
 
     // While the radial menu is open it takes all other input, so tools and the camera hold still

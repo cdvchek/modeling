@@ -5,6 +5,7 @@
 #include "application/commands/reference_commands.hpp"
 #include "application/commands/material_commands.hpp"
 #include "application/commands/shading_commands.hpp"
+#include "application/commands/texture_commands.hpp"
 #include "application/commands/object_commands.hpp"
 #include "application/actions/project_actions.hpp"
 #include "application/actions/asset_actions.hpp"
@@ -126,6 +127,14 @@ void Application::registerCommands(AppContext& ctx) {
         "Adds, edits, and assigns materials: material list | add [name] | <id> <property> <value> | <id> assign [<object id> ...]",
         [&ctx](const CommandArgs& args) {
             runMaterialCommand(ctx, args);
+        }
+    );
+
+    ctx.systems.commands.registerCommand(
+        "texture",
+        "Loads, lists, reloads, and removes textures: texture list | load <path> | <id> [remove | reload | name <n>]",
+        [&ctx](const CommandArgs& args) {
+            runTextureCommand(ctx, args);
         }
     );
 

@@ -80,7 +80,8 @@ An empty or missing string is `{ 0, 0 }`. Each string in `STRS` is followed by a
 | `NODE` | yes | The asset's parts and how they're arranged |
 | `MESH` | if any node has a mesh | One record per mesh: counts, vertex layout, where its data is, bounds |
 | `PART` | with `MESH` | Ranges of a mesh's indices, one per material |
-| `MATL` | if any part has a material | Materials: base color, roughness, metallic, emissive, opacity, alpha mode, sides |
+| `MATL` | if any part has a material | Materials: base color, roughness, metallic, emissive, opacity, alpha mode, sides, base color texture |
+| `TEXR` | if any material has a texture | Textures: each one's record, then its PNG file |
 | `VTXS` | with `MESH` | Vertex data for every mesh |
 | `IDXS` | with `MESH` | Index data for every mesh |
 | `EDIT` | no (editor only) | Editable polygons and exact rotations, so re-importing into Valuma keeps n-gons |
@@ -182,7 +183,7 @@ Smooth shading (planned on its own) will only change the data, not the format: c
 
 One part is one draw call. Valuma writes one part per material a mesh uses: its triangles are sorted so each material's are one run (faces without their own material use the object's).
 
-### MATL: materials (64 bytes each)
+### MATL: materials (64 bytes each, version 2)
 
 The metallic-roughness set glTF and the engines use, so the engine can build its own material from it directly.
 
@@ -199,11 +200,31 @@ The metallic-roughness set glTF and the engines use, so the engine can build its
 | 52 | `u8` | alphaMode | 0 opaque (opacity ignored), 1 cutout, 2 blend (see-through, sorted, no depth writes) |
 | 53 | `u8` | flags | Bit 0: double-sided (back faces drawn, lit with the normal flipped); otherwise back faces are culled |
 | 54 | `u16` | reserved | `0` |
-| 56 | `u32[2]` | reserved | `0` |
+| 56 | `u32` | baseColorTexture | Version 2: index into `TEXR`, or `NONE`. Its color multiplies `baseColor` and its alpha multiplies `opacity`, read through `uv0`. In version 1 this was reserved (`0`) and means none, so check the section version (`File::baseColorTexture` does) |
+| 60 | `u32` | reserved | `0` |
 
 **Colors are stored as authored, in sRGB** (what color pickers show), not linear as glTF's factors are, so a material read back into Valuma is bit-for-bit the one exported. Convert them to linear once when loading (the standard sRGB curve). Lighting should match Valuma's viewport: Lambert diffuse plus GGX highlights (Smith visibility, Schlick Fresnel with 0.04 reflectance for non-metals), emissive added on top, then tone mapping (Khronos PBR Neutral) and sRGB output; see [renderer.md](renderer.md#object-drawing).
 
 A file only holds the materials its own parts use. Several assets can each carry a copy of the same material; the engine can recognize them by name and values.
+
+### TEXR: textures (64-byte records, then their data)
+
+The section starts with `count` records; each texture's bytes follow, every block starting on a 16-byte boundary. Offsets are from the start of the section.
+
+| Offset | Type | Field | Notes |
+|---|---|---|---|
+| 0 | `StringRef` | name | |
+| 8 | `u32` | width | Pixels |
+| 12 | `u32` | height | Pixels |
+| 16 | `u8` | format | `1` PNG: the data is a whole PNG file, colors sRGB (an engine decodes it with any PNG reader, such as `shared/image`) |
+| 17 | `u8` | flags | `0` |
+| 18 | `u16` | reserved | `0` |
+| 20 | `u32` | reserved | `0` |
+| 24 | `u64` | dataOffset | From the start of the section, past the records |
+| 32 | `u64` | dataSize | Bytes |
+| 40 | `u32[6]` | reserved | `0` |
+
+Any size is allowed, powers of two or not. PNG keeps files small; a later format (pixels with mipmaps made ahead, ready to upload) can be added as another `format` value without changing the record. Textures are smooth-filtered (linear with mipmaps) and repeat outside 0 to 1. A file only holds the textures its materials use; several materials can share one.
 
 ### VTXS and IDXS: vertex and index data
 
@@ -251,7 +272,6 @@ Not defined yet. The type codes are kept for these, so nothing else takes them:
 
 | Type | For | Area |
 |---|---|---|
-| `TEXR` | Textures: pixel data with mipmaps made ahead, ready for the GPU | Textures |
 | `SKEL` | Skeleton: joints (bones) as a tree, inverse bind matrices | Animation |
 | `ANIM` | Animation clips: name, length, keyframes per joint | Animation |
 | `AEVT` | Animation events ("footstep" at a time in a clip) | Animation |
@@ -265,12 +285,12 @@ Not defined yet. The type codes are kept for these, so nothing else takes them:
 2. Check that the directory fits in the file and `directoryCrc` matches.
 3. For each entry, check that `offset + storedSize` fits in the file, and skip unknown types and editor-only sections you don't want.
 4. Check each section's `crc`. The editor always does. A shipped game may skip this for speed, since CRC checks read every byte.
-5. Check that indices stay in range: node parents and meshes, mesh parts and their materials, every material's name and alpha mode, every vertex and index range against its section's size, and string references against `STRS`. A mesh's index values are below its `vertexCount`. Valuma checks these on import; an engine can check them once when the asset is first imported into its project.
+5. Check that indices stay in range: node parents and meshes, mesh parts and their materials, every material's name, alpha mode, and texture, every texture's format and data range, every vertex and index range against its section's size, and string references against `STRS`. A mesh's index values are below its `vertexCount`. Valuma checks these on import; an engine can check them once when the asset is first imported into its project.
 6. Upload `VTXS` and `IDXS`, then read nodes, meshes, and parts in place.
 
 ## Writing a file (Valuma)
 
-- Sections are written in the order `STRS`, `NODE`, `MESH`, `PART`, `VTXS`, `IDXS`, `MATL`, `EDIT`, each padded to 64 bytes. Readers shouldn't rely on that order.
+- Sections are written in the order `STRS`, `NODE`, `MESH`, `PART`, `VTXS`, `IDXS`, `MATL`, `TEXR`, `EDIT`, each padded to 64 bytes. Readers shouldn't rely on that order.
 - The file goes to a temporary file first and then replaces any existing one, so a failed export never leaves a damaged asset behind.
 - Every reserved field and padding byte is zero, so exporting the same object twice gives the same bytes.
 
@@ -280,11 +300,11 @@ Not defined yet. The type codes are kept for these, so nothing else takes them:
 
 [vlmobj.hpp](../../shared/vlmobj/vlmobj.hpp), [vlmobj.cpp](../../shared/vlmobj/vlmobj.cpp): the `vlmobj` CMake target, with no dependency on Valuma (only the C++ standard library), so Aevora can link the same code and the two can't drift apart. Everything is in `namespace vlmobj`.
 
-- **Records:** `Header`, `DirectoryEntry`, `StringRef`, `Node`, `Mesh`, `VertexAttribute`, `Part`, `Material` (with `AlphaMode` and `MATERIAL_DOUBLE_SIDED`), matching the tables above; `static_assert`s pin their sizes and field offsets.
+- **Records:** `Header`, `DirectoryEntry`, `StringRef`, `Node`, `Mesh`, `VertexAttribute`, `Part`, `Material` (with `AlphaMode` and `MATERIAL_DOUBLE_SIDED`), `Texture` (with `TextureFormat`), matching the tables above; `static_assert`s pin their sizes and field offsets.
 - **Constants:** `MAGIC`, `VERSION`, `NONE`, `Section::*` type codes (including the reserved ones), `Semantic`, `Format` (and `formatSize`), `Compression`, `SECTION_EDITOR_ONLY`, `fourCC`, `crc32`.
 - **Node transforms:** `NodeTransform` (translation, quaternion, scale), `nodeTransform(node)`, `combine(parent, local)` (the rule above), and `File::worldTransforms()` (every node's world transform in one pass, since parents come first).
-- **`File`** views a buffer in place (it must outlive the `File` and start on an 8-byte boundary; a memory-mapped file or a `std::vector` qualifies). `open(data, size, options)` runs every check in [Reading a file](#reading-a-file) and says why in `error()` when one fails. `ReadOptions` can turn off the checksum pass and the per-index pass. After that: `nodes()`, `meshes()`, `parts()`, `materials()` (spans over the file's records), `vertexData(mesh)` / `indexData(mesh)`, `allVertexData()` / `allIndexData()` (the whole sections, for one upload each), `string(ref)`, `find(type)` and `data(entry)` for other sections, and `readEditData(EditData&)` for the editable polygons.
-- **`Writer`:** `addMesh(MeshInput)` (attributes, stride, vertex bytes, `u32` indices, optional parts), `addMaterial(MaterialInput)` (returns its index for parts; `MATL` is written only when there are any), `addNode(NodeInput)` (parents first), `setEditData(EditData)`, then `finish()` returns the file. It interns names into one string table, picks 16- or 32-bit indices, lines data up on 16 bytes and sections on 64, works out bounds from the `F32x3` positions, and fills in every count, offset, and checksum. The same input always gives the same bytes.
+- **`File`** views a buffer in place (it must outlive the `File` and start on an 8-byte boundary; a memory-mapped file or a `std::vector` qualifies). `open(data, size, options)` runs every check in [Reading a file](#reading-a-file) and says why in `error()` when one fails. `ReadOptions` can turn off the checksum pass and the per-index pass. After that: `nodes()`, `meshes()`, `parts()`, `materials()`, `textures()`, `baseColorTexture(material)` (`NONE` for version 1 materials), `textureData(texture)` (spans over the file's records), `vertexData(mesh)` / `indexData(mesh)`, `allVertexData()` / `allIndexData()` (the whole sections, for one upload each), `string(ref)`, `find(type)` and `data(entry)` for other sections, and `readEditData(EditData&)` for the editable polygons.
+- **`Writer`:** `addMesh(MeshInput)` (attributes, stride, vertex bytes, `u32` indices, optional parts), `addMaterial(MaterialInput)` (returns its index for parts; `MATL` is written only when there are any; `baseColorTexture` takes an index from `addTexture`), `addTexture(TextureInput)` (name, size, PNG bytes; returns its index; `TEXR` only when there are any), `addNode(NodeInput)` (parents first), `setEditData(EditData)`, then `finish()` returns the file. It interns names into one string table, picks 16- or 32-bit indices, lines data up on 16 bytes and sections on 64, works out bounds from the `F32x3` positions, and fills in every count, offset, and checksum. The same input always gives the same bytes.
 
 The library's own tests are in [shared/vlmobj/tests/](../../shared/vlmobj/tests/) and use nothing from Valuma.
 
@@ -298,12 +318,12 @@ The library's own tests are in [shared/vlmobj/tests/](../../shared/vlmobj/tests/
 
 | Function | Description |
 |---|---|
-| `bake(mesh, groupOf)` | Sorts the faces by material group (as `getFaceData` does) and records each group as a `BakedPart`, then triangulates every face and builds the vertex and index lists: position and normal per vertex, merged where both are bit-for-bit equal (`-0` counts as `0`). A face whose corners lie within `PLANAR_TOLERANCE` (1e-5 of its size) of its plane uses the face normal for all its triangles; otherwise each triangle uses its own, as the viewport draws it. |
-| `write(object, materials)` | One object as a file: the baked mesh, one node (no translation, the object's rotation as a quaternion, its scale), its material (from `materials`, Default when it has none; a collection with only Default if not given), and the `EDIT` section (vertices in mesh order, faces as corner lists with their UVs, the exact Euler angles). |
-| `write(objects, root, materials)` | An object and everything under it: the root as above (its world rotation and scale), then its children, parents first, each node with its own baked mesh, its transform relative to its parent, and its `EDIT` polygons and angles. Only the materials these objects use are written, in the order they're first used; each mesh's part points at its object's. |
-| `read(bytes, objects, error)` / `read(bytes, objects, materials, error)` | Every node as an `ImportedObject` (the object, its parent's place in the list, and its material's place in the file's materials, `NONE` for none), transforms relative to the parent as stored; the second also gives the file's materials as `Material`s. |
+| `bake(mesh, groupOf)` | Sorts the faces by material group (as `getFaceData` does) and records each group as a `BakedPart`, then writes every face's corners exactly as the viewport draws them (`MeshData::appendFaceCorners`: position, normal flat or smooth by the mesh's shading, UV) and merges vertices whose values are bit-for-bit equal (`-0` counts as `0`). |
+| `write(object, materials, textures)` | One object as a file: the baked mesh, one node (no translation, the object's rotation as a quaternion, its scale), its material (from `materials`, Default when it has none; a collection with only Default if not given), the textures its materials use as base color maps (each PNG as stored, from `textures`), and the `EDIT` section (vertices in mesh order, faces as corner lists with their UVs, the exact Euler angles). |
+| `write(objects, root, materials, textures)` | An object and everything under it: the root as above (its world rotation and scale), then its children, parents first, each node with its own baked mesh, its transform relative to its parent, and its `EDIT` polygons and angles. Only the materials these objects use are written, in the order they're first used, and only the textures those materials use; each mesh's part points at its object's. |
+| `read(bytes, objects, error)` / `read(bytes, objects, materials, error)` / `read(bytes, asset, error)` | Every node as an `ImportedObject` (the object, its parent's place in the list, and its material's place in the file's materials, `NONE` for none), transforms relative to the parent as stored; the second also gives the file's materials as `Material`s; the third fills an `ImportedAsset` (objects, materials, `materialMaps`: each material's texture as a place in `textures` or `NONE`, and the textures, each a `Texture` with no source path whose PNG is checked to be one). |
 | `read(bytes, object, error)` | The root node's object: name ("Imported" if empty), rotation (the `EDIT` angles when present, else worked back from the quaternion), scale, position zero. The mesh comes from the editable polygons through `MeshFactory::fromPolygons`, or without them from the triangles, joined where corners share a position exactly (triangles that collapse are dropped). Polygons are checked first (no repeated corner in a face, each directed edge used once, borders that form simple loops) and the result must pass `validate()`, so a bad file is refused, not built into a broken mesh. |
-| `save(path, object, error)` / `load(path, object, error)`, and the family versions with materials | The same through a file; saving writes `name.vlmobj.exporting` and renames it over the target. |
+| `save(path, object, error)` / `load(path, object, error)`, the family versions with materials (and textures, for saving), and `load(path, asset, error)` | The same through a file; saving writes `name.vlmobj.exporting` and renames it over the target. |
 | `eulerToQuaternion` / `quaternionToEuler` | Between `Transform` angles (X, then Y, then Z) and `x, y, z, w`. Straight up or down (Y at ±90°), X and Z turn about the same axis, so the way back puts it all in Z. |
 
 ## In the app

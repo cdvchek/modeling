@@ -176,7 +176,28 @@ namespace vlmobj {
         u8 alphaMode;           // AlphaMode
         u8 flags;               // MATERIAL_DOUBLE_SIDED
         u16 reserved0;
-        u32 reserved1[2];
+        // Version 2: into the TEXR section, or NONE; multiplies baseColor (its alpha multiplies opacity). Reserved (0)
+        // in version 1, which means none: read it with File::baseColorTexture
+        u32 baseColorTexture;
+        u32 reserved1;
+    };
+
+    // How a texture's pixels are stored
+    enum class TextureFormat : u8 { Png = 1 };
+
+    // A picture materials use, read through the mesh's UVs (uv0). The data sits in the TEXR section after the
+    // records: a whole PNG file for TextureFormat::Png. Colors are sRGB.
+    struct Texture {
+        StringRef name;
+        u32 width;              // pixels
+        u32 height;
+        u8 format;              // TextureFormat
+        u8 flags;
+        u16 reserved0;
+        u32 reserved1;
+        u64 dataOffset;         // from the start of the TEXR section, 16-byte aligned
+        u64 dataSize;
+        u32 reserved2[6];
     };
 
     static_assert(sizeof(Header) == 64 && offsetof(Header, directoryOffset) == 24 && offsetof(Header, headerCrc) == 48);
@@ -186,7 +207,9 @@ namespace vlmobj {
     static_assert(sizeof(VertexAttribute) == 8);
     static_assert(sizeof(Mesh) == 160 && offsetof(Mesh, vertexStride) == 32 && offsetof(Mesh, boundsMin) == 48 && offsetof(Mesh, attributes) == 88);
     static_assert(sizeof(Part) == 16);
-    static_assert(sizeof(Material) == 64 && offsetof(Material, roughness) == 20 && offsetof(Material, emissiveStrength) == 40 && offsetof(Material, alphaMode) == 52);
+    static_assert(sizeof(Material) == 64 && offsetof(Material, roughness) == 20 && offsetof(Material, emissiveStrength) == 40 && offsetof(Material, alphaMode) == 52
+                  && offsetof(Material, baseColorTexture) == 56);
+    static_assert(sizeof(Texture) == 64 && offsetof(Texture, format) == 16 && offsetof(Texture, dataOffset) == 24);
 
     // Standard CRC-32 (zlib/PNG)
     u32 crc32(const void* data, std::size_t size);
@@ -254,6 +277,11 @@ namespace vlmobj {
         std::span<const Mesh> meshes() const { return m_meshes; }
         std::span<const Part> parts() const { return m_parts; }
         std::span<const Material> materials() const { return m_materials; }
+        std::span<const Texture> textures() const { return m_textures; }
+        // The material's base color texture, NONE when it has none (always NONE in a version 1 MATL section)
+        u32 baseColorTexture(const Material& material) const { return m_materialVersion >= 2 ? material.baseColorTexture : NONE; }
+        // A texture's stored bytes (the PNG file for TextureFormat::Png)
+        std::span<const u8> textureData(const Texture& texture) const { return { m_textureSection + texture.dataOffset, static_cast<std::size_t>(texture.dataSize) }; }
 
         // A mesh's vertices (vertexCount × vertexStride bytes) and indices (indexCount × indexSize bytes)
         const u8* vertexData(const Mesh& mesh) const { return m_vertices + mesh.vertexOffset; }
@@ -281,6 +309,9 @@ namespace vlmobj {
         std::span<const Mesh> m_meshes;
         std::span<const Part> m_parts;
         std::span<const Material> m_materials;
+        u32 m_materialVersion = 0;
+        std::span<const Texture> m_textures;
+        const u8* m_textureSection = nullptr;
         const u8* m_strings = nullptr;
         u64 m_stringBytes = 0;
         const u8* m_vertices = nullptr;
@@ -318,6 +349,14 @@ namespace vlmobj {
         f32 alphaCutoff = 0.5f;
         AlphaMode alphaMode = AlphaMode::Opaque;
         bool doubleSided = false;
+        u32 baseColorTexture = NONE;    // from addTexture
+    };
+
+    struct TextureInput {
+        std::string name;
+        u32 width = 0;
+        u32 height = 0;
+        std::vector<u8> png;            // the whole PNG file
     };
 
     struct MeshInput {
@@ -336,6 +375,8 @@ namespace vlmobj {
         u32 addMesh(MeshInput mesh);
         // Returns the material's index, for parts to point at
         u32 addMaterial(const MaterialInput& material);
+        // Returns the texture's index, for materials to point at
+        u32 addTexture(TextureInput texture);
         void setEditData(EditData edit);
 
         // The finished file. Deterministic: the same input always gives the same bytes.
@@ -345,6 +386,7 @@ namespace vlmobj {
         std::vector<NodeInput> m_nodes;
         std::vector<MeshInput> m_meshes;
         std::vector<MaterialInput> m_materials;
+        std::vector<TextureInput> m_textures;
         EditData m_edit;
         bool m_hasEdit = false;
     };

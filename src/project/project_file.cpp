@@ -34,6 +34,7 @@ namespace {
     constexpr u32 CHUNK_EXPORT = fourCC("EXPT");
     constexpr u32 CHUNK_REFERENCE = fourCC("REFI");
     constexpr u32 CHUNK_MATERIALS = fourCC("MATL");
+    constexpr u32 CHUNK_TEXTURE = fourCC("TEXR");
 
     struct ChunkVersion {
         u32 type;
@@ -41,9 +42,9 @@ namespace {
     };
 
     // The newest version of each chunk this build reads and writes
-    constexpr std::array<ChunkVersion, 7> CHUNK_VERSIONS = { {
+    constexpr std::array<ChunkVersion, 8> CHUNK_VERSIONS = { {
         { CHUNK_VIEW, 4 }, { CHUNK_CAMERA, 1 }, { CHUNK_LIGHTS, 1 }, { CHUNK_OBJECT, 6 }, { CHUNK_EXPORT, 1 },
-        { CHUNK_REFERENCE, 1 }, { CHUNK_MATERIALS, 1 },
+        { CHUNK_REFERENCE, 1 }, { CHUNK_MATERIALS, 2 }, { CHUNK_TEXTURE, 1 },
     } };
 
     u32 supportedVersion(u32 type) {
@@ -269,6 +270,55 @@ namespace {
         return finish(CHUNK_EXPORT, writer);
     }
 
+    // A picture's file as it was added: its name, size, and the PNG bytes unchanged
+    void writePicture(BinaryWriter& writer, const std::shared_ptr<const Picture>& stored) {
+        static const Picture EMPTY;
+        const Picture& picture = stored ? *stored : EMPTY;
+        writer.writeString(picture.fileName);
+        writer.write(picture.width);
+        writer.write(picture.height);
+        writer.write(static_cast<u64>(picture.png.size()));
+        writer.writeBytes(picture.png.data(), picture.png.size());
+    }
+
+    // Only checked to be a PNG of a sensible size; it's decoded when it's first drawn
+    bool readPicture(BinaryReader& reader, std::shared_ptr<const Picture>& out) {
+        auto picture = std::make_shared<Picture>();
+        u64 size = 0;
+        const bool ok = reader.readString(picture->fileName)
+            && reader.read(picture->width)
+            && reader.read(picture->height)
+            && reader.read(size) && size <= reader.remaining()
+            && reader.readVector(picture->png, static_cast<std::size_t>(size));
+        if (!ok) return false;
+
+        const bool fits = picture->width > 0 && picture->height > 0 && picture->width <= image::MAX_DIMENSION && picture->height <= image::MAX_DIMENSION;
+        if (!fits || !image::isPng(picture->png.data(), picture->png.size())) return false;
+        out = std::move(picture);
+        return true;
+    }
+
+    // One texture: its name, the file it came from (for Reload), and its picture
+    Chunk writeTexture(const Texture& texture) {
+        BinaryWriter writer;
+        writer.writeString(texture.name);
+        writer.writeString(texture.sourcePath);
+        writePicture(writer, texture.picture);
+        return finish(CHUNK_TEXTURE, writer);
+    }
+
+    bool readTexture(BinaryReader& reader, Texture& texture, std::string& error) {
+        if (!reader.readString(texture.name) || !reader.readString(texture.sourcePath)) {
+            error = "a texture's data is cut short";
+            return false;
+        }
+        if (!readPicture(reader, texture.picture)) {
+            error = "texture '" + texture.name + "' is damaged";
+            return false;
+        }
+        return true;
+    }
+
     // One reference image with its picture file as it was added
     Chunk writeReference(const ReferenceImage& image) {
         BinaryWriter writer;
@@ -280,22 +330,12 @@ namespace {
         writer.write(static_cast<u8>(image.depth));
         writeBool(writer, image.locked);
         writeBool(writer, image.visible);
-
-        static const ReferencePicture EMPTY;
-        const ReferencePicture& picture = image.picture ? *image.picture : EMPTY;
-        writer.writeString(picture.fileName);
-        writer.write(picture.width);
-        writer.write(picture.height);
-        writer.write(static_cast<u64>(picture.png.size()));
-        writer.writeBytes(picture.png.data(), picture.png.size());
+        writePicture(writer, image.picture);
         return finish(CHUNK_REFERENCE, writer);
     }
 
-    // The picture is only checked to be a PNG here; it's decoded when it's first drawn
     bool readReference(BinaryReader& reader, ReferenceImage& image, std::string& error) {
         u8 depth = 0;
-        u64 size = 0;
-        auto picture = std::make_shared<ReferencePicture>();
 
         const bool ok = reader.readString(image.name)
             && readVec3(reader, image.position)
@@ -304,31 +344,23 @@ namespace {
             && reader.read(image.opacity)
             && reader.read(depth) && depth <= static_cast<u8>(ReferenceDepth::InFront)
             && readBool(reader, image.locked)
-            && readBool(reader, image.visible)
-            && reader.readString(picture->fileName)
-            && reader.read(picture->width)
-            && reader.read(picture->height)
-            && reader.read(size) && size <= reader.remaining()
-            && reader.readVector(picture->png, static_cast<std::size_t>(size));
+            && readBool(reader, image.visible);
 
         if (!ok) {
             error = "a reference image's data is cut short or out of range";
             return false;
         }
-
-        const bool fits = picture->width > 0 && picture->height > 0 && picture->width <= image::MAX_DIMENSION && picture->height <= image::MAX_DIMENSION;
-        if (!fits || !image::isPng(picture->png.data(), picture->png.size()) || !(image.size > 0.0f)) {
+        if (!readPicture(reader, image.picture) || !(image.size > 0.0f)) {
             error = "reference image '" + image.name + "' is damaged";
             return false;
         }
 
         image.depth = static_cast<ReferenceDepth>(depth);
-        image.picture = std::move(picture);
         return true;
     }
 
-    // Every material, Default first
-    Chunk writeMaterials(const MaterialCollection& materials) {
+    // Every material, Default first; each map as its texture's place among the TEXR chunks (textures, in that order)
+    Chunk writeMaterials(const MaterialCollection& materials, const std::vector<TextureHandle>& textures) {
         BinaryWriter writer;
         const std::vector<MaterialHandle> handles = materials.handles();
         writer.write(static_cast<u32>(handles.size()));
@@ -345,13 +377,18 @@ namespace {
             writer.write(static_cast<u8>(material.alphaMode));
             writer.write(material.alphaCutoff);
             writeBool(writer, material.doubleSided);
+            // Version 2
+            u32 map = INVALID_INDEX;
+            for (u32 k = 0; k < textures.size(); ++k) if (textures[k] == material.baseColorMap) map = k;
+            writer.write(map);
         }
 
         return finish(CHUNK_MATERIALS, writer);
     }
 
-    // The first material fills in Default; handles come back in file order, for objects to point at
-    bool readMaterials(BinaryReader& reader, MaterialCollection& materials, std::vector<MaterialHandle>& handles) {
+    // The first material fills in Default; handles come back in file order, for objects to point at. maps: each
+    // material's base color map as a place among the TEXR chunks (INVALID_INDEX for none), linked once all are read
+    bool readMaterials(BinaryReader& reader, u32 version, MaterialCollection& materials, std::vector<MaterialHandle>& handles, std::vector<u32>& maps) {
         u32 count = 0;
         if (!reader.read(count) || count == 0) return false;
 
@@ -369,6 +406,9 @@ namespace {
                 && reader.read(material.alphaCutoff)
                 && readBool(reader, material.doubleSided);
             if (!ok) return false;
+            u32 map = INVALID_INDEX;
+            if (version >= 2 && !reader.read(map)) return false;
+            maps.push_back(map);
             material.alphaMode = static_cast<AlphaMode>(mode);
 
             if (i == 0) {
@@ -493,7 +533,9 @@ namespace {
         chunks.push_back(writeCamera(scene.camera));
         chunks.push_back(writeLights(scene.lights));
         chunks.push_back(writeExport(view));
-        chunks.push_back(writeMaterials(scene.materials));
+        const std::vector<TextureHandle> textures = scene.textures.handles();
+        for (TextureHandle handle : textures) chunks.push_back(writeTexture(scene.textures.get(handle)));
+        chunks.push_back(writeMaterials(scene.materials, textures));
         for (ReferenceHandle handle : scene.references.handles()) chunks.push_back(writeReference(scene.references.get(handle)));
 
         std::size_t edges = 0;
@@ -657,6 +699,8 @@ bool ProjectFile::read(const std::vector<u8>& bytes, Scene& scene, View& view, s
 
     std::vector<const Entry*> objectEntries;
     std::vector<MaterialHandle> materialHandles;
+    std::vector<u32> materialMaps;
+    std::vector<TextureHandle> textureHandles;
     std::size_t objectBytes = 0;
     u32 activeObject = INVALID_INDEX;
 
@@ -678,8 +722,12 @@ bool ProjectFile::read(const std::vector<u8>& bytes, Scene& scene, View& view, s
         else if (entry.type == CHUNK_CAMERA) ok = readCamera(reader, scene.camera);
         else if (entry.type == CHUNK_LIGHTS) ok = readLights(reader, scene.lights);
         else if (entry.type == CHUNK_EXPORT) ok = reader.readString(view.exportFolder);
-        else if (entry.type == CHUNK_MATERIALS) ok = readMaterials(reader, scene.materials, materialHandles);
-        else if (entry.type == CHUNK_REFERENCE) {
+        else if (entry.type == CHUNK_MATERIALS) ok = readMaterials(reader, entry.version, scene.materials, materialHandles, materialMaps);
+        else if (entry.type == CHUNK_TEXTURE) {
+            Texture texture;
+            if (!readTexture(reader, texture, error)) return false;
+            textureHandles.push_back(scene.textures.add(std::move(texture)));
+        } else if (entry.type == CHUNK_REFERENCE) {
             ReferenceImage image;
             if (!readReference(reader, image, error)) return false;
             scene.references.add(std::move(image));
@@ -689,6 +737,16 @@ bool ProjectFile::read(const std::vector<u8>& bytes, Scene& scene, View& view, s
             error = "chunk " + typeName(entry.type) + " is cut short or out of range";
             return false;
         }
+    }
+
+    // Maps point at textures by their place among the TEXR chunks, which may come in any order around MATL
+    for (std::size_t i = 0; i < materialHandles.size() && i < materialMaps.size(); ++i) {
+        if (materialMaps[i] == INVALID_INDEX) continue;
+        if (materialMaps[i] >= textureHandles.size()) {
+            error = "material '" + scene.materials.get(materialHandles[i]).name + "' uses a texture that isn't in the file";
+            return false;
+        }
+        scene.materials.get(materialHandles[i]).baseColorMap = textureHandles[materialMaps[i]];
     }
 
     // Objects decode independently, each into its own slot, so they can run on separate threads
@@ -905,7 +963,15 @@ std::string ProjectFile::describe(const std::vector<u8>& bytes) {
         } else if (entry.type == CHUNK_MATERIALS) {
             MaterialCollection materials;
             std::vector<MaterialHandle> handles;
-            if (readMaterials(reader, materials, handles)) out << "  " << handles.size() << " materials";
+            std::vector<u32> maps;
+            if (readMaterials(reader, entry.version, materials, handles, maps)) out << "  " << handles.size() << " materials";
+        } else if (entry.type == CHUNK_TEXTURE) {
+            Texture texture;
+            std::string textureError;
+            if (readTexture(reader, texture, textureError)) {
+                out << "  '" << texture.name << "' " << texture.picture->fileName << ", " << texture.picture->width << " x " << texture.picture->height
+                    << ", " << texture.picture->png.size() << " bytes of PNG";
+            }
         } else if (entry.type == CHUNK_REFERENCE) {
             ReferenceImage image;
             std::string referenceError;

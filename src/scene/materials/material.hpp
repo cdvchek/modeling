@@ -3,6 +3,7 @@
 #include <string>
 #include "core/containers/dynamic_array.hpp"
 #include "core/math/vec3.hpp"
+#include "scene/textures/texture.hpp"
 
 // How a material's opacity is used, as in glTF and the game engines
 enum class AlphaMode : u8 {
@@ -17,6 +18,8 @@ struct Material {
     std::string name;
 
     Vec3 baseColor { 0.72f, 0.73f, 0.78f };
+    // A picture multiplied by baseColor (its alpha by opacity), read through the mesh's UVs; not valid means none
+    TextureHandle baseColorMap = INVALID_TEXTURE;
     f32 roughness = 0.5f;       // 0 mirror-sharp highlights, 1 none
     f32 metallic = 0.0f;        // 0 plastic, stone, wood; 1 metal
 

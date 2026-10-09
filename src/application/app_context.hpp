@@ -40,7 +40,7 @@ struct AppContext {
     UIDrawList uiDrawList;
     UIContext ui;
     ObjectMeshCache objectMeshes;
-    ReferenceTextureCache referenceTextures;
+    PictureTextureCache pictureTextures;
     MaterialPreviewCache materialPreviews;
     FrameTimer frameTimer;
     FrameStats frameStats;
@@ -52,10 +52,17 @@ struct AppContext {
 
     // Import… was picked in the Objects tab; the file dialog opens in checkActions, not while drawing
     bool importRequested = false;
-    // Likewise for + in the Images tab
+    // Likewise for + in the References tab
     bool referenceRequested = false;
     // Where the image dialog last picked from (this session only)
     std::filesystem::path referenceFolder;
+    // Load PNG… was picked for a texture (and the material to put it on, if any); opened in checkActions
+    struct TextureRequest {
+        bool open = false;
+        MaterialHandle material = INVALID_MATERIAL;
+    } textureRequest;
+    // Where the texture dialog last picked from (this session only)
+    std::filesystem::path textureFolder;
 
     // Where Tab returns to from object mode
     u32 lastEditMode = InputContext_SelectionVertex;

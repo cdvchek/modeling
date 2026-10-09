@@ -10,7 +10,7 @@ bool Material::sameLook(const Material& other) const {
     return sameVec3(baseColor, other.baseColor) && roughness == other.roughness && metallic == other.metallic
         && sameVec3(emissiveColor, other.emissiveColor) && emissiveStrength == other.emissiveStrength
         && opacity == other.opacity && alphaMode == other.alphaMode && alphaCutoff == other.alphaCutoff
-        && doubleSided == other.doubleSided;
+        && doubleSided == other.doubleSided && baseColorMap == other.baseColorMap;
 }
 
 const char* alphaModeName(AlphaMode mode) {

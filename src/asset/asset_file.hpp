@@ -7,6 +7,7 @@
 
 #include "scene/objects/object_collection.hpp"
 #include "scene/materials/material_collection.hpp"
+#include "scene/textures/texture_collection.hpp"
 
 // Valuma's side of .vlmobj assets (format: shared/vlmobj, spec: docs/systems/vlmobj.md):
 // baking an object into a file, and rebuilding an object from one.
@@ -34,11 +35,14 @@ namespace AssetFile {
     BakedMesh bake(const MeshData& mesh, const FaceGroupOf& groupOf = {});
 
     // One object as an asset: its origin is the pivot, so the position is dropped; rotation and scale are kept.
-    // The materials its objects use are embedded (only those), each object's mesh pointing at its own.
-    std::vector<u8> write(const Object& object, const MaterialCollection& materials = MaterialCollection());
+    // The materials its objects use are embedded (only those), each object's mesh pointing at its own, and the
+    // textures those materials use (only those, as their PNG files).
+    std::vector<u8> write(const Object& object, const MaterialCollection& materials = MaterialCollection(),
+                          const TextureCollection& textures = TextureCollection());
     // An object and everything under it: the root as above (with its world rotation and scale), then its children,
     // parents first, each with its transform relative to its parent
-    std::vector<u8> write(const ObjectCollection& objects, ObjectHandle root, const MaterialCollection& materials = MaterialCollection());
+    std::vector<u8> write(const ObjectCollection& objects, ObjectHandle root, const MaterialCollection& materials = MaterialCollection(),
+                          const TextureCollection& textures = TextureCollection());
 
     // An object read from an asset, with its parent's place in the list (NONE for the root, which comes first) and
     // its material's place in the asset's materials (NONE for none: the project's Default)
@@ -59,10 +63,22 @@ namespace AssetFile {
     // Also the asset's materials, for the objects' material places to point into
     bool read(const std::vector<u8>& bytes, std::vector<ImportedObject>& objects, std::vector<Material>& materials, std::string& error);
 
+    // Everything an asset brings in. A material's base color map isn't set here (its baseColorMap stays invalid);
+    // materialMaps says it: a place in textures, or NONE.
+    struct ImportedAsset {
+        std::vector<ImportedObject> objects;
+        std::vector<Material> materials;
+        std::vector<u32> materialMaps;
+        std::vector<Texture> textures;      // no sourcePath: they came from the asset
+    };
+    bool read(const std::vector<u8>& bytes, ImportedAsset& asset, std::string& error);
+    bool load(const std::filesystem::path& path, ImportedAsset& asset, std::string& error);
+
     // To disk through a temporary file, so a failed export never leaves a damaged asset behind
     bool save(const std::filesystem::path& path, const Object& object, std::string& error);
     bool load(const std::filesystem::path& path, Object& object, std::string& error);
-    bool save(const std::filesystem::path& path, const ObjectCollection& objects, ObjectHandle root, const MaterialCollection& materials, std::string& error);
+    bool save(const std::filesystem::path& path, const ObjectCollection& objects, ObjectHandle root, const MaterialCollection& materials,
+              const TextureCollection& textures, std::string& error);
     bool load(const std::filesystem::path& path, std::vector<ImportedObject>& objects, std::string& error);
     bool load(const std::filesystem::path& path, std::vector<ImportedObject>& objects, std::vector<Material>& materials, std::string& error);
 

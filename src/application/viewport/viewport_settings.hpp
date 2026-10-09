@@ -20,6 +20,8 @@ struct ViewportSettings {
     Headlight headlight;
     // The material the Materials tab shows; not valid means Default
     MaterialHandle selectedMaterial = INVALID_MATERIAL;
+    // The texture the Materials tab's Textures section shows; not valid means none
+    TextureHandle selectedTexture = INVALID_TEXTURE;
 
     // The stats readout in the top left (stats command); not saved
     bool showStats = false;

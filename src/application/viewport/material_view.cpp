@@ -14,15 +14,27 @@ namespace {
     }
 }
 
-SurfaceLook surfaceOf(const Material& material) {
+u32 mapTexture(const AppContext& ctx, const Material& material) {
+    const Texture* texture = ctx.scene.textures.tryGet(material.baseColorMap);
+    return texture ? ctx.pictureTextures.find(texture->picture) : 0;
+}
+
+void syncTextures(AppContext& ctx) {
+    for (TextureHandle handle : ctx.scene.textures.handles()) ctx.pictureTextures.sync(ctx, ctx.scene.textures.get(handle).picture);
+}
+
+SurfaceLook surfaceOf(const Material& material, u32 map) {
     SurfaceLook look;
+    look.baseColorMap = map;
     look.baseColor = material.baseColor;
     look.roughness = material.roughness;
     look.metallic = material.metallic;
     look.emissiveColor = material.emissiveColor;
     look.emissiveStrength = material.emissiveStrength;
-    look.blend = material.alphaMode == AlphaMode::Blend && material.opacity < 1.0f;
+    // A map's alpha can make any pixel see-through, so a blended material with one always blends
+    look.blend = material.alphaMode == AlphaMode::Blend && (material.opacity < 1.0f || map != 0);
     look.opacity = material.opacity;
+    if (material.alphaMode == AlphaMode::Cutout) look.alphaCutoff = material.alphaCutoff;
     look.backFaces = material.doubleSided ? BackFaces::Lit : BackFaces::Culled;
 
     if (hidden(material)) {
@@ -38,7 +50,7 @@ std::optional<SurfaceLook> surfaceFor(const AppContext& ctx, const Object& objec
     const MaterialCollection& materials = ctx.scene.materials;
     const Material& material = materials.get(materials.resolve(object.material));
     if (hidden(material)) return std::nullopt;
-    return surfaceOf(material);
+    return surfaceOf(material, mapTexture(ctx, material));
 }
 
 void MaterialPreviewCache::sync(AppContext& ctx) {
@@ -52,7 +64,7 @@ void MaterialPreviewCache::sync(AppContext& ctx) {
     });
 
     for (MaterialHandle handle : materials.handles()) {
-        const SurfaceLook look = surfaceOf(materials.get(handle));
+        const SurfaceLook look = surfaceOf(materials.get(handle), mapTexture(ctx, materials.get(handle)));
 
         Entry* entry = nullptr;
         for (Entry& existing : m_entries) {
@@ -89,7 +101,7 @@ ObjectParts partsFor(const AppContext& ctx, const Object& object, const IMesh& m
         const Material& material = materials.get(handle);
         if (hidden(material)) continue;
 
-        const DrawPart part { group.firstIndex, group.indexCount, surfaceOf(material) };
+        const DrawPart part { group.firstIndex, group.indexCount, surfaceOf(material, mapTexture(ctx, material)) };
         if (part.surface.blend) parts.seeThrough.push_back(part);
         else parts.solid.push_back(part);
     }

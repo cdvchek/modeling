@@ -30,11 +30,11 @@ namespace {
     }
 
     // A 13 x 7 RGBA PNG from the image library's fixtures
-    std::shared_ptr<const ReferencePicture> picture(u32 width = 13, u32 height = 7) {
+    std::shared_ptr<const Picture> picture(u32 width = 13, u32 height = 7) {
         const auto path = std::filesystem::path(SOURCE_DIR) / "shared/image/tests/fixtures/rgba8.png";
         std::ifstream file(path, std::ios::binary);
 
-        auto result = std::make_shared<ReferencePicture>();
+        auto result = std::make_shared<Picture>();
         result->fileName = "rgba8.png";
         result->png.assign(std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>());
         result->width = width;
@@ -201,7 +201,7 @@ TEST_CASE(reference_images_undo_and_share_their_picture) {
     const ReferenceHandle handle = scene.references.add(wideImage());
     history.commit();
 
-    const ReferencePicture* shared = scene.references.get(handle).picture.get();
+    const Picture* shared = scene.references.get(handle).picture.get();
 
     history.begin(scene);
     scene.references.get(handle).opacity = 0.25f;
@@ -265,7 +265,7 @@ TEST_CASE(project_saves_reference_images) {
 TEST_CASE(project_refuses_a_reference_that_isnt_a_png) {
     Scene scene;
     ReferenceImage image = wideImage();
-    auto broken = std::make_shared<ReferencePicture>(*picture());
+    auto broken = std::make_shared<Picture>(*picture());
     broken->png[1] = 'X';
     image.picture = broken;
     scene.references.add(image);

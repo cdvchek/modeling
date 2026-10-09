@@ -1,5 +1,6 @@
 #include "application/commands/material_commands.hpp"
 #include "application/commands/command_parsing.hpp"
+#include "application/commands/texture_commands.hpp"
 
 #include <iostream>
 #include <string>
@@ -12,7 +13,7 @@ namespace {
         "       material clear  (the selected faces use their object's material again)\n"
         "       material <id> [remove | assign [<object id> ...] | select | name <n> | color <r> <g> <b> | roughness <0 to 1>\n"
         "                      | metallic <0 to 1> | emissive <r> <g> <b> | glow <strength> | opacity <0 to 1>\n"
-        "                      | mode <opaque | cutout | blend> | cutoff <0 to 1> | sides <single | double>]";
+        "                      | mode <opaque | cutout | blend> | cutoff <0 to 1> | sides <single | double> | map <texture id | none>]";
 
     std::optional<AlphaMode> parseAlphaMode(const std::string& text) {
         if (text == "opaque") return AlphaMode::Opaque;
@@ -37,6 +38,7 @@ namespace {
             printVec3(material.emissiveColor);
             std::cout << " x " << material.emissiveStrength;
         }
+        if (const Texture* map = ctx.scene.textures.tryGet(material.baseColorMap)) std::cout << ", map " << map->name;
         std::cout << ", " << alphaModeName(material.alphaMode);
         if (material.alphaMode != AlphaMode::Opaque) std::cout << " opacity " << material.opacity;
         if (material.alphaMode == AlphaMode::Cutout) std::cout << " cutoff " << material.alphaCutoff;
@@ -155,6 +157,19 @@ namespace {
             }
             selectFacesWithMaterial(ctx, handle);
             std::cout << "[material " << handle.index << "] " << ctx.scene.selection.getFaces().size() << " faces selected" << std::endl;
+            return;
+        }
+
+        // The base color map: a texture from texture list, or none
+        if (args[1] == "map" && args.size() == 3) {
+            u32 textureSlot = 0;
+            const TextureHandle texture = args[2] == "none" ? INVALID_TEXTURE : parseU32(args[2], textureSlot) ? ctx.scene.textures.handleAt(textureSlot) : INVALID_TEXTURE;
+            if (args[2] != "none" && !ctx.scene.textures.isValid(texture)) {
+                std::cout << "usage: material <id> map <texture id | none>  (see texture list)" << std::endl;
+                return;
+            }
+            setBaseColorMap(ctx, handle, texture);
+            printMaterial(ctx, handle);
             return;
         }
 

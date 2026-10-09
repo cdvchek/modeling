@@ -5,6 +5,8 @@
 #include "application/viewport/reference_images.hpp"
 #include "application/commands/material_commands.hpp"
 #include "application/actions/origin_actions.hpp"
+#include "application/commands/texture_commands.hpp"
+#include "application/viewport/material_view.hpp"
 #include "ui/ui_style.hpp"
 
 #include <algorithm>
@@ -13,7 +15,7 @@
 #include <vector>
 
 namespace {
-    constexpr f32 PANEL_WIDTH = 360.0f;
+    constexpr f32 PANEL_WIDTH = 380.0f;
     constexpr f32 PANEL_HEIGHT = 620.0f;
     constexpr f32 PANEL_MARGIN = 20.0f;
     constexpr f32 RADIANS_TO_DEGREES = 180.0f / 3.14159265f;
@@ -24,11 +26,11 @@ namespace {
     constexpr f32 PRESET_DROPDOWN_WIDTH = 130.0f;
     constexpr f32 MIN_SCALE = 0.001f;
 
-    const std::vector<std::string_view> TABS = { "Objects", "Materials", "Lights", "Images" };
+    const std::vector<std::string_view> TABS = { "Objects", "Materials", "Lights", "References" };
     constexpr i32 OBJECTS_TAB = 0;
     constexpr i32 MATERIALS_TAB = 1;
     constexpr i32 LIGHTS_TAB = 2;
-    constexpr i32 IMAGES_TAB = 3;
+    constexpr i32 REFERENCES_TAB = 3;
 
     // The big swatch at the top of the selected material
     constexpr f32 PREVIEW_SIZE = 112.0f;
@@ -434,6 +436,109 @@ namespace {
         ui.endChild();
     }
 
+    // The material's base color map: None, a texture (with its thumbnail), or Load PNG... to load one onto it
+    void baseColorMapRow(AppContext& ctx, MaterialHandle handle, Material& material) {
+        UIContext& ui = ctx.ui;
+        const TextureCollection& textures = ctx.scene.textures;
+        const std::vector<TextureHandle> handles = textures.handles();
+
+        std::vector<std::string_view> labels = { "None" };
+        std::vector<u32> icons = { 0 };
+        i32 current = 0;
+        for (u32 i = 0; i < handles.size(); ++i) {
+            labels.push_back(textures.get(handles[i]).name);
+            icons.push_back(ctx.pictureTextures.find(textures.get(handles[i]).picture));
+            if (handles[i] == material.baseColorMap) current = static_cast<i32>(i) + 1;
+        }
+        labels.push_back("Load PNG...");
+        icons.push_back(0);
+        const i32 load = static_cast<i32>(labels.size()) - 1;
+
+        const Rect row = ui.row();
+        const f32 labelWidth = std::floor(row.width * 0.38f);
+        ui.text({ row.x, row.y, labelWidth, row.height }, "Base map", UIStyle::TEXT_DIM);
+        if (ui.dropdown("Base map", { row.x + labelWidth, row.y, row.width - labelWidth, row.height }, current, labels, icons)) {
+            // The file dialog opens next frame, not while drawing
+            if (current == load) ctx.textureRequest = { true, handle };
+            else {
+                material.baseColorMap = current == 0 ? INVALID_TEXTURE : handles[current - 1];
+                setBaseColorMap(ctx, handle, material.baseColorMap);
+            }
+        }
+    }
+
+    // Heading with + and - on the right, then a fixed-height list of thumbnails
+    void textureListSection(AppContext& ctx) {
+        UIContext& ui = ctx.ui;
+        TextureCollection& textures = ctx.scene.textures;
+        TextureHandle& selected = ctx.viewport.selectedTexture;
+        if (!textures.isValid(selected)) selected = textures.count() > 0 ? textures.handles().front() : INVALID_TEXTURE;
+
+        const ListHeader header = listHeader(ui, "Textures", 0.0f);
+        // The file dialog opens next frame, not while drawing
+        if (ui.button("+", header.plus)) ctx.textureRequest = { true, INVALID_MATERIAL };
+        if (ui.button("-", header.minus, textures.isValid(selected))) {
+            removeTexture(ctx, selected);
+            selected = INVALID_TEXTURE;
+        }
+
+        ui.beginChild("list", listHeight());
+        for (TextureHandle handle : textures.handles()) {
+            const Texture& texture = textures.get(handle);
+            const std::string detail = describeTextureUse(textureUse(ctx, handle));
+
+            ui.pushId(handle.index);
+            if (ui.selectable(texture.name, handle == selected, detail, ctx.pictureTextures.find(texture.picture))) selected = handle;
+            ui.popId();
+        }
+        ui.endChild();
+    }
+
+    void selectedTextureSection(AppContext& ctx) {
+        UIContext& ui = ctx.ui;
+        TextureCollection& textures = ctx.scene.textures;
+        const TextureHandle handle = ctx.viewport.selectedTexture;
+
+        ui.heading("Selected texture");
+        if (!textures.isValid(handle)) {
+            ui.label("No textures yet: + loads a PNG", true);
+            return;
+        }
+
+        const Texture& texture = textures.get(handle);
+        ui.pushId(handle.index);
+
+        // The picture, fitted into a square the size of the material swatch
+        if (texture.picture && texture.picture->width > 0 && texture.picture->height > 0) {
+            const f32 aspect = static_cast<f32>(texture.picture->width) / static_cast<f32>(texture.picture->height);
+            const f32 width = aspect >= 1.0f ? PREVIEW_SIZE : std::floor(PREVIEW_SIZE * aspect);
+            const f32 height = aspect >= 1.0f ? std::floor(PREVIEW_SIZE / aspect) : PREVIEW_SIZE;
+            const Rect previewRow = ui.row(PREVIEW_SIZE);
+            ui.drawList().image({ previewRow.x + std::floor((previewRow.width - width) * 0.5f), previewRow.y + std::floor((PREVIEW_SIZE - height) * 0.5f), width, height },
+                                ctx.pictureTextures.find(texture.picture));
+        }
+
+        std::string name = texture.name;
+        if (ui.textField("Name", name) && textures.isValid(handle)) textures.get(handle).name = name;
+        trackUndo(ctx);
+
+        if (texture.picture) {
+            ui.label(std::to_string(texture.picture->width) + " x " + std::to_string(texture.picture->height) + ", " + texture.picture->fileName, true);
+        }
+        ui.label("Used by " + describeTextureUse(textureUse(ctx, handle)), true);
+
+        // Reads the file again after it was painted in another program
+        if (ui.button("Reload from file", ui.row(), !texture.sourcePath.empty())) reloadTexture(ctx, handle);
+
+        // Puts it on the material shown above
+        const MaterialHandle material = ctx.scene.materials.resolve(ctx.viewport.selectedMaterial);
+        const std::string useLabel = "Use as " + ctx.scene.materials.get(material).name + "'s base map";
+        const bool alreadyUsed = ctx.scene.materials.get(material).baseColorMap == handle;
+        if (ui.button(useLabel, ui.row(), !alreadyUsed)) setBaseColorMap(ctx, material, handle);
+
+        ui.popId();
+    }
+
     // Edits a copy so an undo restore mid-frame never leaves a dangling reference
     void selectedMaterialSection(AppContext& ctx) {
         UIContext& ui = ctx.ui;
@@ -462,6 +567,7 @@ namespace {
 
         changed |= ui.colorEdit("Base color", material.baseColor);
         trackUndo(ctx);
+        baseColorMapRow(ctx, handle, material);
         changed |= ui.sliderFloat("Roughness", material.roughness, 0.0f, 1.0f);
         trackUndo(ctx);
         changed |= ui.sliderFloat("Metallic", material.metallic, 0.0f, 1.0f);
@@ -675,6 +781,16 @@ void drawMainPanel(AppContext& ctx, const Rect& bounds) {
         ui.pushId("selected material");
         selectedMaterialSection(ctx);
         ui.popId();
+        ui.spacing();
+
+        ui.pushId("textures");
+        textureListSection(ctx);
+        ui.popId();
+        ui.spacing();
+
+        ui.pushId("selected texture");
+        selectedTextureSection(ctx);
+        ui.popId();
     } else if (panel.activeTab == LIGHTS_TAB) {
         ui.pushId("lights");
         lightListSection(ctx);
@@ -699,7 +815,7 @@ void drawMainPanel(AppContext& ctx, const Rect& bounds) {
         ui.pushId("exposure");
         exposureSection(ctx);
         ui.popId();
-    } else if (panel.activeTab == IMAGES_TAB) {
+    } else if (panel.activeTab == REFERENCES_TAB) {
         ui.pushId("images");
         imageListSection(ctx);
         ui.popId();

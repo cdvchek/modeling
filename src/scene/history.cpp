@@ -70,6 +70,7 @@ History::State History::capture(const Scene& scene) {
     state.lights = scene.lights;
     state.references = scene.references;
     state.materials = scene.materials;
+    state.textures = scene.textures;
     state.selection = scene.selection;
 
     return state;
@@ -81,5 +82,6 @@ void History::restore(Scene& scene, const State& state) {
     scene.lights = state.lights;
     scene.references = state.references;
     scene.materials = state.materials;
+    scene.textures = state.textures;
     scene.selection = state.selection;
 }

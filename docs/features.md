@@ -10,7 +10,7 @@ Work that's decided on. Each area is broken into steps in the order they'd be bu
 
 | Area | Status | Depends on |
 |---|---|---|
-| [Textures](#textures) | Next | — (materials are done; reading PNGs and GPU textures already exist, from reference images; UVs are done) |
+| [Textures](#textures) | Next | — (UVs and base color maps are done) |
 | [Animation](#animation) | Later | — |
 | [Attachment points](#attachment-points) | Later | Animation for points that follow bones |
 | [Hitboxes and collision shapes](#hitboxes-and-collision-shapes) | Later | Animation for shapes that follow bones |
@@ -20,9 +20,9 @@ Paint and apply images to surfaces. Reading PNG files (`shared/image/`) and uplo
 1. **UV coordinates** on the mesh: per face corner, kept through every editing tool. **Done**: every preset has UVs, the UV grid shows them, saved and exported.
 2. Unwrapping: simple projections first (planar, box, cylinder), then seams and an automatic unwrap.
 3. A UV editor view to see and adjust UVs over the texture.
-4. Materials use textures (base color first; later roughness, normal maps).
+4. Materials use textures (base color first; later roughness, normal maps). **Done** for base color: textures in the project, a base color map on materials, saved and exported.
 5. Texture painting: brush color, size, and softness, painted in the viewport and the UV view; saved as PNG (needs a PNG writer in `shared/image/`).
-6. Textures included in export.
+6. Textures included in export. **Done** (as PNG files inside the `.vlmobj`; ready-to-upload pixels can come later if load times need it).
 
 ### Attachment points
 Named spots on an asset (`hand_R`, `mouth`, `head`) where the game attaches weapons and effects or places cameras, so the asset tells the game where without containing code.
@@ -218,13 +218,13 @@ Objects inside other objects, so an asset can have rigid parts (a sword in a han
 
 ### Reference images
 Pictures in the scene to model against (a front and side view of a character, a photo of a prop).
-- **Add** with + in the panel's Images tab (pick one or more PNG files) or `reference add [<file.png>]`. A new image is 2 units tall, as wide as its proportions say, and stands at the camera's target facing the view, selected.
+- **Add** with + in the panel's References tab (pick one or more PNG files) or `reference add [<file.png>]`. A new image is 2 units tall, as wide as its proportions say, and stands at the camera's target facing the view, selected.
 - The picture is copied into the project, so the project still opens if the file is moved or deleted.
 - Each image is a flat plane locked to its picture's proportions: one **size** (its height) sets how big it is. It has a position and rotation like an object, and both sides show (the back mirrored).
-- **Select** by clicking it, in any mode (Shift+click adds or removes), or in the Images tab's list. Origins and lights win clicks over images; between an image and a mesh, whichever is in front gets the click. A selected image is outlined in purple.
+- **Select** by clicking it, in any mode (Shift+click adds or removes), or in the References tab's list. Origins and lights win clicks over images; between an image and a mesh, whichever is in front gets the click. A selected image is outlined in purple.
 - **Grab** and **Rotate** with X/Y/Z axis locks, and **Scale**, which always keeps the proportions (axis locks don't apply). Delete removes it. All undoable.
 - **Opacity** (0 to 1, on top of the picture's own transparency), **depth**: Behind (under everything, like a backdrop), Scene (hidden behind what's in front of it, the default), or Front (over everything), **Visible**, and **Locked**: a locked image ignores clicks in the viewport, so you can work on the model through it; it can still be picked in the list, to edit or unlock it.
-- **Images tab:** + and −, a list (rows say "locked" or "hidden"), and the selected image's name, file and size in pixels, Visible, Locked, Opacity, Depth, Position, Rotation, and Size.
+- **References tab:** + and −, a list (rows say "locked" or "hidden"), and the selected image's name, file and size in pixels, Visible, Locked, Opacity, Depth, Position, Rotation, and Size.
 - Saved in the project and part of undo; never exported to `.vlmobj`.
 - Pictures are read by a PNG reader written for this app (`shared/image/`, with its own decompression): every color type and bit depth, with transparency. Each one becomes a GPU texture with mipmaps the first time it's drawn.
 - `reference` console command: list, add, remove, show/hide, lock/unlock, and set the name, opacity, depth, position, rotation, and size (see [systems/console.md](systems/console.md#reference-command)).
@@ -263,6 +263,7 @@ How surfaces look, as in the game: the metallic-roughness set glTF, Unreal, and 
 - **Transparency:** see-through objects draw after everything solid, sorted farthest first together with reference images in the scene, without hiding what's behind them; a double-sided one shows its far side through its near side. To save work, Blend at full opacity draws as opaque, Blend at 0 and a Cutout below its cutoff aren't drawn, and the saved and exported values stay as set.
 - **Material and clay view** (View ▸ Clay view / Materials, or `ui materials`): material view shows materials as the game will, with back faces culled unless a material is double-sided (clicks skip culled faces too); clay view shows everything in the Default gray with back faces tinted pink, to find mistakes while modeling. Saved with the project.
 - **Smooth shading** (Edit ▸ Shading in the radial menu, the Objects tab's Shading row, or `shading`): each object is **Flat** (every face its own facet), **Smooth** (faces blend together), or **Auto** (blends faces that meet at less than an angle, 30° by default, and keeps sharper edges crisp). To decide exactly where creases go, select edges in edge mode and **Mark hard** (always a crease) or **Mark smooth** (always blended, even past the Auto angle); **Clear mark** goes back to the object's setting. In edit mode every edge that ends up hard is drawn in cyan, so the creases are visible while modeling. Marks follow split, extrude, inset, and bevel where the edge stays. Saved with the project and exported: the baked normals carry the shading, and re-importing restores the mode, angle, and marks.
+- **Textures and base color maps:** load a PNG (any size) as a texture, and a material shows it on its objects through their UVs, multiplied by the base color (white shows it as is), its alpha working with Cutout (cut out per pixel, for leaves and hair cards) and Blend. Several materials can share one texture (an atlas). Load from a material's **Base map** dropdown (Load PNG… loads and assigns in one go, or pick a loaded texture, or None), from the **Textures** section at the bottom of the Materials tab (+ and −, thumbnails, how many materials use each, the picture, and **Reload from file** to pick up changes made in another program), or with `texture load <path>` and `material <id> map <texture id>`. Textures are smooth (filtered, with mipmaps) and repeat outside 0 to 1. Saved inside the project (the PNG copied in, so it keeps working if the file moves) and exported inside the `.vlmobj` (only the textures its materials use); importing reuses a texture whose PNG is identical. Swatches show the map. Every change is one undo step.
 - **UVs and the UV grid** (View ▸ UV grid, or `ui checker`): every face corner has a texture coordinate, and every preset comes laid out (the cube as a cross, cylinders and cones with their sides wrapped and caps beside them, spheres and the torus by their rings). Extrude, inset, bevel, splitting, connecting, and filling keep them. The UV grid paints every face with a colored checker read from its UVs, so stretching and seams show. Saved in the project and exported in `.vlmobj` (as a `uv0` attribute, and exactly in the editable polygons).
 - Each object draws in one call per material it uses (its triangles are grouped by material on the GPU), and draws in a row with the same material send it once.
 - Saved in the project, per face too; exported in `.vlmobj` (each file carries the materials its objects and faces use, one mesh part per material, and re-importing restores each face's); importing reuses a project material that's identical (name and every value) and otherwise adds the asset's, renamed if the name is taken ("Granite 2").
@@ -303,7 +304,7 @@ Finished assets go out to the game engine (Aevora) and back in as **`.vlmobj`**:
   - A fixed-height light list that scrolls on its own; click a row to select the light (synced with the viewport).
   - The selected light: name field, type switch, enabled, color, intensity, and the position, range, direction, and cone fields that apply to its type.
   - Ambient light, headlight, and exposure.
-- **Images tab:** reference images (see [Reference images](#reference-images)).
+- **References tab:** reference images (see [Reference images](#reference-images)).
 - Clicks and scrolling over the panel don't reach the viewport.
 - Long names in lists and labels that don't fit are shortened with "..." instead of running into their neighbors, so a narrow panel stays readable.
 - **Text fields** (object and light names): click to edit with everything selected, type to replace it. Arrow keys, Home/End (Shift extends the selection), Backspace/Delete, Ctrl+A, and Ctrl+C/X/V with the system clipboard; click inside to place the caret or drag to select. Enter or a click anywhere else keeps the edit (one undo step), Escape restores the old text, and an empty name is ignored. While editing, keyboard shortcuts are off, so typing `g` or `/` just types.

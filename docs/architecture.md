@@ -72,7 +72,7 @@ struct AppContext {
     FrameStats frameStats;    // CPU timings for the stats readout
     UIContext ui;             // widgets and mouse routing
     ObjectMeshCache objectMeshes; // GPU copies of object meshes, by handle
-    ReferenceTextureCache referenceTextures; // GPU textures for reference pictures
+    PictureTextureCache pictureTextures; // GPU textures for pictures (reference images and textures)
     MaterialPreviewCache materialPreviews;   // material swatch textures
     ProjectState project;     // the open file, unsaved changes, and the export folder
     ModalState modal;         // the open modal window (prompt or Export window), if any
@@ -80,8 +80,10 @@ struct AppContext {
     ConsoleViewState consoleView; // console scroll and clickable rows
     u32 lastEditMode;         // where Tab returns to from object mode
     bool importRequested;     // Import… was picked; the file dialog opens next frame
-    bool referenceRequested;  // + in the Images tab; likewise
+    bool referenceRequested;  // + in the References tab; likewise
     std::filesystem::path referenceFolder; // where the image dialog last picked from
+    TextureRequest textureRequest;  // a texture's PNG dialog, and the material to put it on
+    std::filesystem::path textureFolder;   // where the texture dialog last picked from
     bool is_running;
 };
 ```

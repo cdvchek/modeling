@@ -6,6 +6,7 @@
 #include "core/containers/dynamic_array.hpp"
 #include "core/math/vec3.hpp"
 #include "scene/transform.hpp"
+#include "scene/pictures/picture.hpp"
 
 // Where an image draws against the rest of the scene
 enum class ReferenceDepth : u8 {
@@ -14,19 +15,12 @@ enum class ReferenceDepth : u8 {
     InFront     // over everything
 };
 
-// A picture's file as it was added, kept in the project. It never changes, so copies of an image (undo) share it.
-struct ReferencePicture {
-    std::string fileName;       // the name it had on disk, shown in the panel
-    std::vector<u8> png;
-    u32 width = 0;              // pixels
-    u32 height = 0;
-};
 
 // A picture on a plane in the scene, for modeling against. It keeps the picture's proportions: one size sets its
 // height and the width follows. It faces its own +Z; its top is +Y.
 struct ReferenceImage {
     std::string name;
-    std::shared_ptr<const ReferencePicture> picture;
+    std::shared_ptr<const Picture> picture;
 
     Vec3 position { 0.0f };
     Vec3 rotation { 0.0f };     // Euler angles, applied like an object's

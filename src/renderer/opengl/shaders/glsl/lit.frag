@@ -15,6 +15,9 @@ uniform float u_Metallic;
 uniform vec3 u_EmissiveColor;       // sRGB
 uniform float u_EmissiveStrength;
 uniform float u_Opacity;
+uniform float u_AlphaCutoff;        // cutout: below this opacity a pixel isn't drawn; below 0 for no cutout
+uniform sampler2D u_BaseColorMap;   // sRGB, multiplied into the base color (its alpha into the opacity)
+uniform int u_HasBaseColorMap;
 uniform int u_BackFaces;            // 0 tinted (clay view), 1 lit like front faces (double-sided)
 uniform float u_Highlight;          // 0 to 1: how far toward the selection color
 uniform vec3 u_HighlightColor;
@@ -129,7 +132,13 @@ vec3 uvChecker(vec2 uv) {
 
 void main() {
     vec3 normal = normalize(v_Normal);
-    vec3 baseColor = srgbToLinear(u_CameraPosition.w > 0.5 ? uvChecker(v_UV) : u_BaseColor);
+    vec4 map = u_HasBaseColorMap == 1 ? texture(u_BaseColorMap, v_UV) : vec4(1.0);
+    float opacity = u_Opacity * map.a;
+    if (opacity < u_AlphaCutoff) discard;
+
+    bool checker = u_CameraPosition.w > 0.5;
+    vec3 baseColor = srgbToLinear(checker ? uvChecker(v_UV) : u_BaseColor);
+    if (!checker) baseColor *= srgbToLinear(map.rgb);
     baseColor = mix(baseColor, srgbToLinear(u_HighlightColor), u_Highlight);
 
     // Back faces are lit as if they faced the camera; in clay view they're tinted so they stand out
@@ -182,5 +191,5 @@ void main() {
     color += srgbToLinear(u_EmissiveColor) * u_EmissiveStrength;
 
     vec3 exposed = color * u_SkyColor.w;
-    FragColor = vec4(linearToSrgb(clamp(toneMap(max(exposed, vec3(0.0))), 0.0, 1.0)), u_Opacity);
+    FragColor = vec4(linearToSrgb(clamp(toneMap(max(exposed, vec3(0.0))), 0.0, 1.0)), opacity);
 }

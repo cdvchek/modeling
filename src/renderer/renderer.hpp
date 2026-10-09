@@ -99,6 +99,10 @@ struct SurfaceLook {
     // first. Back faces of a blended mesh are drawn before its front faces.
     bool blend = false;
     f32 opacity = 1.0f;
+    // Cutout: pixels whose opacity (times the map's alpha) is below this aren't drawn; below 0 for no cutout
+    f32 alphaCutoff = -1.0f;
+    // A texture (from createTexture) multiplied into the base color through the UVs; 0 for none
+    u32 baseColorMap = 0;
 
     BackFaces backFaces = BackFaces::Tinted;
 };
@@ -108,7 +112,8 @@ inline bool sameSurface(const SurfaceLook& a, const SurfaceLook& b) {
     return a.baseColor.x == b.baseColor.x && a.baseColor.y == b.baseColor.y && a.baseColor.z == b.baseColor.z
         && a.roughness == b.roughness && a.metallic == b.metallic
         && a.emissiveColor.x == b.emissiveColor.x && a.emissiveColor.y == b.emissiveColor.y && a.emissiveColor.z == b.emissiveColor.z
-        && a.emissiveStrength == b.emissiveStrength && a.blend == b.blend && a.opacity == b.opacity && a.backFaces == b.backFaces;
+        && a.emissiveStrength == b.emissiveStrength && a.blend == b.blend && a.opacity == b.opacity && a.backFaces == b.backFaces
+        && a.alphaCutoff == b.alphaCutoff && a.baseColorMap == b.baseColorMap;
 }
 
 // One material's run of a mesh's faces (a FaceGroup), with how it looks

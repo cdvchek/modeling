@@ -9,8 +9,15 @@
 struct AppContext;
 
 // A material's own look, whatever the view: back faces culled unless double-sided. A material that shows nothing
-// (blended at opacity 0, a cutout below its cutoff) comes back blended at opacity 0.
-SurfaceLook surfaceOf(const Material& material);
+// (blended at opacity 0, a cutout below its cutoff) comes back blended at opacity 0. map is its base color map's
+// texture (mapTexture), 0 for none.
+SurfaceLook surfaceOf(const Material& material, u32 map);
+
+// The GPU texture of the material's base color map, 0 when it has none or it isn't uploaded yet
+u32 mapTexture(const AppContext& ctx, const Material& material);
+
+// Uploads every texture's picture that isn't on the GPU yet; call before anything draws with maps or swatches
+void syncTextures(AppContext& ctx);
 
 // Swatch textures, one per material, rendered again whenever the material's look changes
 class MaterialPreviewCache {
@@ -36,8 +43,8 @@ private:
 SurfaceLook claySurface();
 
 // How an object's faces draw: its material's look in material view, clay otherwise. Empty when nothing would show,
-// so it isn't drawn at all: blended at opacity 0, or a cutout below its cutoff (without textures a cutout is all
-// or nothing). Blend at full opacity draws as opaque, which is the same picture for less work.
+// so it isn't drawn at all: blended at opacity 0, or a cutout whose opacity is below its cutoff (a map can only
+// lower it further). Blend at full opacity draws as opaque, which is the same picture for less work.
 std::optional<SurfaceLook> surfaceFor(const AppContext& ctx, const Object& object);
 
 // Back faces aren't drawn: material view with a single-sided material. Clicks then skip them too.

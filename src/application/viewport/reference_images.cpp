@@ -16,14 +16,7 @@ namespace {
     constexpr f32 OUTLINE_HALO_WIDTH = 4.0f;
     const Color OUTLINE_HALO { 0.06f, 0.06f, 0.08f, 0.6f };
 
-    std::string utf8(const std::filesystem::path& path) {
-        const std::u8string text = path.u8string();
-        return std::string(text.begin(), text.end());
-    }
 
-    bool samePicture(const std::weak_ptr<const ReferencePicture>& a, const std::shared_ptr<const ReferencePicture>& b) {
-        return !a.owner_before(b) && !b.owner_before(a);
-    }
 
     // The image's corners in the world: top left, top right, bottom right, bottom left
     std::vector<Vec3> corners(const ReferenceImage& image) {
@@ -37,74 +30,6 @@ namespace {
     }
 }
 
-u32 ReferenceTextureCache::sync(AppContext& ctx, const std::shared_ptr<const ReferencePicture>& picture) {
-    if (!picture) return 0;
-
-    for (const Entry& entry : m_entries) {
-        if (samePicture(entry.picture, picture)) return entry.texture;
-    }
-
-    // A failed picture keeps an entry with no texture, so it's reported and tried once
-    Entry entry;
-    entry.picture = picture;
-
-    image::Image decoded;
-    std::string error;
-    if (!image::decodePng(picture->png.data(), picture->png.size(), decoded, error)) {
-        ctx.systems.console.printError("Couldn't show " + picture->fileName + ": " + error);
-    } else {
-        entry.texture = ctx.renderer->createTexture(decoded.pixels.data(), decoded.width, decoded.height);
-        if (entry.texture == 0) ctx.systems.console.printError("Couldn't show " + picture->fileName + ": it's too large for the graphics card");
-    }
-
-    m_entries.push_back(entry);
-    return entry.texture;
-}
-
-void ReferenceTextureCache::prune(IRenderer& renderer) {
-    std::erase_if(m_entries, [&](const Entry& entry) {
-        if (!entry.picture.expired()) return false;
-        renderer.destroyTexture(entry.texture);
-        return true;
-    });
-}
-
-std::shared_ptr<const ReferencePicture> loadReferencePicture(const std::filesystem::path& path, std::string& error) {
-    std::error_code code;
-    const std::uintmax_t size = std::filesystem::file_size(path, code);
-    if (code) {
-        error = "the file couldn't be found";
-        return nullptr;
-    }
-    if (size > MAX_REFERENCE_FILE_SIZE) {
-        error = "the file is larger than 256 MB";
-        return nullptr;
-    }
-
-    auto picture = std::make_shared<ReferencePicture>();
-    picture->fileName = utf8(path.filename());
-    picture->png.resize(static_cast<std::size_t>(size));
-
-    std::ifstream file(path, std::ios::binary);
-    if (!file || !file.read(reinterpret_cast<char*>(picture->png.data()), static_cast<std::streamsize>(size))) {
-        error = "the file couldn't be read";
-        return nullptr;
-    }
-
-    if (!image::isPng(picture->png.data(), picture->png.size())) {
-        error = "it isn't a PNG (only PNG images can be used for now)";
-        return nullptr;
-    }
-
-    // Decoded once here to check it; the texture decodes it again when it's first drawn
-    image::Image decoded;
-    if (!image::decodePng(picture->png.data(), picture->png.size(), decoded, error)) return nullptr;
-
-    picture->width = decoded.width;
-    picture->height = decoded.height;
-    return picture;
-}
-
 Vec3 rotationFacingView(const AppContext& ctx) {
     const Camera& camera = ctx.scene.camera;
     const Vec3 forward = camera.getForward().normalized();
@@ -113,7 +38,7 @@ Vec3 rotationFacingView(const AppContext& ctx) {
     return eulerFromAxes(right, up, -forward);
 }
 
-ReferenceHandle addReferenceImage(AppContext& ctx, std::shared_ptr<const ReferencePicture> picture, const std::string& name) {
+ReferenceHandle addReferenceImage(AppContext& ctx, std::shared_ptr<const Picture> picture, const std::string& name) {
     ReferenceImage image;
     image.name = ctx.scene.references.uniqueName(name.empty() ? "Image" : name);
     image.picture = std::move(picture);
@@ -132,7 +57,7 @@ bool addReferenceFrom(AppContext& ctx, const std::filesystem::path& path) {
     const std::string fileName = utf8(path.filename());
 
     std::string error;
-    std::shared_ptr<const ReferencePicture> picture = loadReferencePicture(path, error);
+    std::shared_ptr<const Picture> picture = loadPicture(path, error);
     if (!picture) {
         ctx.systems.console.printError("Couldn't add " + fileName + ": " + error);
         return false;
@@ -183,7 +108,7 @@ void drawReferenceImage(AppContext& ctx, const Mat4& viewProjection, ReferenceHa
     const ReferenceImage& image = ctx.scene.references.get(handle);
 
     DrawImageCommand command;
-    command.texture = ctx.referenceTextures.sync(ctx, image.picture);
+    command.texture = ctx.pictureTextures.sync(ctx, image.picture);
     command.mvp = viewProjection * image.matrix();
     command.opacity = std::clamp(image.opacity, 0.0f, 1.0f);
     command.depthTest = image.depth == ReferenceDepth::InScene;

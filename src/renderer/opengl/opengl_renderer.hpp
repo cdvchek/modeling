@@ -112,6 +112,9 @@ private:
     u32 m_previewSphereEBO = 0;
     u32 m_previewSphereIndices = 0;
     u32 m_checkerTexture = 0;
+    // Repeats base color maps; bound to MAP_TEXTURE_UNIT for good
+    u32 m_mapSampler = 0;
+    static constexpr u32 MAP_TEXTURE_UNIT = 1;
     u32 m_previewFramebuffer = 0;
     u32 m_previewColor = 0;
     u32 m_previewDepth = 0;

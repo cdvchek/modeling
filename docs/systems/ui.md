@@ -125,7 +125,7 @@ All sizes and colors live in `UIStyle`, following the Dracula theme: text `#f8f8
 - `UIPanelState` also keeps `activeTab`, `scroll`, and `contentHeight` between frames.
 - **Tabs:** `beginPanel(name, state, bounds, tabs)` (a list of names instead of a title) draws tabs left to right in the header, sized to their text; when they'd run past the panel, their padding shrinks (to `MIN_TAB_PADDING` at least) so they still fit. Pressing a tab switches `state.activeTab` (and resets the scroll); the header, tabs included, still drags the panel, so you can grab a tab and move. The selected tab takes the body's color with a 2 px purple underline; the others are dim until hovered. The caller draws the active tab's content.
 
-[main_panel.cpp](../../src/application/ui/main_panel.cpp) is the app's panel: 360 px wide at the top right on first use, bounded by the viewport above the status bar, toggled with `ui panel`, with Objects, Materials, Lights, and Images tabs (see [application.md](application.md)). Its list headers shrink the picker before the title when the panel is narrow.
+[main_panel.cpp](../../src/application/ui/main_panel.cpp) is the app's panel: 380 px wide at the top right on first use, bounded by the viewport above the status bar, toggled with `ui panel`, with Objects, Materials, Lights, and References tabs (see [application.md](application.md)). Its list headers shrink the picker before the title when the panel is narrow.
 
 ## Coordinates and types
 

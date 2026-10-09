@@ -18,7 +18,7 @@ namespace {
 }
 
 void OpenGLRenderer::createPreviewSphere() {
-    // Position and normal per vertex; on a unit sphere the normal is the position
+    // Position, normal, and UV per vertex; on a unit sphere the normal is the position
     std::vector<f32> vertices;
     for (u32 ring = 0; ring <= SPHERE_RINGS; ++ring) {
         const f32 polar = 3.14159265f * static_cast<f32>(ring) / SPHERE_RINGS;
@@ -27,7 +27,9 @@ void OpenGLRenderer::createPreviewSphere() {
             const f32 x = std::sin(polar) * std::cos(azimuth);
             const f32 y = std::cos(polar);
             const f32 z = -std::sin(polar) * std::sin(azimuth);
-            vertices.insert(vertices.end(), { x, y, z, x, y, z });
+            const f32 u = static_cast<f32>(segment) / SPHERE_SEGMENTS;
+            const f32 v = static_cast<f32>(ring) / SPHERE_RINGS;
+            vertices.insert(vertices.end(), { x, y, z, x, y, z, u, v });
         }
     }
 
@@ -54,9 +56,11 @@ void OpenGLRenderer::createPreviewSphere() {
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, static_cast<GLsizeiptr>(indices.size() * sizeof(u32)), indices.data(), GL_STATIC_DRAW);
 
     glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(f32), (void*)0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(f32), (void*)0);
     glEnableVertexAttribArray(1);
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(f32), (void*)(3 * sizeof(f32)));
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(f32), (void*)(3 * sizeof(f32)));
+    glEnableVertexAttribArray(2);
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(f32), (void*)(6 * sizeof(f32)));
 
     glBindVertexArray(0);
     glBindBuffer(GL_ARRAY_BUFFER, 0);

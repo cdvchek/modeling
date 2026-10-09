@@ -3,6 +3,7 @@
 #include "scene/mesh/mesh_factory.hpp"
 #include "core/math/math_utils.hpp"
 #include "vlmobj/vlmobj.hpp"
+#include "image/image.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -299,9 +300,23 @@ namespace {
         return material;
     }
 
-    std::vector<u8> writeNodes(const std::vector<ExportNode>& nodes, const MaterialCollection& materials) {
+    std::vector<u8> writeNodes(const std::vector<ExportNode>& nodes, const MaterialCollection& materials, const TextureCollection& textures) {
         vlmobj::Writer writer;
         vlmobj::EditData edit;
+
+        // Only the textures the written materials use, in the order they're first used
+        std::vector<TextureHandle> usedTextures;
+        const auto textureIndex = [&](TextureHandle texture) -> u32 {
+            const Texture* stored = textures.tryGet(texture);
+            if (!stored || !stored->picture) return vlmobj::NONE;
+            u32 index = 0;
+            while (index < usedTextures.size() && usedTextures[index] != texture) ++index;
+            if (index == usedTextures.size()) {
+                usedTextures.push_back(texture);
+                writer.addTexture({ stored->name, stored->picture->width, stored->picture->height, stored->picture->png });
+            }
+            return index;
+        };
 
         // Only the materials these objects and their faces use, in the order they're first used
         std::vector<MaterialHandle> used;
@@ -310,7 +325,9 @@ namespace {
             while (index < used.size() && used[index] != material) ++index;
             if (index == used.size()) {
                 used.push_back(material);
-                writer.addMaterial(materialInput(materials.get(material)));
+                vlmobj::MaterialInput input = materialInput(materials.get(material));
+                input.baseColorTexture = textureIndex(materials.get(material).baseColorMap);
+                writer.addMaterial(input);
             }
             return index;
         };
@@ -436,11 +453,11 @@ namespace {
     }
 }
 
-std::vector<u8> AssetFile::write(const Object& object, const MaterialCollection& materials) {
-    return writeNodes({ { &object, vlmobj::NONE, pivotTransform(object.transform) } }, materials);
+std::vector<u8> AssetFile::write(const Object& object, const MaterialCollection& materials, const TextureCollection& textures) {
+    return writeNodes({ { &object, vlmobj::NONE, pivotTransform(object.transform) } }, materials, textures);
 }
 
-std::vector<u8> AssetFile::write(const ObjectCollection& objects, ObjectHandle root, const MaterialCollection& materials) {
+std::vector<u8> AssetFile::write(const ObjectCollection& objects, ObjectHandle root, const MaterialCollection& materials, const TextureCollection& textures) {
     // The root and every object under it, parents first; each child keeps its transform relative to its parent
     std::vector<ExportNode> nodes;
     std::vector<ObjectHandle> handles;
@@ -454,7 +471,7 @@ std::vector<u8> AssetFile::write(const ObjectCollection& objects, ObjectHandle r
         }
     }
 
-    return writeNodes(nodes, materials);
+    return writeNodes(nodes, materials, textures);
 }
 
 bool AssetFile::read(const std::vector<u8>& bytes, std::vector<ImportedObject>& out, std::string& error) {
@@ -463,6 +480,14 @@ bool AssetFile::read(const std::vector<u8>& bytes, std::vector<ImportedObject>& 
 }
 
 bool AssetFile::read(const std::vector<u8>& bytes, std::vector<ImportedObject>& out, std::vector<Material>& materialsOut, std::string& error) {
+    ImportedAsset asset;
+    if (!read(bytes, asset, error)) return false;
+    out = std::move(asset.objects);
+    materialsOut = std::move(asset.materials);
+    return true;
+}
+
+bool AssetFile::read(const std::vector<u8>& bytes, ImportedAsset& asset, std::string& error) {
     vlmobj::File file;
     if (!file.open(bytes.data(), bytes.size())) {
         error = file.error();
@@ -489,15 +514,42 @@ bool AssetFile::read(const std::vector<u8>& bytes, std::vector<ImportedObject>& 
     }
 
     std::vector<Material> materials;
-    for (const vlmobj::Material& stored : file.materials()) materials.push_back(materialFrom(file, stored));
+    std::vector<u32> materialMaps;
+    for (const vlmobj::Material& stored : file.materials()) {
+        materials.push_back(materialFrom(file, stored));
+        materialMaps.push_back(file.baseColorTexture(stored));
+    }
+
+    // Each texture's PNG, checked as the project's own pictures are; it's decoded when it's first drawn
+    std::vector<Texture> textures;
+    for (const vlmobj::Texture& stored : file.textures()) {
+        const std::span<const u8> data = file.textureData(stored);
+        if (!image::isPng(data.data(), data.size())) {
+            error = "texture '" + std::string(file.string(stored.name)) + "' isn't a PNG";
+            return false;
+        }
+        auto picture = std::make_shared<Picture>();
+        picture->png.assign(data.begin(), data.end());
+        picture->width = stored.width;
+        picture->height = stored.height;
+
+        Texture texture;
+        texture.name = std::string(file.string(stored.name));
+        if (texture.name.empty()) texture.name = "Texture";
+        picture->fileName = texture.name + ".png";
+        texture.picture = std::move(picture);
+        textures.push_back(std::move(texture));
+    }
 
     if (result.empty() || file.nodes()[0].mesh == vlmobj::NONE) {
         error = "the asset has no mesh";
         return false;
     }
 
-    out = std::move(result);
-    materialsOut = std::move(materials);
+    asset.objects = std::move(result);
+    asset.materials = std::move(materials);
+    asset.materialMaps = std::move(materialMaps);
+    asset.textures = std::move(textures);
     return true;
 }
 
@@ -508,8 +560,9 @@ bool AssetFile::read(const std::vector<u8>& bytes, Object& object, std::string& 
     return true;
 }
 
-bool AssetFile::save(const std::filesystem::path& path, const ObjectCollection& objects, ObjectHandle root, const MaterialCollection& materials, std::string& error) {
-    return saveBytes(path, write(objects, root, materials), error);
+bool AssetFile::save(const std::filesystem::path& path, const ObjectCollection& objects, ObjectHandle root, const MaterialCollection& materials,
+                     const TextureCollection& textures, std::string& error) {
+    return saveBytes(path, write(objects, root, materials, textures), error);
 }
 
 bool AssetFile::save(const std::filesystem::path& path, const Object& object, std::string& error) {
@@ -556,6 +609,14 @@ bool AssetFile::load(const std::filesystem::path& path, std::vector<ImportedObje
 }
 
 bool AssetFile::load(const std::filesystem::path& path, std::vector<ImportedObject>& objects, std::vector<Material>& materials, std::string& error) {
+    ImportedAsset asset;
+    if (!load(path, asset, error)) return false;
+    objects = std::move(asset.objects);
+    materials = std::move(asset.materials);
+    return true;
+}
+
+bool AssetFile::load(const std::filesystem::path& path, ImportedAsset& asset, std::string& error) {
     std::error_code code;
     const std::uintmax_t size = std::filesystem::file_size(path, code);
     if (code) {
@@ -570,7 +631,7 @@ bool AssetFile::load(const std::filesystem::path& path, std::vector<ImportedObje
         return false;
     }
 
-    return read(bytes, objects, materials, error);
+    return read(bytes, asset, error);
 }
 
 bool AssetFile::load(const std::filesystem::path& path, Object& object, std::string& error) {

@@ -51,6 +51,7 @@ set(CORE_SRC
     src/scene/lights/light_collection.cpp
     src/scene/references/reference_collection.cpp
     src/scene/materials/material_collection.cpp
+    src/scene/textures/texture_collection.cpp
     src/scene/objects/object_collection.cpp
     src/scene/objects/origin.cpp
     src/scene/selection/selection.cpp
@@ -78,9 +79,11 @@ set(APP_SRC
     src/application/actions/editing_actions.cpp
     src/application/ui/radial_menu.cpp
     src/application/viewport/reference_images.cpp
+    src/application/viewport/pictures.cpp
     src/application/commands/reference_commands.cpp
     src/application/viewport/material_view.cpp
     src/application/commands/material_commands.cpp
+    src/application/commands/texture_commands.cpp
     src/application/commands/shading_commands.cpp
     src/application/ui/stats_overlay.cpp
     src/application/ui/console_view.cpp

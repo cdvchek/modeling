@@ -15,6 +15,7 @@ struct Scene {
     LightCollection lights;
     ReferenceCollection references;
     MaterialCollection materials;
+    TextureCollection textures;
     Selection selection;
 
     Object* activeObject();   // the object being edited, or null when there are none
@@ -125,6 +126,7 @@ How a surface looks, shared by the objects that use it (see [features.md](../fea
 struct Material {
     std::string name;
     Vec3 baseColor;             // sRGB, as picked
+    TextureHandle baseColorMap; // multiplied by baseColor (its alpha by opacity) through the UVs; not valid = none
     f32 roughness = 0.5;        // 0 mirror-sharp highlights, 1 none
     f32 metallic = 0;           // 0 plastic, stone, wood; 1 metal
     Vec3 emissiveColor;         // sRGB
@@ -150,7 +152,36 @@ Each `Object` has a `MaterialHandle material`. A handle that isn't valid (none s
 | `uniqueName(base)` | `base`, or `base N` with the lowest free N. |
 | `findIdentical(material)` | A material with the same name and every value the same (import reuses it). |
 
-`alphaModeName(mode)` gives `"opaque"`, `"cutout"`, or `"blend"`.
+`alphaModeName(mode)` gives `"opaque"`, `"cutout"`, or `"blend"`. `sameLook` compares the map handle too.
+
+## Textures
+
+[texture.hpp](../../src/scene/textures/texture.hpp), [texture_collection.hpp](../../src/scene/textures/texture_collection.hpp), [picture.hpp](../../src/scene/pictures/picture.hpp)
+
+Pictures materials use as maps. A texture is its own thing in the scene, not part of a material, so several materials can share one (an atlas for several objects).
+
+```cpp
+struct Picture {                   // a PNG file as it was added; never changes (reference images use it too)
+    std::string fileName;
+    std::vector<u8> png;
+    u32 width, height;             // pixels
+};
+
+struct Texture {
+    std::string name;
+    std::shared_ptr<const Picture> picture;   // shared by copies, so undo doesn't copy the file
+    std::string sourcePath;        // the file it was loaded from (UTF-8), for Reload; empty for one from an asset
+};
+```
+
+A material's `baseColorMap` that isn't valid (none set, or its texture removed) means no map, so removing a texture puts its materials back on their plain colors without touching them, and undoing the removal reconnects them. Reloading swaps in a new `Picture`; older undo steps keep the old one.
+
+| Method | Description |
+|---|---|
+| `add(texture)`, `remove(handle)` | |
+| `isValid`, `get`, `tryGet`, `handles()`, `handleAt(slot)`, `count()` | As for the other collections. |
+| `uniqueName(base)` | `base`, or `base N` with the lowest free N. |
+| `findSamePicture(picture)` | A texture whose PNG is byte for byte the same (import reuses it). |
 
 ## Reference images
 
@@ -159,15 +190,9 @@ Each `Object` has a `MaterialHandle material`. A handle that isn't valid (none s
 Pictures placed in the scene to model against (see [features.md](../features.md#reference-images)). They aren't objects: they have no mesh, aren't exported, and are selected on their own.
 
 ```cpp
-struct ReferencePicture {          // the file as it was added; never changes
-    std::string fileName;
-    std::vector<u8> png;
-    u32 width, height;             // pixels
-};
-
 struct ReferenceImage {
     std::string name;
-    std::shared_ptr<const ReferencePicture> picture;   // shared by copies, so undo doesn't copy the file
+    std::shared_ptr<const Picture> picture;   // see Textures; shared by copies, so undo doesn't copy the file
     Vec3 position, rotation;       // rotation in Euler angles, applied like an object's
     f32 size = 2;                  // height in world units; the width follows the picture
     f32 opacity = 1;
@@ -289,7 +314,7 @@ The mesh picks test every object (with its transform), or only `only` when it's 
 
 [history.hpp](../../src/scene/history.hpp)
 
-Undo/redo by snapshot. A `State` is a copy of the whole `ObjectCollection`, the whole `MaterialCollection`, the whole `LightCollection`, the whole `ReferenceCollection` (cheap: pictures are shared, not copied), and the `Selection` (including the active object). Up to 100 undo steps are kept.
+Undo/redo by snapshot. A `State` is a copy of the whole `ObjectCollection`, the whole `MaterialCollection`, the whole `TextureCollection` and `ReferenceCollection` (cheap: pictures are shared, not copied), the whole `LightCollection`, and the `Selection` (including the active object). Up to 100 undo steps are kept.
 
 | Method | Description |
 |---|---|
@@ -302,4 +327,4 @@ Undo/redo by snapshot. A `State` is a copy of the whole `ObjectCollection`, the 
 
 Usage pattern: call `begin` before changing anything, then exactly one of `commit` or `cancel`. Modal tools call `begin` when they start and `commit`/`cancel` when they end.
 
-Restoring replaces objects, materials, lights, and reference images wholesale and sets `meshDirty` on every object, so adding, removing, and editing objects and lights are all undoable.
+Restoring replaces objects, materials, textures, lights, and reference images wholesale and sets `meshDirty` on every object, so adding, removing, and editing objects and lights are all undoable.

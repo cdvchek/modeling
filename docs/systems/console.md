@@ -57,6 +57,7 @@ Holds the line being typed, the cursor, the history of entered lines (for Up/Dow
 | `light` | see [below](#light-command) | Lists, adds, removes, and edits scene lights and the ambient light. Undoable. |
 | `stats` | none / `on` / `off` | Shows or hides the stats readout: CPU input and render time, GPU time, the last click's pick time, draw calls, triangles, lines, points, uniform uploads, mesh rebuilds (Uploads) and in-place updates (Patches) with their bytes, and the scene's objects, faces, and vertices. With vsync on, CPU render time includes waiting for the screen, so turn vsync off to measure. |
 | `material` | see [below](#material-command) | Lists, adds, removes, edits, and assigns materials. Undoable. |
+| `texture` | `list` / `load <path>` / `<id>` / `<id> remove` / `<id> reload` / `<id> name <n>` | Lists textures (size, file, how many materials use each), loads a PNG as a new texture (a path with spaces works), and removes, reloads from its file, or renames one. A material's map is set with `material <id> map`. Undoable. |
 | `shading` | none / `flat` / `smooth` / `auto [<degrees>]` / `mark hard\|smooth\|clear` | No argument prints the active object's shading and how many edges are marked. A mode applies to the selected objects in object mode, otherwise the active object (`auto` with an angle, 0 to 180, sets that too). `mark` marks the selected edges in edge mode. Undoable. |
 | `reference` | see [below](#reference-command) | Lists, adds, removes, and edits reference images. Undoable. |
 | `exposure` | none / `<stops>` | Prints or sets the exposure, −5 to 5 (0 is normal; each +1 doubles how bright lit surfaces look). A viewport setting saved with the project, not undoable. |
@@ -110,6 +111,7 @@ A material's `<id>` is its slot index, shown by `material list`; Default is alwa
 | `material <id> glow <strength>` | Emissive strength, 0 or more (0 doesn't glow). |
 | `material <id> mode <opaque \| cutout \| blend>` | Alpha mode. |
 | `material <id> sides <single \| double>` | Whether back faces are drawn in material view (and in the game). |
+| `material <id> map <texture id \| none>` | Its base color map (see `texture list`), or none. |
 
 Every change is one undo step; bad input prints the usage for that property and changes nothing.
 

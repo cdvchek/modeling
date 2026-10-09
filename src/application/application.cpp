@@ -209,7 +209,8 @@ void Application::renderFrame(AppContext& ctx) {
     ctx.frameTimer.tick(std::chrono::duration<f64>(start.time_since_epoch()).count());
 
     ctx.renderer->beginFrame();
-    // Swatches render into their own targets, so before the main pass starts drawing
+    // Textures first (swatches and objects draw with them); swatches render into their own targets, so before the main pass
+    syncTextures(ctx);
     ctx.materialPreviews.sync(ctx);
     ctx.renderer->beginMainPass(ctx.renderer->m_clearState);
 
@@ -225,7 +226,7 @@ void Application::renderFrame(AppContext& ctx) {
     ctx.renderer->setExposure(ctx.viewport.exposure);
 
     ctx.objectMeshes.prune(ctx.scene.objects);
-    ctx.referenceTextures.prune(*ctx.renderer);
+    ctx.pictureTextures.prune(*ctx.renderer);
 
     // Backdrop images go first so everything draws over them
     drawReferenceImages(ctx, viewProjection, ReferenceDepth::Behind);

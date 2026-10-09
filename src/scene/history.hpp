@@ -8,6 +8,7 @@
 #include "scene/lights/light_collection.hpp"
 #include "scene/references/reference_collection.hpp"
 #include "scene/materials/material_collection.hpp"
+#include "scene/textures/texture_collection.hpp"
 #include "scene/selection/selection.hpp"
 
 struct Scene;
@@ -38,6 +39,7 @@ private:
         LightCollection lights;
         ReferenceCollection references;   // pictures are shared, so this copy is cheap
         MaterialCollection materials;
+        TextureCollection textures;       // pictures are shared, so this copy is cheap
         Selection selection;
         u64 id = 0;
     };

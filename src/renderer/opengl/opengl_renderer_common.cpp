@@ -89,8 +89,18 @@ bool OpenGLRenderer::createResources() {
         std::cerr << "[renderer] some shaders failed to load; their draws will be skipped" << std::endl;
     }
 
-    // The lit shader reads the lights from one buffer at a fixed binding
-    m_shaders.get(ShaderId::Lit).bindUniformBlock("Lighting", 0);
+    // The lit shader reads the lights from one buffer at a fixed binding, and its base color map from its own unit
+    OpenGLShader& lit = m_shaders.get(ShaderId::Lit);
+    lit.bindUniformBlock("Lighting", 0);
+    if (lit.bind()) lit.setInt("u_BaseColorMap", MAP_TEXTURE_UNIT);
+
+    // Maps repeat past 0..1 (pictures themselves clamp, for reference images); the sampler stays on the maps' unit
+    glGenSamplers(1, &m_mapSampler);
+    glSamplerParameteri(m_mapSampler, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    glSamplerParameteri(m_mapSampler, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glSamplerParameteri(m_mapSampler, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glSamplerParameteri(m_mapSampler, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    glBindSampler(MAP_TEXTURE_UNIT, m_mapSampler);
     m_lightingDirty = true;
 
     m_ui.create();
@@ -101,6 +111,8 @@ bool OpenGLRenderer::createResources() {
 void OpenGLRenderer::destroyResources() {
     if (m_lightingBuffer != 0) glDeleteBuffers(1, &m_lightingBuffer);
     m_lightingBuffer = 0;
+    if (m_mapSampler != 0) glDeleteSamplers(1, &m_mapSampler);
+    m_mapSampler = 0;
     if (m_timerQueries[0] != 0) glDeleteQueries(TIMER_QUERIES, m_timerQueries);
     for (u32 i = 0; i < TIMER_QUERIES; ++i) {
         m_timerQueries[i] = 0;
@@ -333,6 +345,11 @@ void OpenGLRenderer::uploadLighting() {
 }
 
 void OpenGLRenderer::setSurfaceUniforms(OpenGLShader& lit, const SurfaceLook& surface) {
+    // Bound every time: the maps' unit is only ever used by this, but a cheap rebind keeps that from mattering
+    glActiveTexture(GL_TEXTURE0 + MAP_TEXTURE_UNIT);
+    glBindTexture(GL_TEXTURE_2D, surface.baseColorMap);
+    glActiveTexture(GL_TEXTURE0);
+
     // A run of draws in the same material (most objects, sorted by material) sends it once
     const bool same = m_lastSurfaceValid && sameSurface(m_lastSurface, surface);
     if (same) return;
@@ -342,7 +359,9 @@ void OpenGLRenderer::setSurfaceUniforms(OpenGLShader& lit, const SurfaceLook& su
     lit.setFloat("u_Metallic", surface.metallic);
     lit.setVec3("u_EmissiveColor", surface.emissiveColor);
     lit.setFloat("u_EmissiveStrength", surface.emissiveStrength);
-    lit.setFloat("u_Opacity", surface.blend ? surface.opacity : 1.0f);
+    lit.setFloat("u_Opacity", surface.blend || surface.alphaCutoff >= 0.0f ? surface.opacity : 1.0f);
+    lit.setFloat("u_AlphaCutoff", surface.alphaCutoff);
+    lit.setInt("u_HasBaseColorMap", surface.baseColorMap != 0 ? 1 : 0);
     lit.setInt("u_BackFaces", surface.backFaces == BackFaces::Tinted ? 0 : 1);
 
     m_lastSurface = surface;

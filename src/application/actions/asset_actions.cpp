@@ -1,4 +1,5 @@
 #include "application/actions/asset_actions.hpp"
+#include "application/viewport/pictures.hpp"
 #include "application/ui/modal_windows.hpp"
 #include "application/commands/object_commands.hpp"
 #include "application/actions/project_actions.hpp"
@@ -30,10 +31,6 @@ namespace {
 
     const std::vector<std::string_view> CHOICES = { "Replace", "Rename", "Skip" };
 
-    std::string utf8(const std::filesystem::path& path) {
-        const std::u8string text = path.u8string();
-        return std::string(text.begin(), text.end());
-    }
 
     std::filesystem::path fromUtf8(const std::string& text) {
         return std::filesystem::path(std::u8string(text.begin(), text.end()));
@@ -168,7 +165,7 @@ namespace {
             if (!object) continue;
 
             std::string error;
-            if (!AssetFile::save(state.folder / fromUtf8(item.fileName), ctx.scene.objects, row.object, ctx.scene.materials, error)) {
+            if (!AssetFile::save(state.folder / fromUtf8(item.fileName), ctx.scene.objects, row.object, ctx.scene.materials, ctx.scene.textures, error)) {
                 ctx.systems.console.printError("Couldn't export " + item.objectName + ": " + error);
                 continue;
             }
@@ -376,10 +373,9 @@ bool importAssetFrom(AppContext& ctx, const std::filesystem::path& typed) {
     const std::filesystem::path path = nameOnDisk(typed);
     const std::string fileName = utf8(path.filename());
 
-    std::vector<AssetFile::ImportedObject> imported;
-    std::vector<Material> importedMaterials;
+    AssetFile::ImportedAsset asset;
     std::string error;
-    if (!AssetFile::load(path, imported, importedMaterials, error)) {
+    if (!AssetFile::load(path, asset, error)) {
         ctx.systems.console.printError("Couldn't import " + fileName + ": " + error);
         return false;
     }
@@ -387,11 +383,29 @@ bool importAssetFrom(AppContext& ctx, const std::filesystem::path& typed) {
     ObjectCollection& objects = ctx.scene.objects;
     ctx.history.begin(ctx.scene);
 
-    // Each of the asset's materials once: the project's own when one is identical (name and every value), otherwise
-    // added, renamed if its name is taken
+    std::vector<AssetFile::ImportedObject>& imported = asset.objects;
+
+    // Each texture once: the project's own when its PNG is the same, otherwise added, renamed if its name is taken
+    std::vector<TextureHandle> textureHandles;
+    u32 addedTextures = 0;
+    for (Texture& texture : asset.textures) {
+        TextureHandle handle = ctx.scene.textures.findSamePicture(*texture.picture);
+        if (!ctx.scene.textures.isValid(handle)) {
+            texture.name = ctx.scene.textures.uniqueName(texture.name);
+            handle = ctx.scene.textures.add(std::move(texture));
+            ++addedTextures;
+        }
+        textureHandles.push_back(handle);
+    }
+
+    // Each of the asset's materials once: the project's own when one is identical (name and every value, its texture
+    // included), otherwise added, renamed if its name is taken
     std::vector<MaterialHandle> materialHandles;
     u32 addedMaterials = 0;
-    for (const Material& material : importedMaterials) {
+    for (std::size_t m = 0; m < asset.materials.size(); ++m) {
+        Material& material = asset.materials[m];
+        const u32 map = m < asset.materialMaps.size() ? asset.materialMaps[m] : INVALID_INDEX;
+        if (map < textureHandles.size()) material.baseColorMap = textureHandles[map];
         bool added = false;
         materialHandles.push_back(ctx.scene.materials.adopt(material, added));
         if (added) ++addedMaterials;
@@ -426,6 +440,7 @@ bool importAssetFrom(AppContext& ctx, const std::filesystem::path& typed) {
 
     const std::string parts = handles.size() > 1 ? " with " + std::to_string(handles.size() - 1) + (handles.size() == 2 ? " child" : " children") : "";
     const std::string newMaterials = addedMaterials == 0 ? "" : ", " + std::to_string(addedMaterials) + (addedMaterials == 1 ? " new material" : " new materials");
-    ctx.systems.console.print("Imported " + fileName + (name == wanted ? "" : " as " + name) + parts + newMaterials);
+    const std::string newTextures = addedTextures == 0 ? "" : ", " + std::to_string(addedTextures) + (addedTextures == 1 ? " new texture" : " new textures");
+    ctx.systems.console.print("Imported " + fileName + (name == wanted ? "" : " as " + name) + parts + newMaterials + newTextures);
     return true;
 }

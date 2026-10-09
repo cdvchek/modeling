@@ -29,8 +29,10 @@ namespace vlmobj {
                 case Section::PARTS:
                 case Section::VERTICES:
                 case Section::INDICES:
-                case Section::MATERIALS:
+                case Section::TEXTURES:
                     return 1;
+                case Section::MATERIALS:
+                    return 2;
                 case Section::EDIT:
                     return 4;
                 default:
@@ -291,6 +293,21 @@ namespace vlmobj {
         m_meshes = { reinterpret_cast<const Mesh*>(meshes), static_cast<std::size_t>(meshCount) };
         m_parts = { reinterpret_cast<const Part*>(parts), static_cast<std::size_t>(partCount) };
         m_materials = { reinterpret_cast<const Material*>(materials), static_cast<std::size_t>(materialCount) };
+        if (const DirectoryEntry* entry = find(Section::MATERIALS)) m_materialVersion = entry->version;
+
+        // Textures: the records, then their data in the same section
+        if (const DirectoryEntry* entry = find(Section::TEXTURES)) {
+            if (entry->size < u64(entry->count) * sizeof(Texture)) return fail("section TEXR is too small for its count");
+            m_textureSection = m_data + entry->offset;
+            m_textures = { reinterpret_cast<const Texture*>(m_textureSection), static_cast<std::size_t>(entry->count) };
+            for (std::size_t i = 0; i < m_textures.size(); ++i) {
+                const Texture& texture = m_textures[i];
+                const std::string which = "texture " + std::to_string(i);
+                if (texture.format != static_cast<u8>(TextureFormat::Png)) return fail(which + " has a format this reader doesn't know");
+                if (texture.width == 0 || texture.height == 0) return fail(which + " has no size");
+                if (texture.dataOffset < u64(entry->count) * sizeof(Texture) || !fits(texture.dataOffset, texture.dataSize, entry->size)) return fail(which + "'s data is out of range");
+            }
+        }
 
         const DirectoryEntry* strings = find(Section::STRINGS);
         if (!strings || strings->size == 0 || m_data[strings->offset] != 0) return fail("the string table is missing or doesn't start with an empty string");
@@ -320,6 +337,8 @@ namespace vlmobj {
             const Material& material = m_materials[i];
             if (!fits(material.name.offset, material.name.length, m_stringBytes)) return fail("material " + std::to_string(i) + "'s name is out of range");
             if (material.alphaMode > static_cast<u8>(AlphaMode::Blend)) return fail("material " + std::to_string(i) + " has an alpha mode this reader doesn't know");
+            const u32 texture = baseColorTexture(material);
+            if (texture != NONE && texture >= m_textures.size()) return fail("material " + std::to_string(i) + " points at a texture that doesn't exist");
         }
 
         if (!checkMeshes(options)) return false;
@@ -443,6 +462,11 @@ namespace vlmobj {
         return static_cast<u32>(m_nodes.size() - 1);
     }
 
+    u32 Writer::addTexture(TextureInput texture) {
+        m_textures.push_back(std::move(texture));
+        return static_cast<u32>(m_textures.size() - 1);
+    }
+
     u32 Writer::addMaterial(const MaterialInput& material) {
         m_materials.push_back(material);
         return static_cast<u32>(m_materials.size() - 1);
@@ -499,7 +523,25 @@ namespace vlmobj {
             material.alphaCutoff = input.alphaCutoff;
             material.alphaMode = static_cast<u8>(input.alphaMode);
             material.flags = input.doubleSided ? MATERIAL_DOUBLE_SIDED : 0;
+            material.baseColorTexture = input.baseColorTexture;
             append(materials, material);
+        }
+
+        // Texture records first, then each texture's data on a 16-byte boundary
+        std::vector<u8> textures(m_textures.size() * sizeof(Texture), 0);
+        for (std::size_t i = 0; i < m_textures.size(); ++i) {
+            const TextureInput& input = m_textures[i];
+            textures.resize(aligned(textures.size(), DATA_ALIGNMENT), 0);
+
+            Texture texture {};
+            texture.name = intern(input.name);
+            texture.width = input.width;
+            texture.height = input.height;
+            texture.format = static_cast<u8>(TextureFormat::Png);
+            texture.dataOffset = textures.size();
+            texture.dataSize = input.png.size();
+            std::memcpy(textures.data() + i * sizeof(Texture), &texture, sizeof(Texture));
+            textures.insert(textures.end(), input.png.begin(), input.png.end());
         }
 
         std::vector<u8> meshes, parts, vertices, indices;
@@ -590,6 +632,7 @@ namespace vlmobj {
             sections.push_back({ Section::INDICES, 0, 0, &indices });
         }
         if (!m_materials.empty()) sections.push_back({ Section::MATERIALS, static_cast<u32>(m_materials.size()), 0, &materials });
+        if (!m_textures.empty()) sections.push_back({ Section::TEXTURES, static_cast<u32>(m_textures.size()), 0, &textures });
         if (m_hasEdit) sections.push_back({ Section::EDIT, 0, SECTION_EDITOR_ONLY, &edit });
 
         // Header, directory, then each section on a 64-byte boundary
