@@ -20,6 +20,8 @@ public:
     // around them, sent as one changed range per buffer. False, changing nothing that matters, when the layout
     // changed since the last upload (call update instead).
     bool patch(const MeshData& mesh, u64 groupingStamp);
+    // Built from this layout (MeshStamp: structure, materials, UVs, shading) and grouping; moved vertices aside
+    bool matches(const MeshData& mesh, u64 groupingStamp) const { return m_initialized && mesh.stamp() == m_stamp && groupingStamp == m_groupingStamp; }
 
     void drawVertices() const override;
     void drawEdges() const override;

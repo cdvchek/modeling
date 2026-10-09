@@ -207,6 +207,7 @@ Tunables:
 | `patch(meshData, groupingStamp)` | After vertices only moved: if both stamps still match, writes the moved vertices' positions and every face `getFacesToPatch` names (the faces around them, more with smooth shading; their corners again, through `appendFaceCorners`, into the same place, since a face keeps its triangle count) into the CPU copies, then sends one `glBufferSubData` per buffer covering the changed range. Returns false (and the caller rebuilds) when the layout or the grouping changed, or a face's corner count did. Edge and selection index buffers don't change. |
 | `drawVertices()` / `drawEdges()` / `drawFaces()` | Draw everything. |
 | `faceGroups()` / `drawFaceRange(first, count)` | The faces' runs, one per material, and one run's draw. |
+| `matches(meshData, groupingStamp)` | Whether the copy was built from this layout and grouping (moved positions aside); `ObjectMeshCache::sync` rebuilds when it isn't. |
 | `drawHardEdgeSet(handles)` | Like `drawEdgeSet`, in a set of its own so the selection and the hard edges don't upload over each other every frame. |
 | `drawVertexSet(handles)` / `drawEdgeSet(handles)` / `drawFaceSet(handles)` | A selection in one draw call: the set's indices (from the export's index maps) go into its own index buffer, uploaded again only when the set's handles (or the mesh) change, so drawing the same selection every frame costs one call. |
 | `destroy()` | Free GL objects. |

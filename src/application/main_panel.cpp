@@ -238,11 +238,15 @@ namespace {
         if (ui.dropdown("Shading", { shadingRow.x + labelWidth, shadingRow.y, shadingRow.width - labelWidth, shadingRow.height }, shading, SHADING_LABELS)) {
             ctx.history.begin(ctx.scene);
             objects.get(handle).meshData.setShading(static_cast<ShadingMode>(shading));
+            objects.get(handle).meshDirty = true;
             ctx.history.commit();
         }
         if (objects.get(handle).meshData.getShading() == ShadingMode::Auto) {
             f32 degrees = objects.get(handle).meshData.getSmoothAngle() * RADIANS_TO_DEGREES;
-            if (ui.dragFloat("Angle", degrees, 0.5f, "%.0f")) objects.get(handle).meshData.setSmoothAngle(std::clamp(degrees, 0.0f, 180.0f) / RADIANS_TO_DEGREES);
+            if (ui.dragFloat("Angle", degrees, 0.5f, "%.0f")) {
+                objects.get(handle).meshData.setSmoothAngle(std::clamp(degrees, 0.0f, 180.0f) / RADIANS_TO_DEGREES);
+                objects.get(handle).meshDirty = true;
+            }
             trackUndo(ctx);
         }
 

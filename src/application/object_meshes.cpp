@@ -16,7 +16,8 @@ OpenGLMesh* ObjectMeshCache::sync(ObjectHandle handle, Object& object, const Fac
         entry.generation = handle.generation;
         object.meshDirty = false;
         object.meshData.clearMoved();
-    } else if (object.meshDirty) {
+    } else if (object.meshDirty || !entry.mesh.matches(object.meshData, materialsStamp)) {
+        // A changed stamp rebuilds even when nothing set meshDirty (shading or UVs changed from the panel, say)
         if (!entry.mesh.patch(object.meshData, materialsStamp)) entry.mesh.update(object.meshData, groupOf, materialsStamp);
         object.meshDirty = false;
         object.meshData.clearMoved();

@@ -106,7 +106,7 @@ while running:
 Rendering order inside `renderFrame`:
 1. Render any material swatches that changed (each into its own texture), then clear and draw the background gradient.
 2. Reference images set to Behind (no depth test or writes, so everything draws over them).
-3. For each object: re-upload the GPU mesh if `meshDirty`, then draw faces (in its material, or clay) → edges → vertices. See-through objects wait.
+3. For each object: re-upload the GPU mesh if `meshDirty` or its stamp changed, then draw faces (in its material, or clay) → edges → vertices. See-through objects wait.
 4. See-through objects and reference images set to Scene, sorted together, farthest first, depth tested.
 5. Ground grid and axes (blended, no depth writes).
 6. Reference images set to Front, without the depth test.
