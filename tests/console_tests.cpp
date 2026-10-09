@@ -168,3 +168,20 @@ TEST_CASE(console_entries_added_by_a_command_appear_once_with_echo) {
     CHECK(entries[2].kind == ConsoleEntryKind::Error);
     CHECK(stdoutCopy.str() == "> save\nSaved\nCouldn't\n");
 }
+
+TEST_CASE(command_guard_can_turn_commands_down) {
+    CommandSystem commands;
+    i32 runs = 0;
+    commands.registerCommand("object", "", [&runs](const CommandArgs&) { ++runs; });
+    commands.registerCommand("save", "", [&runs](const CommandArgs&) { runs += 10; });
+
+    // A turned-down command still counts as known (the guard explains); others run as usual
+    std::string asked;
+    commands.setGuard([&asked](const std::string& name) { asked = name; return name != "object"; });
+    CHECK(commands.execute("object list"));
+    CHECK(asked == "object");
+    CHECK(runs == 0);
+    CHECK(commands.execute("save"));
+    CHECK(runs == 10);
+    CHECK(!commands.execute("nope"));
+}

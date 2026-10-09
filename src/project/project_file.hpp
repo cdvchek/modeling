@@ -43,6 +43,10 @@ namespace ProjectFile {
         // The workspace (0 Model, 1 UV) and the UV workspace's split, as a fraction of the width
         u8 workspace = 0;
         f32 uvSplit = 0.5f;
+        // The UV editor's view (zoom 0: frame everything when first shown) and whether its grid shows
+        f32 uvCenter[2] = { 0.5f, 0.5f };
+        f32 uvZoom = 0.0f;
+        bool uvGrid = true;
 
         // Where assets were last exported, as storeFolder gives it (relative to the project file when nearby);
         // empty means the default, an Exports folder next to the project file

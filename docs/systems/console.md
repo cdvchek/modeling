@@ -36,10 +36,13 @@ Holds the line being typed, the cursor, the history of entered lines (for Up/Dow
 |---|---|
 | `registerCommand(name, description, callback)` | Adds a command. `callback` is `void(const CommandArgs&)`, where `CommandArgs` is `std::vector<std::string>`. Descriptions are shown by `help`; keep them as "what it does: usage" with no trailing period and `<value>` placeholders, ideally short enough to fit on one console line (about 100 characters; longer ones wrap). |
 | `execute(line)` | Splits on whitespace; the first word is the command name and the rest are arguments. Returns false for an unknown name (an empty line is fine). |
+| `setGuard(allowed)` | Asked with a command's name before it runs; returning false skips it (the guard prints why) and `execute` still returns true. The app uses it to refuse modeling commands outside the Model workspace. |
 | `list()` | Every command and its description, sorted by name (used by `help`). |
 | `commandName(line)` | The first word of a line. |
 
 ## Commands
+
+In the UV workspace, the commands that change meshes, objects, lights, materials, textures, or reference images (`merge`, `dissolve`, `light`, `material`, `texture`, `shading`, `reference`, `origin`, `import`, `object`) refuse to run with an error saying they're modeling commands; the rest work in both workspaces.
 
 | Command | Arguments | Description |
 |---|---|---|

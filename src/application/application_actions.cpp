@@ -5,6 +5,7 @@
 #include "application/ui/modal_windows.hpp"
 #include "application/actions/origin_actions.hpp"
 #include "application/commands/shading_commands.hpp"
+#include "application/uv/uv_editor.hpp"
 #include "application/actions/checks/action_checks.hpp"
 
 void Application::registerDefaultActions(AppContext& ctx) {
@@ -39,6 +40,8 @@ void Application::registerDefaultActions(AppContext& ctx) {
     actions.subscribe(Action::InsetSelection,      DefaultKeybinds::InsetSelection,      InputContext_SelectionFace);
     actions.subscribe(Action::DeleteSelection,     DefaultKeybinds::DeleteSelection,     InputContext_AnySelection);
     actions.subscribe(Action::FillFaceLoop,        DefaultKeybinds::FillFaceLoop,        InputContext_SelectionEdge);
+    actions.subscribe(Action::FrameSelected,       DefaultKeybinds::FrameSelected,       InputContext_EditModes);
+    actions.subscribe(Action::FrameAll,            DefaultKeybinds::FrameAll,            InputContext_EditModes);
     actions.subscribe(Action::ConnectVertices,     DefaultKeybinds::ConnectVertices,     InputContext_SelectionVertex);
     actions.subscribe(Action::XAxis,               DefaultKeybinds::XAxis,               InputContext_Grab | InputContext_Scale | InputContext_Rotate);
     actions.subscribe(Action::YAxis,               DefaultKeybinds::YAxis,               InputContext_Grab | InputContext_Scale | InputContext_Rotate);
@@ -111,6 +114,9 @@ void Application::registerDefaultActions(AppContext& ctx) {
     actions.setHandler(Action::ToggleOrigins, { "Origins", always, [&ctx] { toggleOrigins(ctx); } });
     actions.setHandler(Action::ToggleMaterials, { "Materials", always, [&ctx] { toggleMaterials(ctx); } });
     actions.setHandler(Action::ToggleUVChecker, { "UV checker", always, [&ctx] { toggleUVChecker(ctx); } });
+    auto hasUVObject = [&ctx] { return ctx.scene.objects.isValid(uvObject(ctx)); };
+    actions.setHandler(Action::FrameSelected, { "Frame selected", hasUVObject, [&ctx] { frameView(ctx, false); } });
+    actions.setHandler(Action::FrameAll, { "Frame all", hasUVObject, [&ctx] { frameView(ctx, true); } });
     auto shading = [&ctx] { return canSetShading(ctx); };
     actions.setHandler(Action::ShadeFlat, { "Flat", shading, [&ctx] { setShading(ctx, ShadingMode::Flat); } });
     actions.setHandler(Action::ShadeSmooth, { "Smooth", shading, [&ctx] { setShading(ctx, ShadingMode::Smooth); } });

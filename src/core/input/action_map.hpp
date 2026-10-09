@@ -31,6 +31,11 @@ public:
     // While blocked, actions bound to keys never fire (a text field has the keyboard); Quit still works
     void setKeyboardBlocked(bool blocked) { m_keyboardBlocked = blocked; }
 
+    // An action the filter turns down doesn't fire from its binding, can't run from a menu, and isn't available
+    // (a workspace's own set of tools); no filter allows everything
+    void setFilter(std::function<bool(Action)> allowed) { m_filter = std::move(allowed); }
+    bool isAllowed(Action action) const { return !m_filter || m_filter(action); }
+
     // Like wasActionPressedThisFrame, but a held single-key binding also fires on each OS key repeat
     bool wasActionPressedOrRepeated(Action action, const InputState& input, u32 input_ctx) const;
 
@@ -67,4 +72,5 @@ private:
     std::unordered_map<Action, ActionHandler> m_handlers;
     bool m_mouseBlocked = false;
     bool m_keyboardBlocked = false;
+    std::function<bool(Action)> m_filter;
 };

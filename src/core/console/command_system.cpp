@@ -37,6 +37,7 @@ bool CommandSystem::execute(const std::string& command) {
         return false;
     }
 
+    if (guard && !guard(commandName)) return true;
     it->second.callback(args);
     return true;
 }

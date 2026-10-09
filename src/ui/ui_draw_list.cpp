@@ -144,8 +144,8 @@ void UIDrawList::image(const Rect& rect, u32 texture, f32 alpha) {
     const Vec2 center = rect.center();
     const Color tint { 1.0f, 1.0f, 1.0f, alpha };
     const Vec2 locals[4] = { Vec2(-half.x, -half.y), Vec2(half.x, -half.y), Vec2(half.x, half.y), Vec2(-half.x, half.y) };
-    // Render targets keep their first row at the bottom
-    const Vec2 uvs[4] = { Vec2(0.0f, 1.0f), Vec2(1.0f, 1.0f), Vec2(1.0f, 0.0f), Vec2(0.0f, 0.0f) };
+    // The texture's first row goes at the top, as pictures are stored (swatches are rendered to match)
+    const Vec2 uvs[4] = { Vec2(0.0f, 0.0f), Vec2(1.0f, 0.0f), Vec2(1.0f, 1.0f), Vec2(0.0f, 1.0f) };
 
     UIVertex corners[4];
     for (u32 i = 0; i < 4; ++i) {

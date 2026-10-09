@@ -16,6 +16,7 @@ const ActionHandler* ActionMap::getHandler(Action action) const {
 }
 
 bool ActionMap::canRun(Action action) const {
+    if (!isAllowed(action)) return false;
     const ActionHandler* handler = getHandler(action);
     return handler && handler->run && (!handler->canRun || handler->canRun());
 }
@@ -32,13 +33,31 @@ const Keybind* ActionMap::getKeybind(Action action) const {
 }
 
 void ActionMap::dispatch(const InputState& input, const ContextManager& input_ctx) const {
+    // A chord that fires (M+F) hides the bindings made of some of its own keys (F), so one press is one action
+    std::vector<Action> pressed;
     for (u32 i = 0; i < static_cast<u32>(Action::Count); i++) {
         const Action action = static_cast<Action>(i);
-        if (!m_handlers.contains(action)) continue;
-
-        if (wasActionPressedThisFrame(action, input, input_ctx.getContext()) && canRun(action)) {
-            m_handlers.at(action).run();
+        if (m_handlers.contains(action) && wasActionPressedThisFrame(action, input, input_ctx.getContext())) pressed.push_back(action);
+    }
+    const auto partOf = [this](Action smaller, Action larger) {
+        const Keybind& small = m_keybinds.at(smaller).bind;
+        const Keybind& large = m_keybinds.at(larger).bind;
+        if (small.inputs.size() >= large.inputs.size()) return false;
+        for (const Input& a : small.inputs) {
+            bool found = false;
+            for (const Input& b : large.inputs) found = found || (a.kind == b.kind && a.code == b.code);
+            if (!found) return false;
         }
+        return true;
+    };
+
+    for (Action action : pressed) {
+        bool hidden = false;
+        for (Action other : pressed) hidden = hidden || partOf(action, other);
+        if (hidden) continue;
+
+        // Earlier handlers can change the context, so each is checked again
+        if (wasActionPressedThisFrame(action, input, input_ctx.getContext()) && canRun(action)) m_handlers.at(action).run();
     }
 }
 
@@ -50,6 +69,7 @@ bool ActionMap::usesKeys(const Keybind& keybind) const {
 }
 
 bool ActionMap::isBlocked(Action action, const Keybind& keybind) const {
+    if (!isAllowed(action)) return true;
     if (m_mouseBlocked && usesMouse(keybind)) return true;
     return m_keyboardBlocked && action != Action::Quit && usesKeys(keybind);
 }

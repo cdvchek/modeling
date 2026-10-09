@@ -77,6 +77,8 @@ Defaults live in `namespace DefaultKeybinds`.
 | `setKeyboardBlocked(bool)` | While set, actions whose binding includes a key never fire, except `Quit`. Set every frame from `ctx.ui.wantsKeyboard()`, so typing in a text field doesn't trigger shortcuts. |
 | `wasActionPressedOrRepeated(action, input, context)` | Like `wasActionPressedThisFrame`, and also true on each OS repeat of a single-key binding that's held. The console's editing keys use it. |
 | `setMouseBlocked(bool)` | While set, actions whose binding includes a mouse button or the scroll wheel never fire. Set every frame from `ctx.ui.wantsMouse()` so clicks and scrolling over UI don't reach the viewport. |
+| `setFilter(allowed)` / `isAllowed(action)` | A function that says whether an action exists right now (the app passes `actionAllowed` for the current workspace). An action it turns down doesn't fire from its binding, `canRun` is false, and it isn't available to menus; no filter allows everything. |
+| `dispatch` and chords | When a binding fires together with a longer one that contains all its keys (F inside M+F), only the longer one runs, so one press is one action. Handlers still run in enum order, each checked again after the ones before it. |
 
 Both return false if none of the action's contexts are active, or if something owns the input and the action isn't one of its own: a modal window (`Modal`), then the console (`Console`) (`ownerAllows`).
 

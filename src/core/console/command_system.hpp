@@ -25,6 +25,9 @@ public:
     // False only for a command name nobody registered (an empty line is fine)
     bool execute(const std::string& command);
 
+    // Asked before running a command; returning false skips it (the guard says why). No guard runs everything.
+    void setGuard(std::function<bool(const std::string& name)> allowed) { guard = std::move(allowed); }
+
     // Every command with its description, sorted by name
     std::vector<std::pair<std::string, std::string>> list() const;
 
@@ -33,4 +36,5 @@ public:
 
 private:
     std::unordered_map<std::string, Command> commands;
+    std::function<bool(const std::string&)> guard;
 };

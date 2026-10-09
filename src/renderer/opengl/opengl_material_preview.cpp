@@ -184,7 +184,9 @@ u32 OpenGLRenderer::renderMaterialPreview(const SurfaceLook& look, u32 size, u32
         DrawCommand command;
         command.surface = look;
         command.model = Mat4();
-        command.mvp = Mat4::perspective(PREVIEW_FOV, 1.0f, 0.1f, 10.0f)
+        // Drawn upside down, so the texture's first row is the swatch's top, as the UI expects of every texture;
+        // that turns the winding around too
+        command.mvp = Mat4::scale(Vec3(1.0f, -1.0f, 1.0f)) * Mat4::perspective(PREVIEW_FOV, 1.0f, 0.1f, 10.0f)
                     * Mat4::lookAt(Vec3(0.0f, 0.0f, PREVIEW_DISTANCE), Vec3(0.0f), Vec3(0.0f, 1.0f, 0.0f));
         setLitUniforms(lit, command);
         setSurfaceUniforms(lit, look);
@@ -192,6 +194,7 @@ u32 OpenGLRenderer::renderMaterialPreview(const SurfaceLook& look, u32 size, u32
 
         glEnable(GL_DEPTH_TEST);
         glEnable(GL_CULL_FACE);
+        glFrontFace(GL_CW);
         if (look.blend) {
             glEnable(GL_BLEND);
             glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -208,6 +211,7 @@ u32 OpenGLRenderer::renderMaterialPreview(const SurfaceLook& look, u32 size, u32
         drawElements(GL_TRIANGLES, static_cast<GLsizei>(m_previewSphereIndices), GL_UNSIGNED_INT, nullptr);
         glBindVertexArray(0);
 
+        glFrontFace(GL_CCW);
         glDisable(GL_CULL_FACE);
         glDisable(GL_BLEND);
         glDepthMask(GL_TRUE);

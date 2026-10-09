@@ -509,6 +509,10 @@ TEST_CASE(project_saves_the_workspace) {
     ProjectFile::View view = sampleView();
     view.workspace = 1;
     view.uvSplit = 0.35f;
+    view.uvCenter[0] = 0.25f;
+    view.uvCenter[1] = 0.75f;
+    view.uvZoom = 640.0f;
+    view.uvGrid = false;
 
     Scene loaded;
     ProjectFile::View loadedView;
@@ -516,6 +520,9 @@ TEST_CASE(project_saves_the_workspace) {
     CHECK(ProjectFile::read(ProjectFile::write(sampleScene(), view), loaded, loadedView, error));
     CHECK(loadedView.workspace == 1);
     CHECK(loadedView.uvSplit == 0.35f);
+    CHECK(loadedView.uvCenter[0] == 0.25f && loadedView.uvCenter[1] == 0.75f);
+    CHECK(loadedView.uvZoom == 640.0f);
+    CHECK(!loadedView.uvGrid);
 }
 
 TEST_CASE(project_saves_materials_and_which_objects_use_them) {

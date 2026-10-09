@@ -199,14 +199,16 @@ void checkSelectionContext(AppContext& ctx) {
         // Markers sit on top of the scene, so they're picked first: origins, then lights, then reference images and
         // mesh elements by which is in front
         const Mat4 viewProjection = sceneViewProjection(ctx);
-        const OriginHit originHit = ctx.viewport.showOrigins
+        // The UV workspace shows only its one object, so markers, images, and other objects can't be clicked there
+        const bool uvWorkspace = ctx.workspace.current == Workspace::UV;
+        const OriginHit originHit = ctx.viewport.showOrigins && !uvWorkspace
             ? pickOrigin(ctx.scene, viewProjection, viewMouseX, viewMouseY, view.width, view.height, ORIGIN_MARKER_PICK_RADIUS)
             : OriginHit {};
-        const LightHit lightHit = originHit.hit ? LightHit {}
+        const LightHit lightHit = originHit.hit || uvWorkspace ? LightHit {}
             : pickLight(ctx.scene, viewProjection, viewMouseX, viewMouseY, view.width, view.height, LIGHT_MARKER_PICK_RADIUS);
 
         // A reference image wins when it's drawn over the mesh under the mouse
-        ReferenceHit referenceHit = (originHit.hit || lightHit.hit) ? ReferenceHit {} : pickReference(ctx.scene, ray);
+        ReferenceHit referenceHit = (originHit.hit || lightHit.hit || uvWorkspace) ? ReferenceHit {} : pickReference(ctx.scene, ray);
         if (referenceHit.hit && referenceHit.depth != ReferenceDepth::InFront) {
             const FaceHit meshHit = pickFace(ctx.scene, ray, INVALID_OBJECT, INVALID_OBJECT, culledFaces(ctx));
             const bool hidden = meshHit.hit && (referenceHit.depth == ReferenceDepth::Behind || meshHit.distance < referenceHit.distance);
@@ -264,7 +266,7 @@ void checkSelectionContext(AppContext& ctx) {
             if (edgeHit.hit) activeDistance = std::min(activeDistance, edgeHit.distance);
 
             // Another object in front of the active one becomes the active object, in the same mode
-            const FaceHit other = pickFace(ctx.scene, ray, INVALID_OBJECT, active, culledFaces(ctx));
+            const FaceHit other = uvWorkspace ? FaceHit {} : pickFace(ctx.scene, ray, INVALID_OBJECT, active, culledFaces(ctx));
 
             if (other.hit && other.distance < activeDistance) {
                 selection.clearLights();

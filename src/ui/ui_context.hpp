@@ -124,6 +124,8 @@ public:
     bool dragSource(u32 payload, std::string_view label);
     bool acceptDrop(const Rect& rect, u32& payload);
     bool isDragging() const { return m_drag.active; }
+    // A dropdown's list is open (it sits over everything and takes the mouse)
+    bool popupOpen() const { return m_popup.open; }
     u32 dragPayload() const { return m_drag.payload; }
     // The rect of the last widget that handled the mouse, e.g. to outline a row as a drop target
     const Rect& lastItemRect() const { return m_lastRect; }

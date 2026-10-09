@@ -81,6 +81,8 @@ enum class Action : u8 {
     MarkHard,
     MarkSmooth,
     ClearEdgeMark,
+    FrameSelected,
+    FrameAll,
     ParentToActive,
     ClearParents,
     Count

@@ -90,6 +90,14 @@ bool Application::initialize(AppContext& ctx) {
     registerDefaultActions(ctx);
     registerCommands(ctx);
 
+    // Each workspace has its own tools: actions and console commands that don't belong to it are switched off
+    ctx.systems.actions.setFilter([&ctx](Action action) { return actionAllowed(ctx.workspace.current, action); });
+    ctx.systems.commands.setGuard([&ctx](const std::string& name) {
+        if (ctx.workspace.current == Workspace::Model || !isModelCommand(name)) return true;
+        ctx.systems.console.printError(name + ": a modeling command; switch to the Model workspace to use it");
+        return false;
+    });
+
     initializeCamera(ctx);
     loadTestScene(ctx);
 
@@ -221,6 +229,10 @@ void Application::renderFrame(AppContext& ctx) {
     ctx.renderer->setSceneViewport(static_cast<u32>(sceneRect.x), static_cast<u32>(sceneRect.y), static_cast<u32>(sceneRect.width), static_cast<u32>(sceneRect.height));
     const Mat4 viewProjection = sceneViewProjection(ctx);
 
+    // The UV workspace shows only the object being UV-edited: no other objects, reference images, or markers
+    const bool uvWorkspace = ctx.workspace.current == Workspace::UV;
+    const ObjectHandle uvTarget = uvObject(ctx);
+
     LightingState lighting = buildLightingState(ctx.scene.lights, ctx.viewport.headlight, ctx.scene.camera, ctx.renderer->getBackground());
     lighting.uvChecker = ctx.viewport.showUVChecker;
     ctx.renderer->setLighting(lighting);
@@ -230,7 +242,7 @@ void Application::renderFrame(AppContext& ctx) {
     ctx.pictureTextures.prune(*ctx.renderer);
 
     // Backdrop images go first so everything draws over them
-    drawReferenceImages(ctx, viewProjection, ReferenceDepth::Behind);
+    if (!uvWorkspace) drawReferenceImages(ctx, viewProjection, ReferenceDepth::Behind);
 
     // See-through objects and reference images among them wait until everything solid is drawn, then go farthest first
     struct SeeThrough {
@@ -243,6 +255,7 @@ void Application::renderFrame(AppContext& ctx) {
     const FaceGroupOf groupOf = faceGroupsFor(ctx);
 
     for (ObjectHandle handle : ctx.scene.objects.handles()) {
+        if (uvWorkspace && handle != uvTarget) continue;
         Object& object = ctx.scene.objects.get(handle);
 
         Mat4 model = ctx.scene.objects.worldMatrix(handle);
@@ -307,7 +320,7 @@ void Application::renderFrame(AppContext& ctx) {
 
     for (ReferenceHandle handle : ctx.scene.references.handles()) {
         const ReferenceImage& image = ctx.scene.references.get(handle);
-        if (image.visible && image.depth == ReferenceDepth::InScene && image.opacity > 0.0f) {
+        if (!uvWorkspace && image.visible && image.depth == ReferenceDepth::InScene && image.opacity > 0.0f) {
             seeThrough.push_back({ (image.position - ctx.scene.camera.position).length(), {}, handle });
         }
     }
@@ -325,7 +338,7 @@ void Application::renderFrame(AppContext& ctx) {
     gridCmd.farPlane = ctx.scene.camera.farPlane;
 
     ctx.renderer->drawGrid(gridCmd);
-    drawReferenceImages(ctx, viewProjection, ReferenceDepth::InFront);
+    if (!uvWorkspace) drawReferenceImages(ctx, viewProjection, ReferenceDepth::InFront);
 
     if (ctx.systems.input_ctx.isActive(InputContext_Debug)) {
         ctx.debug_renderer.render(
@@ -339,13 +352,15 @@ void Application::renderFrame(AppContext& ctx) {
     ui.clear();
 
     // Markers are clipped to the 3D view, so none spill into the top bar or the UV side
-    ui.pushClip(sceneRect);
-    drawReferenceOutlines(ctx, ui, viewProjection, sceneRect);
-    drawLightMarkers(ctx, ui, viewProjection, sceneRect);
-    drawParentLines(ctx, ui, viewProjection, sceneRect);
-    // Origins win clicks over lights, so they draw over them too
-    drawOriginMarkers(ctx, ui, viewProjection, sceneRect);
-    ui.popClip();
+    if (!uvWorkspace) {
+        ui.pushClip(sceneRect);
+        drawReferenceOutlines(ctx, ui, viewProjection, sceneRect);
+        drawLightMarkers(ctx, ui, viewProjection, sceneRect);
+        drawParentLines(ctx, ui, viewProjection, sceneRect);
+        // Origins win clicks over lights, so they draw over them too
+        drawOriginMarkers(ctx, ui, viewProjection, sceneRect);
+        ui.popClip();
+    }
     drawToolGuides(ctx, ui);
     drawStatusBar(ctx, ui, static_cast<f32>(width), static_cast<f32>(height));
     drawStatsOverlay(ctx, ui);

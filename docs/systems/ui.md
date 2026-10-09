@@ -143,7 +143,7 @@ Pixels, origin at the **top-left**, y pointing **down**.
 
 ## UIDrawList
 
-Besides rects, rounded rects, shadows, lines, ring slices, and text: `gradientRect(rect, topLeft, topRight, bottomRight, bottomLeft)` (each corner its own color, blended across; the shader interpolates the fill) and `image(rect, texture, alpha)` (a renderer texture, premultiplied, as render targets are; the shader divides the alpha back out).
+Besides rects, rounded rects, shadows, lines, ring slices, and text: `gradientRect(rect, topLeft, topRight, bottomRight, bottomLeft)` (each corner its own color, blended across; the shader interpolates the fill) and `image(rect, texture, alpha)` (a renderer texture, its first row at the top as pictures are stored and swatches are rendered, premultiplied, as render targets are; the shader divides the alpha back out).
 
 | Method | Description |
 |---|---|

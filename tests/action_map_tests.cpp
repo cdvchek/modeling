@@ -186,3 +186,57 @@ TEST_CASE(input_mouse_moves_add_up_within_a_frame) {
     input.beginFrame();
     CHECK(input.getMouseDeltaX() == 0 && input.getMouseDeltaY() == 0);
 }
+
+TEST_CASE(action_filter_switches_actions_off) {
+    ActionMap actions;
+    ContextManager contexts;
+    InputState input;
+    i32 runs = 0;
+
+    actions.subscribe(Action::GrabSelection, { { key(Key::G) } }, InputContext_SelectionVertex);
+    actions.setHandler(Action::GrabSelection, { "Grab", {}, [&runs] { ++runs; } });
+
+    // Turned down by the filter: the key doesn't fire it, and a menu can't run it
+    bool allowGrab = false;
+    actions.setFilter([&allowGrab](Action action) { return action != Action::GrabSelection || allowGrab; });
+    input.onKey(static_cast<u16>(Key::G), true);
+    CHECK(!actions.wasActionPressedThisFrame(Action::GrabSelection, input, contexts.getContext()));
+    actions.dispatch(input, contexts);
+    CHECK(runs == 0);
+    CHECK(!actions.canRun(Action::GrabSelection));
+    CHECK(!actions.isAvailable(Action::GrabSelection, contexts.getContext()));
+
+    // Allowed again, everything works as before
+    allowGrab = true;
+    CHECK(actions.isAvailable(Action::GrabSelection, contexts.getContext()));
+    actions.dispatch(input, contexts);
+    CHECK(runs == 1);
+}
+
+TEST_CASE(a_chord_hides_its_own_single_keys) {
+    ActionMap actions;
+    ContextManager contexts;
+    InputState input;
+    i32 faceMode = 0, frame = 0;
+
+    actions.subscribe(Action::FaceMode, { { key(Key::M), key(Key::F) } }, InputContext_AnySelection);
+    actions.subscribe(Action::FrameSelected, { { key(Key::F) } }, InputContext_AnySelection);
+    actions.setHandler(Action::FaceMode, { "Face", {}, [&faceMode] { ++faceMode; } });
+    actions.setHandler(Action::FrameSelected, { "Frame", {}, [&frame] { ++frame; } });
+
+    // M+F is face mode alone, not face mode and F
+    input.onKey(static_cast<u16>(Key::M), true);
+    input.onKey(static_cast<u16>(Key::F), true);
+    actions.dispatch(input, contexts);
+    CHECK(faceMode == 1);
+    CHECK(frame == 0);
+
+    // F on its own still works
+    input.onKey(static_cast<u16>(Key::M), false);
+    input.onKey(static_cast<u16>(Key::F), false);
+    input.beginFrame();
+    input.onKey(static_cast<u16>(Key::F), true);
+    actions.dispatch(input, contexts);
+    CHECK(frame == 1);
+    CHECK(faceMode == 1);
+}

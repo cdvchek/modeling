@@ -46,6 +46,10 @@ namespace {
         view.showUVChecker = ctx.viewport.showUVChecker;
         view.workspace = static_cast<u8>(ctx.workspace.current);
         view.uvSplit = ctx.workspace.uvSplit;
+        view.uvCenter[0] = ctx.workspace.uvCenter.x;
+        view.uvCenter[1] = ctx.workspace.uvCenter.y;
+        view.uvZoom = ctx.workspace.uvZoom;
+        view.uvGrid = ctx.workspace.uvGrid;
         view.exportFolder = ProjectFile::storeFolder(ctx.project.exportFolder, projectFile);
         return view;
     }
@@ -59,8 +63,13 @@ namespace {
         ctx.viewport.exposure = view.exposure;
         ctx.viewport.showMaterials = view.showMaterials;
         ctx.viewport.showUVChecker = view.showUVChecker;
-        ctx.workspace.current = static_cast<Workspace>(view.workspace);
         ctx.workspace.uvSplit = view.uvSplit;
+        ctx.workspace.uvCenter = Vec2(view.uvCenter[0], view.uvCenter[1]);
+        ctx.workspace.uvZoom = view.uvZoom;
+        ctx.workspace.uvGrid = view.uvGrid;
+        // Textures aren't part of the view, so the background goes back to the material's
+        ctx.workspace.uvBackground = UVBackground::Material;
+        ctx.workspace.uvTexture = INVALID_TEXTURE;
         if (ctx.renderer) ctx.renderer->setBackFaceTint(view.backFaceTint);
 
         if (view.debug) ctx.systems.input_ctx.addContext(InputContext_Debug);
@@ -76,6 +85,8 @@ namespace {
         // Mode last: it selects the active object in object mode, and sets lastEditMode for edit modes
         setSelectionMode(ctx, view.selectionMode);
         ctx.lastEditMode = view.lastEditMode;
+        // After the mode, so entering UV can leave object mode as switching to it does
+        setWorkspace(ctx, static_cast<Workspace>(view.workspace));
         ctx.radialMenu.open = false;
     }
 

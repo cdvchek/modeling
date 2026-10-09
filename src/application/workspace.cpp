@@ -2,6 +2,7 @@
 #include "application/app_context.hpp"
 #include "application/ui/status_bar.hpp"
 #include "core/math/projection.hpp"
+#include "application/actions/editing_actions.hpp"
 
 #include <algorithm>
 
@@ -32,8 +33,11 @@ ScreenLayout screenLayout(const AppContext& ctx) {
     layout.scene = layout.content;
 
     if (ctx.workspace.current == Workspace::UV) {
+        // The header takes the top of the content; the views share what's below it
+        layout.header = { layout.content.x, layout.content.y, layout.content.width, std::min(UV_HEADER_HEIGHT, layout.content.height) };
+        const Rect area { layout.content.x, layout.header.bottom(), layout.content.width, layout.content.height - layout.header.height };
+
         // The divider stays where the split says, kept so both sides have room when the window allows it
-        const Rect& area = layout.content;
         const f32 usable = std::max(0.0f, area.width - DIVIDER_WIDTH);
         const f32 minSide = std::min(MIN_SPLIT_WIDTH, usable * 0.5f);
         const f32 left = std::clamp(std::floor(usable * ctx.workspace.uvSplit), minSide, usable - minSide);
@@ -65,5 +69,70 @@ bool setWorkspace(AppContext& ctx, Workspace workspace) {
     if (ctx.systems.input_ctx.getContext() & TOOL_CONTEXTS) return false;
     ctx.workspace.current = workspace;
     ctx.radialMenu.open = false;
+
+    if (workspace == Workspace::UV) {
+        Selection& selection = ctx.scene.selection;
+        if (!ctx.scene.objects.isValid(selection.getActiveObject()) && ctx.scene.objects.count() > 0) {
+            selection.setActiveObject(ctx.scene.objects.handles().front());
+        }
+        selection.clearLights();
+        selection.clearReferences();
+        selection.clearOrigin();
+        if (ctx.systems.input_ctx.getSelectionContext() == InputContext_SelectionObject) setSelectionMode(ctx, ctx.lastEditMode);
+    }
     return true;
+}
+
+bool actionAllowed(Workspace workspace, Action action) {
+    // Framing belongs to UV for now (F is Fill in Model)
+    if (workspace == Workspace::Model) return action != Action::FrameSelected && action != Action::FrameAll;
+
+    switch (action) {
+        case Action::Quit:
+        case Action::ToggleConsole:
+        case Action::EnterCommand:
+        case Action::ConsoleBackspace:
+        case Action::ConsoleDelete:
+        case Action::ConsoleCursorLeft:
+        case Action::ConsoleCursorRight:
+        case Action::ConsoleHistoryOlder:
+        case Action::ConsoleHistoryNewer:
+        case Action::ViewportOrbit:
+        case Action::ViewportPan:
+        case Action::ViewportZoom:
+        case Action::VertexMode:
+        case Action::EdgeMode:
+        case Action::FaceMode:
+        case Action::Select:
+        case Action::ToggleSelection:
+        case Action::SelectLoop:
+        case Action::SelectRing:
+        case Action::Undo:
+        case Action::Redo:
+        case Action::SaveProject:
+        case Action::SaveProjectAs:
+        case Action::OpenProject:
+        case Action::NewProject:
+        case Action::ModalConfirm:
+        case Action::ModalCancel:
+        case Action::ToggleUVChecker:
+        case Action::ToggleMaterials:
+        case Action::FrameSelected:
+        case Action::FrameAll:
+            return true;
+        default:
+            return false;
+    }
+}
+
+bool isModelCommand(const std::string& name) {
+    for (const char* model : { "merge", "dissolve", "light", "material", "texture", "shading", "reference", "origin", "import", "object" }) {
+        if (name == model) return true;
+    }
+    return false;
+}
+
+ObjectHandle uvObject(const AppContext& ctx) {
+    const ObjectHandle active = ctx.scene.selection.getActiveObject();
+    return ctx.scene.objects.isValid(active) ? active : INVALID_OBJECT;
 }

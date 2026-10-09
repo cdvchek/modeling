@@ -240,6 +240,18 @@ namespace DefaultKeybinds {
         }
     };
 
+    inline Keybind FrameSelected {
+        {
+            key(Key::F)
+        }
+    };
+
+    inline Keybind FrameAll {
+        {
+            key(Key::A)
+        }
+    };
+
     inline Keybind ConnectVertices {
         {
             key(Key::C)
