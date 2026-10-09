@@ -1,11 +1,11 @@
 #include "application/application.hpp"
-#include "application/editing_actions.hpp"
-#include "application/project_actions.hpp"
-#include "application/asset_actions.hpp"
-#include "application/modal_windows.hpp"
-#include "application/origin_actions.hpp"
-#include "application/shading_commands.hpp"
-#include "application/action_checks/action_checks.hpp"
+#include "application/actions/editing_actions.hpp"
+#include "application/actions/project_actions.hpp"
+#include "application/actions/asset_actions.hpp"
+#include "application/ui/modal_windows.hpp"
+#include "application/actions/origin_actions.hpp"
+#include "application/commands/shading_commands.hpp"
+#include "application/actions/checks/action_checks.hpp"
 
 void Application::registerDefaultActions(AppContext& ctx) {
     auto& actions = ctx.systems.actions;

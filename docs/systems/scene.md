@@ -35,7 +35,7 @@ struct Object {
 };
 ```
 
-`Object` is scene data only. Its GPU copy lives in the application's `ObjectMeshCache` ([object_meshes.hpp](../../src/application/object_meshes.hpp)), keyed by handle, so objects can be copied freely (undo snapshots copy the whole collection). Set `meshDirty = true` after changing `meshData`; `renderFrame` brings the GPU copy up to date (patching only what moved when the layout is unchanged, see [renderer.md](renderer.md#gpu-meshes)) and clears the flag.
+`Object` is scene data only. Its GPU copy lives in the application's `ObjectMeshCache` ([object_meshes.hpp](../../src/application/viewport/object_meshes.hpp)), keyed by handle, so objects can be copied freely (undo snapshots copy the whole collection). Set `meshDirty = true` after changing `meshData`; `renderFrame` brings the GPU copy up to date (patching only what moved when the layout is unchanged, see [renderer.md](renderer.md#gpu-meshes)) and clears the flag.
 
 `ObjectCollection` stores objects in a `DynamicArray<Object>` and hands out `ObjectHandle` (`Handle<Object>`), the same pattern as lights. `INVALID_OBJECT` is the null handle. A removed object's handle stays invalid even if its slot is reused.
 
@@ -269,7 +269,7 @@ Targets keep the object's rotation and scale unless they say otherwise.
 
 ## Picking
 
-[ray.hpp](../../src/scene/selection/ray.hpp), [scene_queries.hpp](../../src/scene/selection/scene_queries.hpp)
+[ray.hpp](../../src/scene/picking/ray.hpp), [scene_queries.hpp](../../src/scene/picking/scene_queries.hpp)
 
 | Function | Description |
 |---|---|

@@ -39,11 +39,11 @@ set(CORE_SRC
     src/scene/mesh/mesh_data_queries.cpp
     src/scene/mesh/mesh_data_geometry.cpp
     src/scene/mesh/mesh_data_primitives.cpp
-    src/scene/mesh/mesh_data_ops.cpp
-    src/scene/mesh/mesh_data_merge.cpp
-    src/scene/mesh/mesh_data_dissolve.cpp
-    src/scene/mesh/mesh_data_bevel.cpp
-    src/scene/mesh/mesh_data_region.cpp
+    src/scene/mesh/ops/mesh_data_ops.cpp
+    src/scene/mesh/ops/mesh_data_merge.cpp
+    src/scene/mesh/ops/mesh_data_dissolve.cpp
+    src/scene/mesh/ops/mesh_data_bevel.cpp
+    src/scene/mesh/ops/mesh_data_region.cpp
     src/scene/mesh/mesh_data_validate.cpp
     src/scene/mesh/mesh_data_gpu.cpp
     src/scene/mesh/mesh_data_shading.cpp
@@ -54,8 +54,8 @@ set(CORE_SRC
     src/scene/objects/object_collection.cpp
     src/scene/objects/origin.cpp
     src/scene/selection/selection.cpp
-    src/scene/selection/ray.cpp
-    src/scene/selection/scene_queries.cpp
+    src/scene/picking/ray.cpp
+    src/scene/picking/scene_queries.cpp
     src/scene/transform.cpp
     src/scene/camera.cpp
     src/scene/history.cpp
@@ -66,37 +66,37 @@ set(CORE_SRC
 
 set(APP_SRC
     src/main.cpp
-    src/application/action_checks/check_actions.cpp
-    src/application/action_checks/check_bevel.cpp
-    src/application/action_checks/check_console.cpp
-    src/application/action_checks/check_grab.cpp
-    src/application/action_checks/check_inset.cpp
-    src/application/action_checks/check_rotate.cpp
-    src/application/action_checks/check_scale.cpp
-    src/application/action_checks/check_selection.cpp
+    src/application/actions/checks/check_actions.cpp
+    src/application/actions/checks/check_bevel.cpp
+    src/application/actions/checks/check_console.cpp
+    src/application/actions/checks/check_grab.cpp
+    src/application/actions/checks/check_inset.cpp
+    src/application/actions/checks/check_rotate.cpp
+    src/application/actions/checks/check_scale.cpp
+    src/application/actions/checks/check_selection.cpp
     src/application/application_actions.cpp
-    src/application/editing_actions.cpp
-    src/application/radial_menu.cpp
-    src/application/reference_images.cpp
-    src/application/reference_commands.cpp
-    src/application/material_view.cpp
-    src/application/material_commands.cpp
-    src/application/shading_commands.cpp
-    src/application/stats_overlay.cpp
-    src/application/console_view.cpp
-    src/application/tool_guides.cpp
+    src/application/actions/editing_actions.cpp
+    src/application/ui/radial_menu.cpp
+    src/application/viewport/reference_images.cpp
+    src/application/commands/reference_commands.cpp
+    src/application/viewport/material_view.cpp
+    src/application/commands/material_commands.cpp
+    src/application/commands/shading_commands.cpp
+    src/application/ui/stats_overlay.cpp
+    src/application/ui/console_view.cpp
+    src/application/tools/tool_guides.cpp
     src/application/application_commands.cpp
-    src/application/light_commands.cpp
-    src/application/object_commands.cpp
-    src/application/project_actions.cpp
-    src/application/modal_windows.cpp
-    src/application/asset_actions.cpp
-    src/application/status_bar.cpp
-    src/application/light_markers.cpp
-    src/application/origin_markers.cpp
-    src/application/origin_actions.cpp
-    src/application/main_panel.cpp
-    src/application/object_meshes.cpp
+    src/application/commands/light_commands.cpp
+    src/application/commands/object_commands.cpp
+    src/application/actions/project_actions.cpp
+    src/application/ui/modal_windows.cpp
+    src/application/actions/asset_actions.cpp
+    src/application/ui/status_bar.cpp
+    src/application/viewport/light_markers.cpp
+    src/application/viewport/origin_markers.cpp
+    src/application/actions/origin_actions.cpp
+    src/application/ui/main_panel.cpp
+    src/application/viewport/object_meshes.cpp
     src/application/application_events.cpp
     src/application/application_render.cpp
     src/application/application_scene.cpp

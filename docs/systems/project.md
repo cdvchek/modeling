@@ -2,7 +2,7 @@
 
 Saving and opening Valuma Studio projects (`.vlm`). Opening a file puts the app back where it was when you saved, so you can keep working on the scene.
 
-Files: [src/project/](../../src/project/) (the file format, in `modeling_core`), [project_actions.cpp](../../src/application/project_actions.cpp) (save, open, new, the title bar, and the unsaved-changes prompt), and [project_state.hpp](../../src/application/project_state.hpp).
+Files: [src/project/](../../src/project/) (the file format, in `modeling_core`), [project_actions.cpp](../../src/application/actions/project_actions.cpp) (save, open, new, the title bar, and the unsaved-changes prompt), and [project_state.hpp](../../src/application/project_state.hpp).
 
 ## What's saved
 

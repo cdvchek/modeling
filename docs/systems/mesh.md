@@ -13,12 +13,12 @@ Files: `src/scene/mesh/`
 | `mesh_data_queries.cpp` | Topology traversal, loops and rings |
 | `mesh_data_geometry.cpp` | Positions, normals, triangulation, dirty flags |
 | `mesh_data_primitives.cpp` | Private low-level building blocks |
-| `mesh_data_ops.cpp` | Extrude, split, remove, fill, connect |
-| `mesh_data_merge.cpp` | Edge collapse and vertex merge |
-| `mesh_data_dissolve.cpp` | Dissolve edge / face |
-| `mesh_data_bevel.cpp` | Vertex / edge / face bevel; `replaceFaces`; `runInSpace` |
+| `ops/mesh_data_ops.cpp` | Extrude, split, remove, fill, connect |
+| `ops/mesh_data_merge.cpp` | Edge collapse and vertex merge |
+| `ops/mesh_data_dissolve.cpp` | Dissolve edge / face |
+| `ops/mesh_data_bevel.cpp` | Vertex / edge / face bevel; `replaceFaces`; `runInSpace` |
 | `mesh_data_shading.cpp` | Smooth shading: mode, angle, edge marks, hard edges, corner normals, faces to patch |
-| `mesh_data_region.cpp` | Region extrude and inset |
+| `ops/mesh_data_region.cpp` | Region extrude and inset |
 | `mesh_data_validate.cpp` | Topology checker |
 | `mesh_data_gpu.cpp` | Flattening to vertex/index arrays for the renderer |
 | [mesh_factory.hpp](../../src/scene/mesh/mesh_factory.hpp), `presets/*.cpp` | Built-in meshes and the `fromPolygons` builder |

@@ -1,0 +1,415 @@
+#include "scene/picking/scene_queries.hpp"
+#include "core/math/projection.hpp"
+
+#include <cfloat>
+#include <cmath>
+#include <algorithm>
+
+#include "scene/scene.hpp"
+#include "scene/objects/object_collection.hpp"
+#include "scene/mesh/mesh_data.hpp"
+#include "core/math/vec4.hpp"
+#include "core/math/math_utils.hpp"
+
+// Picks can be limited to one object or skip one
+static bool skipObject(ObjectHandle object, ObjectHandle only, ObjectHandle exclude) {
+    if (!only.isNull() && object != only) return true;
+    return !exclude.isNull() && object == exclude;
+}
+
+static bool rayHitsPoint(
+    const Ray& ray,
+    const Vec3& point,
+    f32 radius,
+    f32& distanceOut
+) {
+    Vec3 toPoint = point - ray.origin;
+
+    f32 t = Vec3::dot(toPoint, ray.direction);
+
+    if (t < 0.0f) {
+        return false;
+    }
+
+    Vec3 closestPoint = ray.origin + ray.direction * t;
+    Vec3 difference = point - closestPoint;
+
+    f32 distanceSq = Vec3::dot(difference, difference);
+    f32 radiusSq = radius * radius;
+
+    if (distanceSq > radiusSq) {
+        return false;
+    }
+
+    distanceOut = t;
+    return true;
+}
+
+VertexHit pickVertex(const Scene& scene, const Ray& ray, f32 radius, ObjectHandle only) {
+    const ObjectHandle exclude = INVALID_OBJECT;
+    VertexHit bestHit;
+
+    for (ObjectHandle objectHandle : scene.objects.handles()) {
+        if (skipObject(objectHandle, only, exclude)) continue;
+        const Object& object = scene.objects.get(objectHandle);
+        const Mat4 model = scene.objects.worldMatrix(objectHandle);
+
+        for (const VertexHandle& vertexHandle : object.meshData.getVertexHandles()) {
+            const Vec3 vertexPos = object.meshData.getVertexPosition(vertexHandle);
+
+            const Vec4 worldPos4 = model * Vec4(
+                vertexPos.x,
+                vertexPos.y,
+                vertexPos.z,
+                1.0f
+            );
+
+            const Vec3 worldPos(
+                worldPos4.x,
+                worldPos4.y,
+                worldPos4.z
+            );
+
+            f32 distance = 0.0f;
+
+            if (!rayHitsPoint(
+                    ray,
+                    worldPos,
+                    radius,
+                    distance)) {
+                continue;
+            }
+
+            if (distance < bestHit.distance) {
+                bestHit.hit = true;
+                bestHit.object = objectHandle;
+                bestHit.vertex = vertexHandle;
+                bestHit.distance = distance;
+            }
+        }
+    }
+
+    return bestHit;
+}
+
+bool rayHitsEdge(
+    const Ray& ray,
+    const Vec3& a,
+    const Vec3& b,
+    f32 radius,
+    f32& distance
+) {
+    const Vec3 edgeDir = b - a;
+    const Vec3 rayToA = ray.origin - a;
+
+    const f32 edgeLengthSq = Vec3::dot(edgeDir, edgeDir);
+
+    if (edgeLengthSq <= 0.000001f) {
+        return false;
+    }
+
+    const f32 aDot = Vec3::dot(ray.direction, ray.direction);
+    const f32 bDot = Vec3::dot(ray.direction, edgeDir);
+    const f32 cDot = edgeLengthSq;
+    const f32 dDot = Vec3::dot(ray.direction, rayToA);
+    const f32 eDot = Vec3::dot(edgeDir, rayToA);
+
+    const f32 denominator = aDot * cDot - bDot * bDot;
+
+    f32 rayT;
+    f32 edgeT;
+
+    if (std::abs(denominator) > 0.000001f) {
+        rayT = (bDot * eDot - cDot * dDot) / denominator;
+        edgeT = (aDot * eDot - bDot * dDot) / denominator;
+    } else {
+        // Ray and edge are nearly parallel.
+        rayT = 0.0f;
+        edgeT = eDot / cDot;
+    }
+
+    // The edge is a segment, so clamp to [0, 1].
+    edgeT = std::clamp(edgeT, 0.0f, 1.0f);
+
+    // Picking should only happen in front of the camera.
+    if (rayT < 0.0f) {
+        rayT = 0.0f;
+    }
+
+    // Recompute the nearest point on the ray to the clamped edge point.
+    const Vec3 edgePoint = a + edgeDir * edgeT;
+
+    rayT = Vec3::dot(edgePoint - ray.origin, ray.direction)
+         / Vec3::dot(ray.direction, ray.direction);
+
+    if (rayT < 0.0f) {
+        return false;
+    }
+
+    const Vec3 rayPoint = ray.origin + ray.direction * rayT;
+
+    const f32 separation = (edgePoint - rayPoint).length();
+
+    if (separation > radius) {
+        return false;
+    }
+
+    distance = rayT;
+
+    return true;
+}
+
+EdgeHit pickEdge(const Scene& scene, const Ray& ray, f32 radius, ObjectHandle only) {
+    const ObjectHandle exclude = INVALID_OBJECT;
+    EdgeHit bestHit;
+
+    for (ObjectHandle objectHandle : scene.objects.handles()) {
+        if (skipObject(objectHandle, only, exclude)) continue;
+        const Object& object = scene.objects.get(objectHandle);
+
+        const Mat4 model = scene.objects.worldMatrix(objectHandle);
+
+        for (const EdgeHandle& edgeHandle : object.meshData.getEdgeHandles()) {
+            const VertexHandle originHandle = object.meshData.getEdgeOrigin(edgeHandle);
+
+            const VertexHandle tipHandle = object.meshData.getEdgeTip(edgeHandle);
+
+            if (!object.meshData.isValidHandle(originHandle) ||
+                !object.meshData.isValidHandle(tipHandle)) {
+                continue;
+            }
+
+            const Vec3 originPos = object.meshData.getVertexPosition(originHandle);
+
+            const Vec3 tipPos = object.meshData.getVertexPosition(tipHandle);
+
+            const Vec4 worldOrigin4 = model * Vec4(
+                originPos.x,
+                originPos.y,
+                originPos.z,
+                1.0f
+            );
+
+            const Vec4 worldTip4 = model * Vec4(
+                tipPos.x,
+                tipPos.y,
+                tipPos.z,
+                1.0f
+            );
+
+            const Vec3 worldOrigin(
+                worldOrigin4.x,
+                worldOrigin4.y,
+                worldOrigin4.z
+            );
+
+            const Vec3 worldTip(
+                worldTip4.x,
+                worldTip4.y,
+                worldTip4.z
+            );
+
+            f32 distance = 0.0f;
+
+            if (!rayHitsEdge(
+                    ray,
+                    worldOrigin,
+                    worldTip,
+                    radius,
+                    distance)) {
+                continue;
+            }
+
+            if (distance < bestHit.distance) {
+                bestHit.hit = true;
+                bestHit.object = objectHandle;
+                bestHit.edge = edgeHandle;
+                bestHit.distance = distance;
+            }
+        }
+    }
+
+    return bestHit;
+}
+
+static bool rayHitsTriangle(
+    const Ray& ray,
+    const Vec3& p1,
+    const Vec3& p2,
+    const Vec3& p3,
+    f32& distanceOut
+) {
+    const Vec3 edge1 = p2 - p1;
+    const Vec3 edge2 = p3 - p1;
+
+    const Vec3 h = Vec3::cross(ray.direction, edge2);
+    const f32 determinant = Vec3::dot(edge1, h);
+
+    // Ray is parallel to the triangle.
+    if (std::abs(determinant) < Math::EPSILON) {
+        return false;
+    }
+
+    const f32 invDet = 1.0f / determinant;
+
+    const Vec3 s = ray.origin - p1;
+    const f32 u = invDet * Vec3::dot(s, h);
+
+    if (u < 0.0f || u > 1.0f) {
+        return false;
+    }
+
+    const Vec3 q = Vec3::cross(s, edge1);
+    const f32 v = invDet * Vec3::dot(ray.direction, q);
+
+    if (v < 0.0f || u + v > 1.0f) {
+        return false;
+    }
+
+    const f32 t = invDet * Vec3::dot(edge2, q);
+
+    if (t < 0.0f) {
+        return false;
+    }
+
+    distanceOut = t;
+    return true;
+}
+
+FaceHit pickFace(const Scene& scene, const Ray& ray, ObjectHandle only, ObjectHandle exclude, const BackFacesCulled& culled) {
+    FaceHit bestHit;
+    bestHit.distance = FLT_MAX;
+
+    for (ObjectHandle objectHandle : scene.objects.handles()) {
+        if (skipObject(objectHandle, only, exclude)) continue;
+        const Object& object = scene.objects.get(objectHandle);
+        Mat4 model = scene.objects.worldMatrix(objectHandle);
+        const bool frontOnly = culled && culled(objectHandle);
+
+        for (const FaceHandle faceHandle : object.meshData.getFaceHandles()) {
+            const auto& triangles = object.meshData.getFaceTriangles(faceHandle);
+
+            for (const Triangle& triangle : triangles) {
+                const Vec3 v1Pos = object.meshData.getVertexPosition(triangle.v0);
+                const Vec3 v2Pos = object.meshData.getVertexPosition(triangle.v1);
+                const Vec3 v3Pos = object.meshData.getVertexPosition(triangle.v2);
+                
+                const Vec4 worldPos4P1 = model * Vec4(v1Pos.x, v1Pos.y, v1Pos.z, 1.0f);
+                const Vec4 worldPos4P2 = model * Vec4(v2Pos.x, v2Pos.y, v2Pos.z, 1.0f);
+                const Vec4 worldPos4P3 = model * Vec4(v3Pos.x, v3Pos.y, v3Pos.z, 1.0f);
+
+                const Vec3 worldPosP1(
+                    worldPos4P1.x,
+                    worldPos4P1.y,
+                    worldPos4P1.z
+                );
+
+                const Vec3 worldPosP2(
+                    worldPos4P2.x,
+                    worldPos4P2.y,
+                    worldPos4P2.z
+                );
+
+                const Vec3 worldPosP3(
+                    worldPos4P3.x,
+                    worldPos4P3.y,
+                    worldPos4P3.z
+                );
+
+                // Counterclockwise is the front, so the cross product points out of it
+                if (frontOnly && Vec3::dot(Vec3::cross(worldPosP2 - worldPosP1, worldPosP3 - worldPosP1), ray.direction) >= 0.0f) continue;
+
+                f32 distance = 0.0f;
+
+                if (!rayHitsTriangle(ray, worldPosP1, worldPosP2, worldPosP3, distance)) continue;
+
+                if (distance < bestHit.distance) {
+                    bestHit.hit = true;
+                    bestHit.object = objectHandle;
+                    bestHit.face = faceHandle;
+                    bestHit.distance = distance;
+                }
+            }
+        }
+    }
+
+    return bestHit;
+}
+
+OriginHit pickOrigin(const Scene& scene, const Mat4& viewProjection, f32 mouseX, f32 mouseY, f32 width, f32 height, f32 radius) {
+    OriginHit result;
+    const Vec2 mouse(mouseX, mouseY);
+
+    for (ObjectHandle handle : scene.objects.handles()) {
+        Vec2 screen;
+        if (!projectToScreen(viewProjection, scene.objects.worldTransform(handle).position, width, height, screen)) continue;
+
+        const f32 distance = (screen - mouse).length();
+        if (distance <= radius && distance < result.distance) {
+            result.hit = true;
+            result.object = handle;
+            result.distance = distance;
+        }
+    }
+
+    return result;
+}
+
+LightHit pickLight(const Scene& scene, const Mat4& viewProjection, f32 mouseX, f32 mouseY, f32 width, f32 height, f32 radius) {
+    LightHit result;
+    const Vec2 mouse(mouseX, mouseY);
+
+    for (LightHandle handle : scene.lights.handles()) {
+        Vec2 screen;
+        if (!projectToScreen(viewProjection, scene.lights.get(handle).position, width, height, screen)) continue;
+
+        const f32 distance = (screen - mouse).length();
+        if (distance <= radius && distance < result.distance) {
+            result.hit = true;
+            result.light = handle;
+            result.distance = distance;
+        }
+    }
+
+    return result;
+}
+
+ReferenceHit pickReference(const Scene& scene, const Ray& ray) {
+    ReferenceHit result;
+
+    // Lower ranks win: in front, then in the scene, then behind
+    const auto rank = [](ReferenceDepth depth) {
+        return depth == ReferenceDepth::InFront ? 0 : depth == ReferenceDepth::InScene ? 1 : 2;
+    };
+
+    for (ReferenceHandle handle : scene.references.handles()) {
+        const ReferenceImage& image = scene.references.get(handle);
+        if (!image.visible || image.locked) continue;
+
+        // In the image's own space the plane is z = 0 and the picture covers -0.5 to 0.5 in X and Y
+        const Mat4 toLocal = Mat4::inverse(image.matrix());
+        const Vec4 origin = toLocal * Vec4(ray.origin.x, ray.origin.y, ray.origin.z, 1.0f);
+        const Vec4 direction = toLocal * Vec4(ray.direction.x, ray.direction.y, ray.direction.z, 0.0f);
+        if (std::abs(direction.z) < 1e-8f) continue;
+
+        const f32 t = -origin.z / direction.z;
+        if (t <= 0.0f) continue;
+
+        const f32 x = origin.x + direction.x * t;
+        const f32 y = origin.y + direction.y * t;
+        if (std::abs(x) > 0.5f || std::abs(y) > 0.5f) continue;
+
+        // The local t is the world t, since the direction went through the same matrix
+        const f32 distance = t * ray.direction.length();
+        const bool better = !result.hit || rank(image.depth) < rank(result.depth)
+            || (rank(image.depth) == rank(result.depth) && distance < result.distance);
+        if (!better) continue;
+
+        result.hit = true;
+        result.reference = handle;
+        result.depth = image.depth;
+        result.distance = distance;
+    }
+
+    return result;
+}

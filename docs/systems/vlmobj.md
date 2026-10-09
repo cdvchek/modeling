@@ -308,7 +308,7 @@ The library's own tests are in [shared/vlmobj/tests/](../../shared/vlmobj/tests/
 
 ## In the app
 
-[asset_actions.cpp](../../src/application/asset_actions.cpp), with the naming rules in [export_plan.cpp](../../src/asset/export_plan.cpp).
+[asset_actions.cpp](../../src/application/actions/asset_actions.cpp), with the naming rules in [export_plan.cpp](../../src/asset/export_plan.cpp).
 
 **Export window** (Ctrl+E, not while a tool runs; a [modal window](application.md#modal-windows)):
 - **Folder** with Browse… (Windows' folder picker). It starts at `exportFolder(ctx)`: the folder last exported to (`ctx.project.exportFolder`, saved in the `.vlm`), or `Exports` next to the project file (`Documents\Valuma Studio\Exports` for an unsaved project). Created when exporting if it isn't there.

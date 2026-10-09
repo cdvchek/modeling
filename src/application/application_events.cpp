@@ -1,6 +1,6 @@
 #include "application/application.hpp"
-#include "application/project_actions.hpp"
-#include "application/modal_windows.hpp"
+#include "application/actions/project_actions.hpp"
+#include "application/ui/modal_windows.hpp"
 
 void Application::registerInputEvents(AppContext& ctx) {
     ctx.systems.events.subscribe<Event::KeyDown>(

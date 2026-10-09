@@ -109,7 +109,7 @@ Some actions have a handler but no binding (merge, dissolve, Free, light type, l
 
 `keybindLabel(keybind)` ([keybinds.cpp](../../src/core/input/keybinds.cpp)) turns a binding into short text such as `Ctrl+Z`, `M+V`, `Del`, or `Mouse4`.
 
-Handlers are registered in `registerDefaultActions`; their lambdas capture the `AppContext` and call the named functions in [editing_actions.hpp](../../src/application/editing_actions.hpp). Continuous and held actions (orbit, pan, zoom, picking, console editing) and a running tool's confirm/cancel have no handler; their `check*Context` code reads them directly.
+Handlers are registered in `registerDefaultActions`; their lambdas capture the `AppContext` and call the named functions in [editing_actions.hpp](../../src/application/actions/editing_actions.hpp). Continuous and held actions (orbit, pan, zoom, picking, console editing) and a running tool's confirm/cancel have no handler; their `check*Context` code reads them directly.
 
 ## Default keybinds
 

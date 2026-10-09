@@ -2,7 +2,7 @@
 #include "project/project_file.hpp"
 #include "scene/history.hpp"
 #include "scene/scene.hpp"
-#include "scene/selection/scene_queries.hpp"
+#include "scene/picking/scene_queries.hpp"
 #include "core/math/vec4.hpp"
 
 #include <cmath>

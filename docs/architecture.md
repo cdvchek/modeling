@@ -25,14 +25,14 @@ A from-scratch C++20 modeling app on Win32 and OpenGL 3.3. No windowing, UI, or 
 | Directory | Role | Depends on |
 |---|---|---|
 | `src/core/` | Engine building blocks with no app knowledge: math, containers (`DynamicArray`), events, input, console, bitmap fonts, frame timing, binary reading/writing and CRC-32 (`io/`), `parallelFor` (`thread/`) | — |
-| `src/scene/` | Everything being edited: objects, materials, lights, reference images, half-edge meshes, selection, picking, camera, history | core |
+| `src/scene/` | Everything being edited: objects, materials, lights, reference images, half-edge meshes (`mesh/`, editing operations in `mesh/ops/`, presets in `mesh/presets/`), selection, picking (`picking/`), camera, history | core |
 | `src/project/` | The `.vlm` project file format: writing and reading a whole scene plus editor state (see [systems/project.md](systems/project.md)) | core (io, threads), scene, ui (`Rect`) |
 | `src/asset/` | Valuma's side of `.vlmobj` assets: baking an object into a file and rebuilding one from it, and the export naming rules (see [systems/vlmobj.md](systems/vlmobj.md)) | scene, `shared/vlmobj` |
 | `shared/` | Code for the whole suite (Valuma, and later the Aevora engine and Sollaria audio), with no dependency on any one program. Now: `shared/vlmobj/`, the asset format, and `shared/image/`, image files (PNG). | — (C++ standard library only) |
 | `src/ui/` | 2D UI draw list in pixel coordinates (shapes, text, clipping) and the immediate-mode widget system (`UIContext`). No OpenGL. | core (math, fonts) |
 | `src/renderer/` | Backend-neutral `IRenderer` interface plus the OpenGL implementation | core, scene (mesh handles, `Scene` for the debug overlay), ui (draws a `UIDrawList`) |
 | `src/platform/` | Win32 window, message pump, key translation, OpenGL context creation | core (events, keys) |
-| `src/application/` | Wires everything together and owns all modeling behavior triggered by input | everything |
+| `src/application/` | Wires everything together and owns all modeling behavior triggered by input: `actions/` (and `actions/checks/`), `commands/` (console), `ui/` (panel, console view, menus), `viewport/` (GPU meshes, markers, material looks), `tools/` (see [systems/application.md](systems/application.md)) | everything |
 
 **Platform split:** platform-specific code lives in files ending in `_win32.cpp`. The OpenGL renderer is split into `renderer/opengl/opengl_renderer_common.cpp` (portable GL drawing) and `platform/renderer/opengl_renderer_win32.cpp` (WGL context setup only). Shaders live in `renderer/opengl/shaders/` and have no platform code.
 
