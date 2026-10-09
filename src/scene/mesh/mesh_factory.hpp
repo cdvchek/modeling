@@ -4,8 +4,11 @@
 #include "scene/mesh/mesh_types.hpp"
 
 namespace MeshFactory {
-    // Faces list vertex indices counter-clockwise seen from outside; open edges get border half-edges
-    PackagedMesh fromPolygons(const std::vector<Vec3>& positions, const std::vector<std::vector<u32>>& faces);
+    // Faces list vertex indices counter-clockwise seen from outside; open edges get border half-edges.
+    // faceUVs, when given, has one UV per corner of each face, in the same order; faceMarks likewise holds the mark
+    // of the edge ending at each corner.
+    PackagedMesh fromPolygons(const std::vector<Vec3>& positions, const std::vector<std::vector<u32>>& faces,
+                              const std::vector<std::vector<Vec2>>& faceUVs = {}, const std::vector<std::vector<EdgeMark>>& faceMarks = {});
 
     PackagedMesh cube();
     PackagedMesh plane(f32 size = 1.0f, u32 divisions = 1);

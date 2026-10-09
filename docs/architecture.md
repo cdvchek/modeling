@@ -25,7 +25,7 @@ A from-scratch C++20 modeling app on Win32 and OpenGL 3.3. No windowing, UI, or 
 | Directory | Role | Depends on |
 |---|---|---|
 | `src/core/` | Engine building blocks with no app knowledge: math, containers (`DynamicArray`), events, input, console, bitmap fonts, frame timing, binary reading/writing and CRC-32 (`io/`), `parallelFor` (`thread/`) | — |
-| `src/scene/` | Everything being edited: objects, lights, reference images, half-edge meshes, selection, picking, camera, history | core |
+| `src/scene/` | Everything being edited: objects, materials, lights, reference images, half-edge meshes, selection, picking, camera, history | core |
 | `src/project/` | The `.vlm` project file format: writing and reading a whole scene plus editor state (see [systems/project.md](systems/project.md)) | core (io, threads), scene, ui (`Rect`) |
 | `src/asset/` | Valuma's side of `.vlmobj` assets: baking an object into a file and rebuilding one from it, and the export naming rules (see [systems/vlmobj.md](systems/vlmobj.md)) | scene, `shared/vlmobj` |
 | `shared/` | Code for the whole suite (Valuma, and later the Aevora engine and Sollaria audio), with no dependency on any one program. Now: `shared/vlmobj/`, the asset format, and `shared/image/`, image files (PNG). | — (C++ standard library only) |
@@ -44,7 +44,7 @@ Defined in [CMakeLists.txt](../CMakeLists.txt):
 |---|---|
 | `vlmobj` (static lib) | The `.vlmobj` format from `shared/vlmobj/`. Depends on nothing else, so the engine can link it too. `modeling_core` links it. |
 | `image` (static lib) | The PNG reader from `shared/image/` (see [systems/image.md](systems/image.md)). Depends on nothing else. `modeling_core` links it. |
-| `modeling_core` (static lib) | Math, fonts, input (`InputState`, `ActionMap`, `ContextManager`), the console and command system, objects, lights, reference images, selection and picking, transforms, the camera, undo history, the UI, all `MeshData` code, the project file format, and Valuma's `.vlmobj` baking (`src/asset/`). No OpenGL or Win32, so it can be tested on its own. |
+| `modeling_core` (static lib) | Math, fonts, input (`InputState`, `ActionMap`, `ContextManager`), the console and command system, objects, materials, lights, reference images, selection and picking, transforms, the camera, undo history, the UI, all `MeshData` code, the project file format, and Valuma's `.vlmobj` baking (`src/asset/`). No OpenGL or Win32, so it can be tested on its own. |
 | `modeling` (exe → `bin/modeling.exe`) | Everything else plus `glad.c`, linked with `opengl32`, `dwmapi`, and `comdlg32` (file dialogs; all three are part of Windows). |
 | `tests` (exe) | Every `tests/*.cpp` and `shared/*/tests/*.cpp`, linked against `modeling_core`. `SOURCE_DIR` is defined so tests can find checked-in reference files. |
 
@@ -60,7 +60,7 @@ struct AppContext {
     std::unique_ptr<IRenderer> renderer;
     DebugRenderer debug_renderer;
     std::vector<std::unique_ptr<Window>> windows;   // only windows[0] is used
-    Scene scene;              // camera, objects, lights, reference images, selection
+    Scene scene;              // camera, objects, materials, lights, reference images, selection
     WidthTool widthTool;      // state of an in-progress bevel or inset
     TransformTool transformTool; // scale/rotate pivot and angle on screen
     OriginEdit originEdit;    // an origin's start while grab or rotate moves it
@@ -69,9 +69,11 @@ struct AppContext {
     FontLibrary fonts;        // embedded bitmap fonts
     UIDrawList uiDrawList;    // 2D UI, rebuilt every frame
     FrameTimer frameTimer;    // FPS for the status bar
+    FrameStats frameStats;    // CPU timings for the stats readout
     UIContext ui;             // widgets and mouse routing
     ObjectMeshCache objectMeshes; // GPU copies of object meshes, by handle
     ReferenceTextureCache referenceTextures; // GPU textures for reference pictures
+    MaterialPreviewCache materialPreviews;   // material swatch textures
     ProjectState project;     // the open file, unsaved changes, and the export folder
     ModalState modal;         // the open modal window (prompt or Export window), if any
     RadialMenuState radialMenu;
@@ -102,10 +104,10 @@ while running:
 ```
 
 Rendering order inside `renderFrame`:
-1. Clear and draw the background gradient.
+1. Render any material swatches that changed (each into its own texture), then clear and draw the background gradient.
 2. Reference images set to Behind (no depth test or writes, so everything draws over them).
-3. For each object: re-upload the GPU mesh if `meshDirty`, then draw faces → edges → vertices.
-4. Reference images set to Scene, farthest first, depth tested.
+3. For each object: re-upload the GPU mesh if `meshDirty`, then draw faces (in its material, or clay) → edges → vertices. See-through objects wait.
+4. See-through objects and reference images set to Scene, sorted together, farthest first, depth tested.
 5. Ground grid and axes (blended, no depth writes).
 6. Reference images set to Front, without the depth test.
 7. Debug half-edge overlay, if the `Debug` context is on.

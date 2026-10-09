@@ -15,6 +15,6 @@ void Application::loadTestScene(AppContext& ctx) {
     sun.name = "Sun";
     sun.type = LightType::Directional;
     sun.direction = Vec3(0.4f, -1.0f, -0.6f).normalized();
-    sun.intensity = 0.6f;
+    sun.intensity = 1.2f;
     ctx.scene.lights.add(sun);
 }

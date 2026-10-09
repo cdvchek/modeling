@@ -31,13 +31,16 @@ Files: `src/renderer/`, plus [opengl_renderer_win32.cpp](../../src/platform/rend
 | `beginFrame()` / `beginMainPass(ClearState)` | Start a frame, clear, and draw the gradient background (when `clearColor` is set). The gradient covers the clear color, which only shows if the background shader fails to load. |
 | `setBackground(BackgroundGradient)` / `getBackground()` | Top and bottom background colors. Default top 0.20/0.22/0.28 (Dracula `#343746`), bottom 0.10/0.10/0.13 (`#191a21`). |
 | `setLighting(LightingState)` | Lighting for the following `draw` calls. Call once per frame before drawing objects. |
+| `setExposure(stops)` / `getExposure()` | Multiplies lit surfaces by 2^stops before tone mapping. Set every frame from `ctx.viewport.exposure`. |
 | `setBackFaceTint(color)` / `getBackFaceTint()` | Color back faces are multiplied by. Default 0.95/0.45/0.70 (pink). Set by the `backface tint` command. |
 | `draw(DrawCommand)` | Draws one mesh's faces, edges, and vertices. |
 | `drawGrid(DrawGridCommand)` | Ground grid and axes. |
 | `drawImage(DrawImageCommand)` | A textured unit square (reference images): blended, with an opacity on top of the texture's alpha. Writes depth only when depth tested and fully opaque, so see-through images don't hide what's drawn after them. |
+| `renderMaterialPreview(look, size, texture)` | A material swatch ([opengl_material_preview.cpp](../../src/renderer/opengl/opengl_material_preview.cpp)): a smooth 64 × 32 sphere in the `SurfaceLook`, drawn with the `Lit` shader under fixed studio lighting (a warm key light, a cool fill, a gray sky and ground, no exposure) so every swatch is lit the same whatever the scene, over an 8 × 8 checkerboard when it's see-through, into a multisampled target that's resolved into `texture` (made when 0) with mipmaps. Call outside the main pass; it restores the viewport. |
 | `createTexture(pixels, width, height)` / `destroyTexture(texture)` | An RGBA8 texture (rows from the top) with mipmaps, trilinear filtering, and clamped edges; returns 0 if it's larger than `GL_MAX_TEXTURE_SIZE`. |
 | `drawText3D(DrawText3DCommand)` | Text on a quad in world space. |
 | `drawDebugLine(start, end, mvp)` | One white line. |
+| `getStats()` | The last finished frame's `RenderStats` ([render_stats.hpp](../../src/renderer/render_stats.hpp)): draw calls, triangles, lines, points, uniform uploads, mesh rebuilds and patches with their bytes, and GPU time. Every draw call in the backend goes through `drawElements` / `drawArrays` in [opengl_counters.hpp](../../src/renderer/opengl/opengl_counters.hpp), which count it, and every `OpenGLShader` set counts as an upload; `beginFrame` resets the counts and `endFrame` keeps them. GPU time comes from `GL_TIME_ELAPSED` queries in a ring of four, read back once ready so reading never stalls (a few frames late; a frame whose slot isn't ready isn't timed). |
 | `drawUI(UIDrawList)` | All 2D UI for the frame (markers, status bar, panel, windows, menus, console) in one call. See [ui.md](ui.md). |
 | `endMainPass()` / `endFrame()` / `present()` | Resolve the MSAA framebuffer to the window, finish, and swap buffers. |
 
@@ -52,6 +55,19 @@ struct DrawCommand {
     IMesh* mesh;
     Mat4 model;           // for the normal matrix
     Mat4 mvp;
+    SurfaceLook surface;  // the object's look: every face when parts is empty, and selected faces' tint
+    std::vector<DrawPart> parts;   // faces by material: firstIndex, indexCount, surface (one FaceGroup each)
+    bool outlineAll;      // object mode: every edge in the selection style, one draw per pass
+    std::vector<EdgeHandle> hardEdges;   // edit mode: edges that shade hard (MeshData::getHardEdges)
+};
+
+struct SurfaceLook {      // a material's values, colors sRGB
+    Vec3 baseColor;       // default: the clay gray 0.72/0.73/0.78
+    f32 roughness = 0.5, metallic = 0;
+    Vec3 emissiveColor; f32 emissiveStrength = 0;
+    bool blend = false;   // see-through by opacity; no depth writes; draw after everything solid
+    f32 opacity = 1;
+    BackFaces backFaces = BackFaces::Tinted;   // Tinted (clay view), Lit (double-sided), Culled
 };
 
 struct DrawImageCommand {
@@ -105,13 +121,20 @@ Everything between `beginMainPass` and `endMainPass` is drawn into an offscreen 
 ### Object drawing
 
 `OpenGLRenderer::draw` uses the `Lit` shader for faces and `Unlit` for everything else:
-1. Highlighted faces with `Lit` in `SELECTED_FACE_COLOR` (purple-tinted, so selected faces keep their shading), then all faces with `Lit` in `FACE_COLOR`, with polygon offset so selected faces and all edges draw on top. Lit uniforms are set once by `setLitUniforms`. `Lit` computes `0.7 gray × (ambient + Σ directional + Σ local)`:
-   - ambient: `ambientColor × ambientStrength`
-   - directional: `color × max(dot(normal, −direction), 0)`
-   - local (point/spot): `color × max(dot(normal, toLight), 0) × falloff × cone`, where `falloff = (1 − (distance / range)²)²` (1 at the light, 0 at `range`) and `cone = smoothstep(cosOuter, cosInner, dot(−toLight, direction))`.
+1. Faces with `Lit`: highlighted faces first, in one draw (`drawFaceSet`), with the object's look and its base color mixed `SELECTED_FACE_MIX` (0.8) of the way to `SELECTED_FACE_COLOR` (so selected faces keep their shading); then each part (one run of a material's faces, `drawFaceRange`), or every face in `surface` when there are no parts, with polygon offset so selected faces and all edges draw on top. Per object, `setLitUniforms` sends only the three matrices; the lights come from the **Lighting uniform buffer** (`uploadLighting`: lights, sky and ground, camera position, exposure, back-face tint, in one std140 block at binding 0, sent again only when `setLighting`, `setExposure`, or `setBackFaceTint` changed something), and each part's material through `setSurfaceUniforms`, which skips sending a material equal to the last one (`sameSurface`).
+   - **Back faces:** `BackFaces::Tinted` draws them lit with the normal flipped and their base color multiplied by a pink tint (`u_BackFaceTint`, from `setBackFaceTint`, default 0.95/0.45/0.70, after Dracula pink), so flipped or open faces stand out (on a closed mesh, a pink face means its winding is wrong); `Lit` draws them like front faces (double-sided materials); `Culled` turns on `GL_CULL_FACE` so they aren't drawn. Counterclockwise is the front.
+   - **Blend:** blending on, depth writes off, `u_Opacity` from the look. A blended mesh that shows its back faces is drawn twice, back faces first (front ones culled), then front faces, so the far side of a glass shows behind the near side. The caller draws blended meshes after everything solid, farthest first (see [application.md](application.md#main-loop)).
 
-   Point and spot lighting varies across a face because it depends on each pixel's world position (`v_WorldPosition` from `lit.vert`). There's no tone mapping, so the sum is clamped at white; strong lights on top of the default ambient, sun, and headlight saturate quickly. Normals come from the face buffer, transformed by `transpose(inverse(model))`. Back faces (seen through holes in open meshes, or a face whose normal got flipped) are lit with the normal flipped, then their base color is multiplied by a pink tint (`u_BackFaceTint`, from `setBackFaceTint`, default 0.95/0.45/0.70, after Dracula pink) so they're recognizable at a glance. On a closed mesh, a pink face means its winding is wrong.
-2. Highlighted edges: two translucent purple glow bands (9 px and 5 px, no depth writes) under a crisp 2.5 px purple line. Then all edges in dark gray, 2 px. Selected faces' boundary edges are added to the highlighted edges by `renderFrame`, so selected faces get the same outline.
+   **Shading** (`lit.frag`) is the metallic-roughness model glTF and the engines use, in linear color:
+   - The base color, emissive color, highlight color, and back-face tint arrive as sRGB and are converted. Light colors in `LightingState` are already linear (`buildLightingState` converts the picked sRGB colors with `srgbToLinear` from [color.hpp](../../src/core/math/color.hpp)) and include their intensity.
+   - Each light adds Lambert diffuse plus a GGX highlight (Smith height-correlated visibility, Schlick Fresnel; reflectance 0.04 for non-metals, the base color for metals, whose diffuse goes to zero), scaled by π so a plain diffuse surface lights as `color × cos`. Directional: `max(dot(normal, −direction), 0)`. Point and spot: also `falloff × cone`, where `falloff = (1 − (distance / range)²)²` (1 at the light, 0 at `range`) and `cone = smoothstep(cosOuter, cosInner, dot(−toLight, direction))`.
+   - **Environment:** a sky color above and a ground color below (`LightingState::skyColor`, `groundColor`): the ambient light (color × strength) shaped by the background gradient's hue (half of it, so gray surfaces don't turn blue), ×1.4 for the sky and ×0.6 for the ground, so they average to the ambient light. Diffuse ambient looks up the environment along the normal, fully blurred; reflections look it up along the reflected view direction, with the horizon softened more as roughness rises, weighted by an analytic stand-in for a prefiltered environment's reflectance (Karis's mobile approximation). This is why metals aren't black without an environment image.
+   - Emissive color × strength is added, then everything is multiplied by `2^exposure`, tone mapped with Khronos PBR Neutral (unchanged below about 0.76, then rolled off toward white), and converted back to sRGB.
+
+   **UV checker** (`LightingState::uvChecker`, set from `ctx.viewport.showUVChecker`): the base color is replaced by a colored grid read from the face's UVs (`v_UV`, attribute 2): 8 × 8 cells, hue by column and darker by row so each cell is unique, alternate cells lighter, thin lines between cells (`fwidth`, so they stay one pixel wide). Stretched or flipped cells show bad UVs at a glance. It's sent in `u_CameraPosition.w`.
+
+   Point and spot lighting varies across a face because it depends on each pixel's world position (`v_WorldPosition` from `lit.vert`). Normals come from the face buffer, transformed by `transpose(inverse(model))`.
+2. Highlighted edges (one draw per pass with `drawEdgeSet`, or the whole wireframe with `outlineAll`): two translucent purple glow bands (9 px and 5 px, no depth writes) under a crisp 2.5 px purple line. Then hard edges (`hardEdges`, smooth-shaded meshes in edit mode) in Dracula cyan, 2.5 px, with `drawHardEdgeSet`, under the selection (the depth test keeps the line drawn first). Then all edges in dark gray, 2 px. Selected faces' boundary edges are added to the highlighted edges by `renderFrame`, so selected faces get the same outline.
 3. Highlighted vertices, layered like a light marker: a 22 px soft purple glow, an 11 px dark disc, then an 8 px purple disc (only the last writes depth). Then all vertices as 7 px near-black discs. Points use a small depth bias (`u_DepthBias`) so they draw over the edges meeting at them.
 
 Blending is on for edges and vertices; selection colors match the light markers (`light_markers.cpp`).
@@ -131,10 +154,10 @@ Programs are looked up by `ShaderId` through `OpenGLShaderLibrary`:
 | `ShaderId` | Vertex | Fragment | Used for | Uniforms |
 |---|---|---|---|---|
 | `Unlit` | `unlit.vert` | `unlit.frag` | Mesh edges, vertices, selection glows, debug lines | `u_MVP`, `u_Color`, `u_Alpha`, `u_DepthBias`, `u_PointShape` (0 square, 1 anti-aliased disc, 2 soft glow; points only, needs `GL_POINT_SPRITE` on in this compatibility context) |
-| `Lit` | `lit.vert` | `lit.frag` | Mesh faces | `u_MVP`, `u_Model`, `u_NormalMatrix`, `u_Color`, `u_BackFaceTint`, `u_AmbientColor`, `u_AmbientStrength`, `u_DirectionalLight{Directions,Colors}[4]`, `u_DirectionalLightCount`, `u_LocalLight{Positions,Directions,Colors,Ranges,CosInner,CosOuter}[8]`, `u_LocalLightCount` |
+| `Lit` | `lit.vert` | `lit.frag` | Mesh faces | Per object: `u_MVP`, `u_Model`, `u_NormalMatrix`. Per material: `u_BaseColor`, `u_Roughness`, `u_Metallic`, `u_EmissiveColor`, `u_EmissiveStrength`, `u_Opacity`, `u_BackFaces` (0 tinted, 1 lit); `u_Highlight`, `u_HighlightColor` (colors sRGB). The **Lighting** uniform block (std140, binding 0): `u_DirectionalLight{Directions,Colors}[4]`, `u_LocalLight{Positions,Directions,Colors}[8]` (range, inner and outer cone cosines in their w), `u_SkyColor` (exposure multiplier in w), `u_GroundColor`, `u_CameraPosition` (UV checker on in w), `u_BackFaceTint`, `u_LightCounts` |
 | `WorldText` | `world_text.vert` | `world_text.frag` | Debug labels in world space | `u_MVP`, `u_Color`, `u_Texture` |
 | `Background` | `fullscreen.vert` | `background.frag` | Viewport gradient, drawn first with depth test and writes off. Blends `u_BottomColor` → `u_TopColor` by `gl_FragCoord.y / u_ViewportHeight` and adds ±½/255 noise to break up 8-bit banding. | `u_TopColor`, `u_BottomColor`, `u_ViewportHeight` |
-| `UI` | `ui.vert` | `ui.frag` | All 2D UI: rounded rects, borders, shadows, lines, ring slices, glyphs (see [ui.md](ui.md#shader)) | `u_ViewportSize`, `u_Texture` |
+| `UI` | `ui.vert` | `ui.frag` | All 2D UI: rounded rects, borders, shadows, lines, ring slices, gradients, glyphs, images (premultiplied textures such as material swatches) (see [ui.md](ui.md#shader)) | `u_ViewportSize`, `u_Texture` |
 | `Grid` | `grid.vert` | `grid.frag` | Ground grid and axes | see [Grid](#grid) |
 | `Image` | `image.vert` | `image.frag` | Reference images: a unit square from `gl_VertexID` (6 vertices, the empty VAO), the texture's first row at the top; fragments under 0.4% alpha are discarded so they leave the depth buffer alone | `u_MVP`, `u_Opacity`, `u_Texture` |
 
@@ -174,15 +197,18 @@ Tunables:
 
 ### GPU meshes
 
-`OpenGLMesh` ([opengl_mesh.hpp](../../src/renderer/opengl/opengl_mesh.hpp)) implements `IMesh` and owns two VAOs:
+`OpenGLMesh` ([opengl_mesh.hpp](../../src/renderer/opengl/opengl_mesh.hpp)) implements `IMesh` and owns two VAOs, plus one small VAO and index buffer per selection set:
 - **Points and edges:** shared positions (`getVertexData`) and the edge index buffer. Attribute 0 = position.
-- **Faces:** the per-triangle corner buffer from `getFaceData` and its index buffer. Attribute 0 = position, 1 = normal.
+- **Faces:** the per-triangle corner buffer from `getFaceData` and its index buffer. Attribute 0 = position, 1 = normal, 2 = UV (the face-set VAOs use the same layout).
 
 | Method | Description |
 |---|---|
-| `create(meshData)` / `update(meshData)` | Rebuild all buffers from `MeshData::getVertexData/getEdgeData/getFaceData`. `update` calls `create` the first time. |
+| `create(meshData, groupOf, groupingStamp)` / `update(...)` | Rebuild all buffers from `MeshData::getVertexData/getEdgeData/getFaceData(groupOf)`, the faces grouped by material. `update` calls `create` the first time. Keeps the mesh's `MeshStamp`, the grouping stamp (the material collection's), and CPU copies of the position and face buffers. |
+| `patch(meshData, groupingStamp)` | After vertices only moved: if both stamps still match, writes the moved vertices' positions and every face `getFacesToPatch` names (the faces around them, more with smooth shading; their corners again, through `appendFaceCorners`, into the same place, since a face keeps its triangle count) into the CPU copies, then sends one `glBufferSubData` per buffer covering the changed range. Returns false (and the caller rebuilds) when the layout or the grouping changed, or a face's corner count did. Edge and selection index buffers don't change. |
 | `drawVertices()` / `drawEdges()` / `drawFaces()` | Draw everything. |
-| `drawVertex(h)` / `drawEdge(h)` / `drawFace(h)` | Draw one element, using the index maps from the export to find its range. Used for highlights. |
+| `faceGroups()` / `drawFaceRange(first, count)` | The faces' runs, one per material, and one run's draw. |
+| `drawHardEdgeSet(handles)` | Like `drawEdgeSet`, in a set of its own so the selection and the hard edges don't upload over each other every frame. |
+| `drawVertexSet(handles)` / `drawEdgeSet(handles)` / `drawFaceSet(handles)` | A selection in one draw call: the set's indices (from the export's index maps) go into its own index buffer, uploaded again only when the set's handles (or the mesh) change, so drawing the same selection every frame costs one call. |
 | `destroy()` | Free GL objects. |
 
 Normals are computed on the CPU during export, so they're only recalculated when the mesh is marked dirty, not every frame.

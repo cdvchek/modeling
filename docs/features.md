@@ -10,23 +10,14 @@ Work that's decided on. Each area is broken into steps in the order they'd be bu
 
 | Area | Status | Depends on |
 |---|---|---|
-| [Materials](#materials) | Later | — |
-| [Textures](#textures) | Later | Materials (a texture is something a material uses). Reading PNGs and GPU textures already exist, from reference images. |
+| [Textures](#textures) | Next | — (materials are done; reading PNGs and GPU textures already exist, from reference images; UVs are done) |
 | [Animation](#animation) | Later | — |
 | [Attachment points](#attachment-points) | Later | Animation for points that follow bones |
 | [Hitboxes and collision shapes](#hitboxes-and-collision-shapes) | Later | Animation for shapes that follow bones |
 
-### Materials
-Give surfaces a look beyond flat gray, and carry it into the game.
-1. A material: name, base color, roughness, metallic (the usual game-engine set, so it exports cleanly).
-2. Shading that uses them (replacing the single gray), still lit by the scene's lights.
-3. Assign materials per object, then per face (face mode: select faces, pick a material).
-4. A Materials tab in the panel: list, add, remove, edit; a swatch preview.
-5. Included in export and the save format.
-
 ### Textures
 Paint and apply images to surfaces. Reading PNG files (`shared/image/`) and uploading them as GPU textures with mipmaps already work, from [reference images](#reference-images).
-1. **UV coordinates** on the mesh: per face corner, kept through every editing tool.
+1. **UV coordinates** on the mesh: per face corner, kept through every editing tool. **Done**: every preset has UVs, the UV grid shows them, saved and exported.
 2. Unwrapping: simple projections first (planar, box, cylinder), then seams and an automatic unwrap.
 3. A UV editor view to see and adjust UVs over the texture.
 4. Materials use textures (base color first; later roughness, normal maps).
@@ -60,8 +51,8 @@ Animate models, including ones made elsewhere.
 Known limitations of what exists today.
 
 - Assets only go in and out as `.vlmobj`; no glTF or OBJ yet (a separate tool later).
+- Materials: without textures, Cutout can only show or hide a whole object (opacity is one value per material); it's ready for textures. See-through objects are sorted as whole objects, so two that pass through each other can blend in the wrong order in places. Material swatches use fixed studio lighting, not the scene's.
 - Reference images: PNG only, and not interlaced PNGs; JPEG comes later. A new image always faces the current view; a choice of Front / Side / Top (so it lines up with the axes) comes later. Clicking a fully transparent part of an image still selects it.
-- No tone mapping: strong lights on top of the default ambient, sun, and headlight clip to white quickly.
 - Windows-only; only the OpenGL backend exists.
 
 ## Ideas
@@ -119,6 +110,7 @@ Small, builds on existing code, and useful day to day:
 - glTF or OBJ export, as a separate tool, for other programs.
 
 ### Workflow and engineering
+- Faster clicking on big meshes: skip objects whose bounds the mouse ray misses, then a spatial structure inside each mesh so a click doesn't test every triangle (the stats readout shows the last pick's time).
 - Store undo as diffs instead of full snapshots to cut memory use.
 - Autosave and a recent-files list for projects.
 - Configurable key bindings.
@@ -134,10 +126,12 @@ Small, builds on existing code, and useful day to day:
 - Mouse capture: a drag that ends outside the window still finishes cleanly.
 
 ### Rendering
-- Faces are gray and flat-shaded per triangle, so a non-planar face shows its fold.
-- Back faces are tinted pink so flipped or open faces stand out (`backface tint r g b` to change).
+- Faces are drawn in their object's material (see [Materials](#materials); the Default gray otherwise) and flat-shaded per triangle, so a non-planar face shows its fold.
+- In clay view, back faces are tinted pink so flipped or open faces stand out (`backface tint r g b` to change); in material view they're culled unless the material is double-sided.
 - Edges in dark gray; vertices as near-black round dots (vertices only shown in vertex mode).
 - 4× MSAA anti-aliasing.
+- Lighting is done in linear color: picked colors (sRGB, as color pickers and image editors show them) are converted before they're lit, and the result goes through tone mapping (Khronos PBR Neutral, which leaves ordinary colors alone and rolls bright ones off toward white instead of clipping) and back to sRGB for the screen. The game engine is meant to do the same, so assets look alike in both.
+- **Exposure** (Lights tab, or `exposure [<stops>]`): brightens or darkens lit surfaces, each stop doubling or halving the light, from −5 to +5. A view setting saved with the project, not undoable.
 - Reference images as textured planes, see-through by their own alpha and an opacity, drawn behind everything, among the meshes, or over everything (see [Reference images](#reference-images)).
 - Colors follow the Dracula theme: blue-grey backgrounds, purple selection and highlights, green headings and text input, red errors.
 - Vertical gradient background in Dracula blue-greys, lighter at the top, dithered to avoid banding.
@@ -147,11 +141,12 @@ Small, builds on existing code, and useful day to day:
   - Fades out with distance; X axis in red, Z axis in cyan.
 - Debug overlay (`debug` command): every half-edge as an arrow with its `index:generation` label.
 - `vsync on | off` (on by default).
+- **Stats** (`stats`): a readout in the top left with CPU time for input and for building the frame, GPU time, the last click's picking time, draw calls, triangles, lines, points, shader value uploads, mesh rebuilds and in-place updates with their sizes, and the scene's objects, faces, and vertices. Selections draw in one call each (a whole selected outline in object mode included), the lights go to the GPU once per frame in one buffer, and while grab, rotate, scale, bevel, inset, or an origin move changes positions only the moved vertices and the faces around them are sent again.
 
 ### Lights
 - Types: point, spot, and directional, each with color, intensity, and on/off. Point and spot lights have a position and range (smooth falloff to zero); spot lights have inner and outer cone angles; directional and spot lights have a direction. Up to 4 directional and 8 point/spot lights shade at once.
-- Ambient light (color and strength) and a camera headlight (on by default; color and strength; a view setting, not part of undo).
-- The default scene has one directional sun.
+- Ambient light (color and strength, 0.3 by default) and a camera headlight (on by default at 0.8; color and strength; a view setting, not part of undo).
+- The default scene has one directional sun at intensity 1.2.
 - Markers: every light is drawn as a fixed-size orb in its color with a soft glow, always on top of the scene, with a faint line down to the grid. Disabled lights are hollow gray rings. Spot lights show a 3D arrow for their direction; directional lights show three parallel arrows.
 - Click a marker to select a light (purple ring); Shift+click adds or removes. Lights are picked before mesh elements (and after origins), in any selection mode.
 - Grab (G) moves selected lights; Rotate (R) turns their direction in place. Both support X/Y/Z axis lock, cancel, and undo. Delete removes selected lights.
@@ -244,32 +239,50 @@ Hold the thumb side button (Mouse4) to open a radial menu at the cursor, move to
 |---|---|
 | Main (8) | Grab, Scale, Edit ▸ (Light ▸ with lights selected), View ▸, Mode ▸, Redo, Undo, Rotate |
 | With an origin selected (8) | Grab, To geometry, To bottom, View ▸, Mode ▸, To world, Reset rotation, Rotate |
-| Edit ▸ (9) | Extrude, Inset, Fill, Dissolve, Delete, Merge, Connect, Bevel, Origin here |
+| Edit ▸ (10) | Extrude, Inset, Fill, Dissolve, Delete, Merge, Connect, Bevel, Origin here, Shading ▸ |
+| Edit ▸ Shading ▸ (6) | Smooth, Auto smooth, Mark hard, Clear mark, Mark smooth, Flat (the marks need edges selected in edge mode) |
 | Light ▸ (5) | Spot, Directional, On/Off, Delete, Point |
 | Mode ▸ (4) | Edge, Face, Object, Vertex |
-| View ▸ (4) | Hide/Show panel, Headlight off/on, Debug on/off, Hide/Show origins (each label says what picking it will do) |
+| View ▸ (6) | Hide/Show panel, Headlight off/on, Debug on/off, Hide/Show origins, Clay view/Materials, UV grid/Hide UV grid (each label says what picking it will do) |
 | While grab/scale/rotate/bevel/inset runs (4) | Y (up), Z (right), Free (down), X (left) |
 
 Axis items toggle like the X/Y/Z keys; Free clears every lock. In the Light menu, a type is dimmed when every selected light already has it, and On/Off turns them all off if all are on, otherwise all on.
 
 The menu replaces the awkward key chords (like M+V and M+F for modes). Everything else keeps its keyboard shortcut and isn't meant to move into the menu: Shift/Ctrl/Alt+click selection, Tab, the console, and confirm/cancel on the mouse buttons.
 
+### Materials
+How surfaces look, as in the game: the metallic-roughness set glTF, Unreal, and Unity use, so they export as they are.
+- A material has a **base color**, **roughness** (sharp to no highlights), **metallic**, **emissive** color and **glow** strength, **opacity** with an **alpha mode** (Opaque; Cutout, drawn where opacity reaches a cutoff; Blend, see-through), and **both sides** (double-sided).
+- Materials belong to the project and are shared: ten rocks can use "Granite", and editing it changes all ten. There's always a **Default** (the old gray, roughness 0.5, not metallic) that can be edited but not removed; objects without a material use it, and new objects start on it. Removing a material puts its objects back on Default; undo brings it back.
+- **Assign** per object: the Objects tab's Material dropdown (with swatches), **Assign to selected** in the Materials tab (the selected objects in object mode, the object being edited otherwise), or `material <id> assign [<object ids>]`.
+- **Per face:** in face mode, Assign gives the material to the selected faces (several materials on one object: a sword's blade and grip); **Use object's material** takes it off again, and **Select its faces** selects every face showing the material. Faces without their own use the object's, so changing the object's material still recolors them. The Objects tab notes how many faces have their own.
+- **New faces** follow one rule: extrude, inset, and bevel give new faces the material of the faces they came from when those all share one, otherwise the object's; reshaped faces and extrude tops keep their own; fill takes what the faces around the hole share; connect gives both halves the split face's; dissolve and merge keep the surviving faces'. Removing a material puts its faces back on their object's.
+- **Materials tab:** a list with each material's swatch and how many objects use it, + and −, and the selected material's large swatch and every value. Swatches are lit spheres rendered with the viewport's own shader (see-through ones over a checkerboard), updated as you edit. Every change is one undo step.
+- **Shading:** each light adds diffuse plus a highlight shaped by roughness (GGX), metals tint their reflections with their color, and surfaces reflect a simple environment made from the background gradient (a sky above, a ground below, blurrier as roughness rises), so metals aren't black without an environment image. Emissive glows on top, then exposure and tone mapping.
+- **Transparency:** see-through objects draw after everything solid, sorted farthest first together with reference images in the scene, without hiding what's behind them; a double-sided one shows its far side through its near side. To save work, Blend at full opacity draws as opaque, Blend at 0 and a Cutout below its cutoff aren't drawn, and the saved and exported values stay as set.
+- **Material and clay view** (View ▸ Clay view / Materials, or `ui materials`): material view shows materials as the game will, with back faces culled unless a material is double-sided (clicks skip culled faces too); clay view shows everything in the Default gray with back faces tinted pink, to find mistakes while modeling. Saved with the project.
+- **Smooth shading** (Edit ▸ Shading in the radial menu, the Objects tab's Shading row, or `shading`): each object is **Flat** (every face its own facet), **Smooth** (faces blend together), or **Auto** (blends faces that meet at less than an angle, 30° by default, and keeps sharper edges crisp). To decide exactly where creases go, select edges in edge mode and **Mark hard** (always a crease) or **Mark smooth** (always blended, even past the Auto angle); **Clear mark** goes back to the object's setting. In edit mode every edge that ends up hard is drawn in cyan, so the creases are visible while modeling. Marks follow split, extrude, inset, and bevel where the edge stays. Saved with the project and exported: the baked normals carry the shading, and re-importing restores the mode, angle, and marks.
+- **UVs and the UV grid** (View ▸ UV grid, or `ui checker`): every face corner has a texture coordinate, and every preset comes laid out (the cube as a cross, cylinders and cones with their sides wrapped and caps beside them, spheres and the torus by their rings). Extrude, inset, bevel, splitting, connecting, and filling keep them. The UV grid paints every face with a colored checker read from its UVs, so stretching and seams show. Saved in the project and exported in `.vlmobj` (as a `uv0` attribute, and exactly in the editable polygons).
+- Each object draws in one call per material it uses (its triangles are grouped by material on the GPU), and draws in a row with the same material send it once.
+- Saved in the project, per face too; exported in `.vlmobj` (each file carries the materials its objects and faces use, one mesh part per material, and re-importing restores each face's); importing reuses a project material that's identical (name and every value) and otherwise adds the asset's, renamed if the name is taken ("Granite 2").
+- `material` console command: list, add, remove, edit every value, and assign (see [systems/console.md](systems/console.md#material-command)).
+
 ### Undo / redo
 - Ctrl+Z / Ctrl+Y, up to 100 steps.
-- Snapshots all objects, lights (including ambient), reference images, and the selection, so adding and removing them is undoable too. Images share their picture between snapshots, so undo doesn't copy it.
+- Snapshots all objects, materials, lights (including ambient), reference images, and the selection, so adding and removing them is undoable too. Images share their picture between snapshots, so undo doesn't copy it.
 - A whole drag of a panel slider or field is one undo step.
 - Opening a project or starting a new one clears the history.
 
 ### Projects
 - Save and open Valuma Studio projects (`.vlm`): Ctrl+S (asks where the first time), Ctrl+Shift+S (Save As), Ctrl+O, Ctrl+N (new), with the Windows file dialogs; or the `save`, `open`, `new` commands with an optional path. Projects go in `Documents\Valuma Studio` by default: the dialogs start there, and console names like `save scene` land there. `fileinfo` lists a file's sections.
-- A project holds the objects (whole half-edge meshes, with their parents), lights and ambient light, reference images (with their pictures), the camera, the active object, the selection mode, and the view (headlight, back-face tint, debug overlay, panel position, size, and tab). The selection and undo history aren't saved.
+- A project holds the objects (whole half-edge meshes, with their parents and materials), the materials, lights and ambient light, reference images (with their pictures), the camera, the active object, the selection mode, and the view (headlight, exposure, material or clay view, back-face tint, debug overlay, panel position, size, and tab). The selection and undo history aren't saved.
 - The window title shows the file name with a `*` when there are unsaved changes (anything undoable; undoing back to the saved state clears it). New, Open, and closing the window ask "Save changes?" first, with Save / Don't Save / Cancel in the app's own prompt.
 - Binary format with a section per object, each checksummed; objects are written and read on several threads when there's enough geometry. Saves go to a temporary file that replaces the old one, and a damaged file is refused without touching the open scene. Sections a newer version adds are skipped. See [systems/project.md](systems/project.md).
 
 ### Assets (.vlmobj)
 Finished assets go out to the game engine (Aevora) and back in as **`.vlmobj`**: one file is one complete asset, everything the engine needs for a monster, tree, or rock except the game code. A project can hold many assets (say, rocks that share materials) and export any of them.
 - **Export** (Ctrl+E, not while a tool runs): a window lists every top-level object with a checkbox (an object starts checked when it or one of its children is selected; in an edit mode, the object being edited), its children greyed underneath, the file it will write (`<object name>.vlmobj`, characters Windows doesn't allow become `_`), and its status: **new**, **exists** (orange), or **duplicate** (another checked object has the name). Colliding rows get Replace (default) / Rename / Skip; a header row checks everything and sets every colliding row at once. Duplicates always rename (`Rock 2.vlmobj`). The footer says what will happen; **Export N** (or Enter) writes the files, each safely through a temporary file, and Cancel (or Escape) closes. A summary goes to the console. Re-exporting is Ctrl+E, Enter.
-- Each file holds an object and all its children. The object's origin is the pivot: its position is dropped, its rotation and scale kept, so it looks exactly as it does around its origin. See [systems/vlmobj.md](systems/vlmobj.md).
+- Each file holds an object and all its children, and the materials they use (see [Materials](#materials)). The object's origin is the pivot: its position is dropped, its rotation and scale kept, so it looks exactly as it does around its origin. See [systems/vlmobj.md](systems/vlmobj.md).
 - **Built for loading:** a header, a table of contents, and independent, checksummed, versioned sections on 64-byte boundaries with offsets only, so the engine can memory-map a file, hand the vertex and index data straight to the GPU, and read sections on several threads. Meshes are baked at export: triangulated, flat shaded like the viewport, vertices with the same position and normal shared, 16- or 32-bit indices, bounds. An editor-only section keeps the original polygons so re-importing keeps n-gons. Sections a newer version adds are skipped; materials, textures, skeletons, animations, attachment points, and hitboxes and collision shapes have sections reserved, added with those areas.
 - The export folder (Browse… picks another) defaults to `Exports` next to the project and then remembers the last folder exported to, saved in the `.vlm` relative to the project when it's nearby. It doesn't count as an unsaved change.
 - **Import** (Ctrl+I, Import… at the end of the Objects tab's dropdown then +, or `import [<path>]`): adds each picked `.vlmobj` as a new object named after the file, placed like a new preset, with its n-gons, rotation, and scale. Undoable.
@@ -277,16 +290,18 @@ Finished assets go out to the game engine (Aevora) and back in as **`.vlmobj`**:
 
 ### Interface
 - **Modal windows** (the Export window and prompts such as "Save changes?"): centered over a dimmed backdrop; while one is open, the panel, viewport, and shortcuts are off, Enter picks the default button (outlined) and Escape cancels.
+- **Color picker** (light, ambient, headlight, and material colors): click a swatch to open a saturation/value square with a hue strip, a hex field (`#c08a4f`), and typed R/G/B values; the swatch shows the color it had when opened beside the new one. A drag or a typed value is one undo step.
 - **Floating panel** (shown by default, `ui panel` toggles it): drag it by its header or tabs, resize it from any edge or corner (resize cursors, 240 × 160 minimum), and scroll it with the wheel or its scrollbar when the content doesn't fit. It always stays inside the viewport.
 - **Objects tab** (first):
   - A preset dropdown (cube, plane, grid, circle, cylinder, cone, UV sphere, ico sphere, torus, and Import… for `.vlmobj` files), + to add that preset (or import), − to remove the object being edited.
   - A fixed-height object list that scrolls on its own; click a row to edit that object (synced with clicking it in the viewport). In object mode it shows and sets the selected objects.
-  - The selected object: name field, vertex/edge/face counts, and position, rotation, and scale fields.
+  - The selected object: name field, vertex/edge/face counts, position, rotation, and scale fields, and its material (a dropdown with swatches).
+- **Materials tab:** see [Materials](#materials).
 - **Lights tab:**
   - A type button (click to cycle point → spot → directional), + to add that type, − to delete the selected light (dimmed when nothing is selected).
   - A fixed-height light list that scrolls on its own; click a row to select the light (synced with the viewport).
   - The selected light: name field, type switch, enabled, color, intensity, and the position, range, direction, and cone fields that apply to its type.
-  - Ambient light and headlight.
+  - Ambient light, headlight, and exposure.
 - **Images tab:** reference images (see [Reference images](#reference-images)).
 - Clicks and scrolling over the panel don't reach the viewport.
 - Long names in lists and labels that don't fit are shortened with "..." instead of running into their neighbors, so a narrow panel stays readable.
@@ -294,7 +309,7 @@ Finished assets go out to the game engine (Aevora) and back in as **`.vlmobj`**:
 - **X/Y/Z fields**: drag to change; click without dragging (under 3 px of movement) to type an exact value, with the same keys. Text that isn't a number leaves the value alone. A value too wide for its box shows fewer decimals rather than overlapping the axis letter (the panel is 360 px wide by default, enough for values like −12.50).
 - Held keys repeat after the system's repeat delay, in text fields and in the console.
 - **Status bar** along the bottom: frames per second, selection mode, active tool, and axis lock (`-` outside grab/scale/rotate, `Free`, or the locked axes in red/green/cyan). Items keep fixed positions as values change. An error that happens while the console is closed (an unknown command, a refused bevel/extrude/inset/dissolve) shows in red at the right end for 4 seconds, fading out at the end.
-- **Console** (/): a panel docked above the status bar with commands, their output, and errors (red) above an input line with a blinking caret. `help` lists every command; an unknown command shows an error; tools report refusals there too (bevel, extrude, inset, dissolve). Long lines wrap. Output or errors longer than one line can be collapsed and expanded by clicking; closing the console collapses everything so far, so only new or reopened ones show expanded. The wheel scrolls the list; command history (Up/Down, with the recalled command highlighted in the list, which scrolls to keep it in view) and cursor movement; Backspace, Delete, and the arrow keys repeat while held. Commands: `help`, `save`, `open`, `new`, `import`, `origin`, `fileinfo`, `debug`, `validate`, `merge`, `dissolve`, `light`, `object`, `reference`, `headlight`, `backface`, `vsync`, `ui`. See [systems/console.md](systems/console.md).
+- **Console** (/): a panel docked above the status bar with commands, their output, and errors (red) above an input line with a blinking caret. `help` lists every command; an unknown command shows an error; tools report refusals there too (bevel, extrude, inset, dissolve). Long lines wrap. Output or errors longer than one line can be collapsed and expanded by clicking; closing the console collapses everything so far, so only new or reopened ones show expanded. The wheel scrolls the list; command history (Up/Down, with the recalled command highlighted in the list, which scrolls to keep it in view) and cursor movement; Backspace, Delete, and the arrow keys repeat while held. Commands: `help`, `save`, `open`, `new`, `import`, `origin`, `fileinfo`, `debug`, `validate`, `merge`, `dissolve`, `light`, `object`, `material`, `reference`, `exposure`, `stats`, `headlight`, `backface`, `vsync`, `ui`. See [systems/console.md](systems/console.md).
 - Built on a from-scratch immediate-mode UI (tabs, buttons, dropdowns, list rows, checkboxes, sliders, X/Y/Z and single number fields, text fields, color swatches, type switches, scrolling list boxes) and a batched 2D draw list. See [systems/ui.md](systems/ui.md).
 - Two embedded fonts: the 16×24 console font and a 10×16 UI font (the console font trimmed and scaled down).
 

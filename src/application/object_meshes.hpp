@@ -8,7 +8,9 @@
 class ObjectMeshCache {
 public:
     // Creates or rebuilds the object's GPU mesh when it's new or dirty, and clears its dirty flag
-    OpenGLMesh* sync(ObjectHandle handle, Object& object);
+    // groupOf puts each face's triangles in its material's run, decided against the materials' stamp. A mesh whose
+    // vertices only moved is patched in place; anything else rebuilds it.
+    OpenGLMesh* sync(ObjectHandle handle, Object& object, const FaceGroupOf& groupOf, u64 materialsStamp);
 
     // Frees GPU meshes of objects that no longer exist
     void prune(const ObjectCollection& objects);

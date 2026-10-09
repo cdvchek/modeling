@@ -27,21 +27,28 @@ PackagedMesh MeshFactory::uvSphere(f32 radius, u32 segments, u32 rings) {
     const u32 bottomPole = static_cast<u32>(positions.size()) - 1;
     const auto ringVertex = [segments](u32 ring, u32 i) { return 1 + (ring - 1) * segments + i % segments; };
 
+    // Longitude across, latitude down; each pole corner sits above the middle of its triangle
+    const auto uv = [&](u32 ring, f32 i) { return Vec2(i / segments, static_cast<f32>(ring) / rings); };
+
     std::vector<std::vector<u32>> faces;
+    std::vector<std::vector<Vec2>> uvs;
 
     for (u32 i = 0; i < segments; ++i) {
         faces.push_back({ topPole, ringVertex(1, i), ringVertex(1, i + 1) });
+        uvs.push_back({ uv(0, i + 0.5f), uv(1, i), uv(1, i + 1.0f) });
     }
 
     for (u32 ring = 1; ring + 1 < rings; ++ring) {
         for (u32 i = 0; i < segments; ++i) {
             faces.push_back({ ringVertex(ring, i), ringVertex(ring + 1, i), ringVertex(ring + 1, i + 1), ringVertex(ring, i + 1) });
+            uvs.push_back({ uv(ring, i), uv(ring + 1, i), uv(ring + 1, i + 1.0f), uv(ring, i + 1.0f) });
         }
     }
 
     for (u32 i = 0; i < segments; ++i) {
         faces.push_back({ ringVertex(rings - 1, i), bottomPole, ringVertex(rings - 1, i + 1) });
+        uvs.push_back({ uv(rings - 1, i), uv(rings, i + 0.5f), uv(rings - 1, i + 1.0f) });
     }
 
-    return fromPolygons(positions, faces);
+    return fromPolygons(positions, faces, uvs);
 }

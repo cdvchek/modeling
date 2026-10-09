@@ -72,23 +72,23 @@ namespace {
 TEST_CASE(asset_bake_shares_vertices_on_flat_faces) {
     // Cube: 4 per side (sides face different ways), 2 triangles per side
     const AssetFile::BakedMesh cubeMesh = AssetFile::bake(cube());
-    CHECK(cubeMesh.vertices.size() / 6 == 24);
+    CHECK(cubeMesh.vertices.size() / 8 == 24);
     CHECK(cubeMesh.indices.size() == 36);
 
     // A flat grid shares across every face: 11 × 11 corners
     MeshData grid;
     grid.setMesh(PresetMesh::Grid);
     const AssetFile::BakedMesh gridMesh = AssetFile::bake(grid);
-    CHECK(gridMesh.vertices.size() / 6 == 121);
+    CHECK(gridMesh.vertices.size() / 8 == 121);
     CHECK(gridMesh.indices.size() == 600);
 
     // Every normal is unit length and every index in range
     bool valid = true;
-    for (std::size_t v = 0; v < cubeMesh.vertices.size(); v += 6) {
+    for (std::size_t v = 0; v < cubeMesh.vertices.size(); v += 8) {
         const Vec3 normal(cubeMesh.vertices[v + 3], cubeMesh.vertices[v + 4], cubeMesh.vertices[v + 5]);
         valid = valid && near(normal.length(), 1.0f);
     }
-    for (u32 index : cubeMesh.indices) valid = valid && index < cubeMesh.vertices.size() / 6;
+    for (u32 index : cubeMesh.indices) valid = valid && index < cubeMesh.vertices.size() / 8;
     CHECK(valid);
 }
 
@@ -104,7 +104,7 @@ TEST_CASE(asset_bake_keeps_bent_faces_folded) {
 
     // Pulled out diagonally, the corner bends all three faces around it; each now has two triangle normals, 6 corners instead of 4
     const AssetFile::BakedMesh baked = AssetFile::bake(mesh);
-    CHECK(baked.vertices.size() / 6 == 24 + 3 * 2);
+    CHECK(baked.vertices.size() / 8 == 24 + 3 * 2);
     CHECK(baked.indices.size() == 36);
 }
 
@@ -280,4 +280,75 @@ TEST_CASE(asset_family_round_trips_with_its_parents) {
     CHECK(imported[1].object.transform.position.x == 1.0f && imported[1].object.transform.rotation.x == 1.5707964f);
     CHECK(imported[0].object.transform.scale.x == 2.0f && imported[0].object.transform.position.x == 0.0f);
     CHECK(imported[2].object.meshData.validate());
+}
+
+TEST_CASE(asset_embeds_only_the_materials_its_family_uses) {
+    ObjectCollection objects;
+    MaterialCollection materials;
+    Material paint;
+    paint.name = "Paint";
+    paint.baseColor = Vec3(0.8f, 0.1f, 0.1f);
+    paint.roughness = 0.2f;
+    paint.metallic = 0.6f;
+    paint.emissiveColor = Vec3(1.0f, 0.5f, 0.25f);
+    paint.emissiveStrength = 1.5f;
+    paint.opacity = 0.75f;
+    paint.alphaMode = AlphaMode::Blend;
+    paint.alphaCutoff = 0.3f;
+    paint.doubleSided = true;
+    const MaterialHandle paintHandle = materials.add(paint);
+    Material unused;
+    unused.name = "Unused";
+    materials.add(unused);
+
+    // The car and its hubcap share the paint; the wheel uses Default
+    const ObjectHandle car = objects.add("Car", PresetMesh::Cube);
+    const ObjectHandle wheel = objects.add("Wheel", PresetMesh::Cylinder);
+    const ObjectHandle hubcap = objects.add("Hubcap", PresetMesh::Circle);
+    objects.get(wheel).parent = car;
+    objects.get(hubcap).parent = wheel;
+    objects.get(car).material = paintHandle;
+    objects.get(hubcap).material = paintHandle;
+
+    const std::vector<u8> bytes = AssetFile::write(objects, car, materials);
+
+    vlmobj::File file;
+    CHECK(file.open(bytes.data(), bytes.size()));
+    CHECK(file.materials().size() == 2);
+    CHECK(file.string(file.materials()[0].name) == "Paint" && file.string(file.materials()[1].name) == "Default");
+    CHECK(file.materials()[0].alphaMode == static_cast<u8>(vlmobj::AlphaMode::Blend));
+    CHECK((file.materials()[0].flags & vlmobj::MATERIAL_DOUBLE_SIDED) != 0);
+    CHECK(file.parts()[file.meshes()[file.nodes()[0].mesh].firstPart].material == 0);
+    CHECK(file.parts()[file.meshes()[file.nodes()[1].mesh].firstPart].material == 1);
+    CHECK(file.parts()[file.meshes()[file.nodes()[2].mesh].firstPart].material == 0);
+
+    std::vector<AssetFile::ImportedObject> imported;
+    std::vector<Material> importedMaterials;
+    std::string error;
+    CHECK(AssetFile::read(bytes, imported, importedMaterials, error));
+    CHECK(importedMaterials.size() == 2);
+    CHECK(importedMaterials[0].name == "Paint" && importedMaterials[0].sameLook(paint));
+    CHECK(imported[0].material == 0 && imported[1].material == 1 && imported[2].material == 0);
+}
+
+TEST_CASE(importing_reuses_identical_materials_and_renames_the_rest) {
+    MaterialCollection materials;
+    Material stone;
+    stone.name = "Stone";
+    stone.roughness = 0.9f;
+    const MaterialHandle existing = materials.add(stone);
+
+    bool added = true;
+    CHECK(materials.adopt(stone, added) == existing);
+    CHECK(!added);
+
+    Material polished = stone;
+    polished.roughness = 0.2f;
+    const MaterialHandle copy = materials.adopt(polished, added);
+    CHECK(added);
+    CHECK(materials.get(copy).name == "Stone 2" && materials.get(copy).roughness == 0.2f);
+
+    // Importing it again finds the renamed copy only if the name matches too
+    CHECK(materials.adopt(polished, added) != copy);
+    CHECK(materials.count() == 4);
 }

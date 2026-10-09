@@ -1,8 +1,16 @@
 #pragma once
 
 #include <types>
+#include <atomic>
 #include <vector>
 #include <cassert>
+
+// A number no other structure change has had: copies of an array keep theirs, so two arrays with the same stamp
+// hold the same slots (used to tell whether a GPU copy still has the right layout)
+inline u64 nextStructureStamp() {
+    static std::atomic<u64> next { 1 };
+    return next.fetch_add(1, std::memory_order_relaxed);
+}
 
 template <typename T>
 struct Slot {
@@ -48,15 +56,20 @@ public:
     u32 size() const;
     u32 activeSize() const;
 
+    // Changes on every insert and remove (see nextStructureStamp)
+    u64 stamp() const { return m_stamp; }
+
 private:
     std::vector<Slot<T>> m_slots;
     std::vector<u32> m_freeSlots;
 
     u32 m_activeCount = 0;
+    u64 m_stamp = nextStructureStamp();
 };
 
 template <typename T, typename HandleT>
 HandleT DynamicArray<T, HandleT>::insert(const T& value) {
+    m_stamp = nextStructureStamp();
     if (!m_freeSlots.empty()) {
         const u32 index = m_freeSlots.back();
         m_freeSlots.pop_back();
@@ -93,6 +106,7 @@ void DynamicArray<T, HandleT>::remove(HandleT handle) {
     if (!isValid(handle)) return;
 
     Slot<T>& slot = m_slots[handle.index];
+    m_stamp = nextStructureStamp();
 
     slot.valid = false;
 

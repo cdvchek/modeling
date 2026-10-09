@@ -176,16 +176,18 @@ void drawReferenceImages(AppContext& ctx, const Mat4& viewProjection, ReferenceD
     }
     std::sort(order.begin(), order.end(), [](const auto& a, const auto& b) { return a.first > b.first; });
 
-    for (const auto& [distance, handle] : order) {
-        const ReferenceImage& image = ctx.scene.references.get(handle);
+    for (const auto& [distance, handle] : order) drawReferenceImage(ctx, viewProjection, handle);
+}
 
-        DrawImageCommand command;
-        command.texture = ctx.referenceTextures.sync(ctx, image.picture);
-        command.mvp = viewProjection * image.matrix();
-        command.opacity = std::clamp(image.opacity, 0.0f, 1.0f);
-        command.depthTest = depth == ReferenceDepth::InScene;
-        ctx.renderer->drawImage(command);
-    }
+void drawReferenceImage(AppContext& ctx, const Mat4& viewProjection, ReferenceHandle handle) {
+    const ReferenceImage& image = ctx.scene.references.get(handle);
+
+    DrawImageCommand command;
+    command.texture = ctx.referenceTextures.sync(ctx, image.picture);
+    command.mvp = viewProjection * image.matrix();
+    command.opacity = std::clamp(image.opacity, 0.0f, 1.0f);
+    command.depthTest = image.depth == ReferenceDepth::InScene;
+    ctx.renderer->drawImage(command);
 }
 
 void drawReferenceOutlines(const AppContext& ctx, UIDrawList& ui, const Mat4& viewProjection, f32 width, f32 height) {

@@ -59,6 +59,10 @@ void clearAxes(AppContext& ctx);
 void togglePanel(AppContext& ctx);
 void toggleHeadlight(AppContext& ctx);
 void toggleDebugView(AppContext& ctx);
+// Material view (as in the game) or clay view (everything the Default gray, back faces tinted); not undoable
+void toggleMaterials(AppContext& ctx);
+// The UV checker grid over every face; not undoable
+void toggleUVChecker(AppContext& ctx);
 
 bool canSetLightType(const AppContext& ctx, LightType type);
 void setLightType(AppContext& ctx, LightType type);

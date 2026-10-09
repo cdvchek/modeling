@@ -212,12 +212,19 @@ void UIContext::beginPanelHeader(std::string_view name, UIPanelState& state, con
     const Rect header { state.rect.x, state.rect.y, state.rect.width, UIStyle::PANEL_HEADER_HEIGHT };
     const Interaction drag = interact(makeId(name), header);
 
-    // Tabs sit in the header, left to right, sized to their text
+    // Tabs sit in the header, left to right, sized to their text; when they'd run past the panel, their padding
+    // shrinks so they still fit
     std::vector<Rect> tabRects;
     if (showTabs) {
+        f32 textWidth = 0.0f;
+        for (std::string_view tab : tabs) textWidth += measureText(m_font, tab).x;
+        const f32 room = state.rect.width - UIStyle::TAB_INSET * 2.0f - textWidth;
+        const f32 padding = tabs.empty() ? UIStyle::TAB_PADDING
+            : std::clamp(room / (tabs.size() * 2.0f), UIStyle::MIN_TAB_PADDING, UIStyle::TAB_PADDING);
+
         f32 x = state.rect.x + UIStyle::TAB_INSET;
         for (std::string_view tab : tabs) {
-            const f32 width = measureText(m_font, tab).x + UIStyle::TAB_PADDING * 2.0f;
+            const f32 width = measureText(m_font, tab).x + padding * 2.0f;
             tabRects.push_back({ x, state.rect.y + UIStyle::TAB_INSET, width, UIStyle::PANEL_HEADER_HEIGHT - UIStyle::TAB_INSET });
             x += width;
         }
@@ -502,7 +509,8 @@ void UIContext::drawPopup() {
     for (const std::string& option : m_popup.options) widest = std::max(widest, measureText(m_font, option).x);
 
     const f32 pad = UIStyle::POPUP_PADDING;
-    const f32 width = std::max(m_popup.anchor.width, widest + UIStyle::TEXT_PADDING * 2.0f + pad * 2.0f);
+    const f32 iconRoom = m_popup.icons.empty() ? 0.0f : UIStyle::ROW_HEIGHT;
+    const f32 width = std::max(m_popup.anchor.width, widest + iconRoom + UIStyle::TEXT_PADDING * 2.0f + pad * 2.0f);
     const f32 height = count * UIStyle::ROW_HEIGHT + pad * 2.0f;
 
     // Below the button if it fits, otherwise above, and never past the viewport's sides
@@ -526,7 +534,9 @@ void UIContext::drawPopup() {
 
         const bool current = static_cast<i32>(i) == m_popup.current;
         if (interaction.hovered || interaction.held) list.roundedRect(row, UIStyle::CORNER_RADIUS, UIStyle::ACCENT_SOFT);
-        drawLabelText({ row.x + UIStyle::TEXT_PADDING, row.y, row.width, row.height }, m_popup.options[i], current ? UIStyle::ACCENT : UIStyle::TEXT);
+        const u32 icon = i < m_popup.icons.size() ? m_popup.icons[i] : 0;
+        const f32 textLeft = row.x + UIStyle::TEXT_PADDING + (icon != 0 ? drawIcon(row, icon) : 0.0f);
+        drawLabelText({ textLeft, row.y, row.right() - textLeft, row.height }, m_popup.options[i], current ? UIStyle::ACCENT : UIStyle::TEXT);
 
         if (interaction.clicked) m_popup.picked = static_cast<i32>(i);
     }

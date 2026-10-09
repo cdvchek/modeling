@@ -2,6 +2,7 @@
 
 #include "core/io/binary_io.hpp"
 #include "core/io/crc32.hpp"
+#include "core/math/math_utils.hpp"
 #include "core/thread/parallel_for.hpp"
 #include "image/image.hpp"
 
@@ -32,6 +33,7 @@ namespace {
     constexpr u32 CHUNK_OBJECT = fourCC("OBJC");
     constexpr u32 CHUNK_EXPORT = fourCC("EXPT");
     constexpr u32 CHUNK_REFERENCE = fourCC("REFI");
+    constexpr u32 CHUNK_MATERIALS = fourCC("MATL");
 
     struct ChunkVersion {
         u32 type;
@@ -39,9 +41,9 @@ namespace {
     };
 
     // The newest version of each chunk this build reads and writes
-    constexpr std::array<ChunkVersion, 6> CHUNK_VERSIONS = { {
-        { CHUNK_VIEW, 2 }, { CHUNK_CAMERA, 1 }, { CHUNK_LIGHTS, 1 }, { CHUNK_OBJECT, 2 }, { CHUNK_EXPORT, 1 },
-        { CHUNK_REFERENCE, 1 },
+    constexpr std::array<ChunkVersion, 7> CHUNK_VERSIONS = { {
+        { CHUNK_VIEW, 4 }, { CHUNK_CAMERA, 1 }, { CHUNK_LIGHTS, 1 }, { CHUNK_OBJECT, 6 }, { CHUNK_EXPORT, 1 },
+        { CHUNK_REFERENCE, 1 }, { CHUNK_MATERIALS, 1 },
     } };
 
     u32 supportedVersion(u32 type) {
@@ -146,6 +148,11 @@ namespace {
         writer.write(view.panelTab);
         // Version 2
         writeBool(writer, view.showOrigins);
+        // Version 3
+        writer.write(view.exposure);
+        writeBool(writer, view.showMaterials);
+        // Version 4
+        writeBool(writer, view.showUVChecker);
         return finish(CHUNK_VIEW, writer);
     }
 
@@ -165,8 +172,11 @@ namespace {
             && reader.read(view.panelRect.height)
             && reader.read(view.panelTab);
 
-        // Version 1 files end here and keep the default
-        return first && (version < 2 || readBool(reader, view.showOrigins));
+        // Older versions end early and keep the defaults
+        return first
+            && (version < 2 || readBool(reader, view.showOrigins))
+            && (version < 3 || (reader.read(view.exposure) && readBool(reader, view.showMaterials)))
+            && (version < 4 || readBool(reader, view.showUVChecker));
     }
 
     Chunk writeCamera(const Camera& camera) {
@@ -317,8 +327,64 @@ namespace {
         return true;
     }
 
-    // parent: the parent's place among the object chunks, or INVALID_INDEX
-    Chunk writeObject(const Object& object, u32 parent) {
+    // Every material, Default first
+    Chunk writeMaterials(const MaterialCollection& materials) {
+        BinaryWriter writer;
+        const std::vector<MaterialHandle> handles = materials.handles();
+        writer.write(static_cast<u32>(handles.size()));
+
+        for (MaterialHandle handle : handles) {
+            const Material& material = materials.get(handle);
+            writer.writeString(material.name);
+            writeVec3(writer, material.baseColor);
+            writer.write(material.roughness);
+            writer.write(material.metallic);
+            writeVec3(writer, material.emissiveColor);
+            writer.write(material.emissiveStrength);
+            writer.write(material.opacity);
+            writer.write(static_cast<u8>(material.alphaMode));
+            writer.write(material.alphaCutoff);
+            writeBool(writer, material.doubleSided);
+        }
+
+        return finish(CHUNK_MATERIALS, writer);
+    }
+
+    // The first material fills in Default; handles come back in file order, for objects to point at
+    bool readMaterials(BinaryReader& reader, MaterialCollection& materials, std::vector<MaterialHandle>& handles) {
+        u32 count = 0;
+        if (!reader.read(count) || count == 0) return false;
+
+        for (u32 i = 0; i < count; ++i) {
+            Material material;
+            u8 mode = 0;
+            const bool ok = reader.readString(material.name)
+                && readVec3(reader, material.baseColor)
+                && reader.read(material.roughness)
+                && reader.read(material.metallic)
+                && readVec3(reader, material.emissiveColor)
+                && reader.read(material.emissiveStrength)
+                && reader.read(material.opacity)
+                && reader.read(mode) && mode <= static_cast<u8>(AlphaMode::Blend)
+                && reader.read(material.alphaCutoff)
+                && readBool(reader, material.doubleSided);
+            if (!ok) return false;
+            material.alphaMode = static_cast<AlphaMode>(mode);
+
+            if (i == 0) {
+                materials.get(materials.defaultMaterial()) = material;
+                handles.push_back(materials.defaultMaterial());
+            } else {
+                handles.push_back(materials.add(material));
+            }
+        }
+        return true;
+    }
+
+    // parent: the parent's place among the object chunks, or INVALID_INDEX; material: its place in MATL
+    // faceMaterials: each face's own material as its place in MATL (INVALID_INDEX for none), in mesh order; empty when
+    // no face has one
+    Chunk writeObject(const Object& object, u32 parent, u32 material, const std::vector<u32>& faceMaterials) {
         BinaryWriter writer;
         writer.writeString(object.name);
         writeVec3(writer, object.transform.position);
@@ -326,19 +392,74 @@ namespace {
         writeVec3(writer, object.transform.scale);
         // Version 2
         writer.write(parent);
+        // Version 3
+        writer.write(material);
         object.meshData.writeTo(writer);
+        // Version 4
+        writer.write(static_cast<u32>(faceMaterials.size()));
+        writer.writeArray(faceMaterials.data(), faceMaterials.size());
+        // Version 5: every half-edge's UV (its face corner at its tip), in the mesh's edge order
+        const std::vector<Vec2> uvs = object.meshData.getCornerUVs();
+        writer.write(static_cast<u32>(uvs.size()));
+        for (const Vec2& uv : uvs) {
+            writer.write(uv.x);
+            writer.write(uv.y);
+        }
+        // Version 6: shading, the auto angle, and every half-edge's mark (none written when nothing is marked)
+        writer.write(static_cast<u8>(object.meshData.getShading()));
+        writer.write(object.meshData.getSmoothAngle());
+        std::vector<u8> marks;
+        if (object.meshData.hasEdgeMarks()) {
+            for (EdgeMark mark : object.meshData.getEdgeMarks()) marks.push_back(static_cast<u8>(mark));
+        }
+        writer.write(static_cast<u32>(marks.size()));
+        writer.writeArray(marks.data(), marks.size());
         return finish(CHUNK_OBJECT, writer);
     }
 
-    bool readObject(BinaryReader& reader, u32 version, Object& object, u32& parent, std::string& error) {
-        // Version 1 objects have no parent
+    bool readObject(BinaryReader& reader, u32 version, Object& object, u32& parent, u32& material, std::vector<u32>& faceMaterials, std::string& error) {
+        // Version 1 objects have no parent, and objects before version 3 use Default
         parent = INVALID_INDEX;
+        material = 0;
         const bool ok = reader.readString(object.name)
             && readVec3(reader, object.transform.position)
             && readVec3(reader, object.transform.rotation)
             && readVec3(reader, object.transform.scale)
             && (version < 2 || reader.read(parent))
-            && object.meshData.readFrom(reader);
+            && (version < 3 || reader.read(material))
+            && object.meshData.readFrom(reader)
+            && (version < 4 || [&] {
+                u32 faceCount = 0;
+                return reader.read(faceCount) && reader.readVector(faceMaterials, faceCount);
+            }())
+            && (version < 5 || [&] {
+                u32 uvCount = 0;
+                std::vector<f32> values;
+                if (!reader.read(uvCount) || !reader.readVector(values, static_cast<std::size_t>(uvCount) * 2)) return false;
+                if (uvCount != object.meshData.getEdgeHandles().size()) return false;
+                std::vector<Vec2> uvs(uvCount);
+                for (u32 k = 0; k < uvCount; ++k) uvs[k] = Vec2(values[k * 2], values[k * 2 + 1]);
+                object.meshData.setCornerUVs(uvs);
+                return true;
+            }())
+            && (version < 6 || [&] {
+                u8 shading = 0;
+                f32 angle = 0.0f;
+                u32 markCount = 0;
+                std::vector<u8> values;
+                if (!reader.read(shading) || !reader.read(angle) || !reader.read(markCount) || !reader.readVector(values, markCount)) return false;
+                if (shading > static_cast<u8>(ShadingMode::Auto) || !(angle >= 0.0f && angle <= Math::PI)) return false;
+                if (markCount != 0 && markCount != object.meshData.getEdgeHandles().size()) return false;
+                std::vector<EdgeMark> marks;
+                for (u8 value : values) {
+                    if (value > static_cast<u8>(EdgeMark::Smooth)) return false;
+                    marks.push_back(static_cast<EdgeMark>(value));
+                }
+                object.meshData.setShading(static_cast<ShadingMode>(shading));
+                object.meshData.setSmoothAngle(angle);
+                if (!marks.empty()) object.meshData.setEdgeMarks(marks);
+                return true;
+            }());
 
         if (!ok) {
             error = "an object's data is cut short or out of range";
@@ -372,6 +493,7 @@ namespace {
         chunks.push_back(writeCamera(scene.camera));
         chunks.push_back(writeLights(scene.lights));
         chunks.push_back(writeExport(view));
+        chunks.push_back(writeMaterials(scene.materials));
         for (ReferenceHandle handle : scene.references.handles()) chunks.push_back(writeReference(scene.references.get(handle)));
 
         std::size_t edges = 0;
@@ -385,7 +507,29 @@ namespace {
             for (u32 k = 0; k < objects.size(); ++k) if (objects[k] == parent) parents[i] = k;
         }
 
-        auto encode = [&](u32 i) { objectChunks[i] = writeObject(scene.objects.get(objects[i]), parents[i]); };
+        // Materials are stored as their place in the MATL chunk (Default is 0)
+        const std::vector<MaterialHandle> materialOrder = scene.materials.handles();
+        std::vector<u32> materials(objects.size(), 0);
+        for (u32 i = 0; i < objects.size(); ++i) {
+            const MaterialHandle material = scene.materials.resolve(scene.objects.get(objects[i]).material);
+            for (u32 k = 0; k < materialOrder.size(); ++k) if (materialOrder[k] == material) materials[i] = k;
+        }
+
+        auto encode = [&](u32 i) {
+            const Object& object = scene.objects.get(objects[i]);
+
+            // Faces with a material of their own (that still exists), by its place in MATL
+            std::vector<u32> faceMaterials;
+            const std::vector<FaceHandle> faces = object.meshData.getFaceHandles();
+            for (std::size_t f = 0; f < faces.size(); ++f) {
+                const MaterialHandle own = object.meshData.getFaceMaterial(faces[f]);
+                if (!scene.materials.isValid(own)) continue;
+                if (faceMaterials.empty()) faceMaterials.assign(faces.size(), INVALID_INDEX);
+                for (u32 k = 0; k < materialOrder.size(); ++k) if (materialOrder[k] == own) faceMaterials[f] = k;
+            }
+
+            objectChunks[i] = writeObject(object, parents[i], materials[i], faceMaterials);
+        };
 
         if (objects.size() > 1 && edges >= PARALLEL_SAVE_EDGES) parallelFor(static_cast<u32>(objects.size()), encode);
         else for (u32 i = 0; i < objects.size(); ++i) encode(i);
@@ -512,6 +656,7 @@ bool ProjectFile::read(const std::vector<u8>& bytes, Scene& scene, View& view, s
     if (!readDirectory(bytes, entries, error)) return false;
 
     std::vector<const Entry*> objectEntries;
+    std::vector<MaterialHandle> materialHandles;
     std::size_t objectBytes = 0;
     u32 activeObject = INVALID_INDEX;
 
@@ -533,6 +678,7 @@ bool ProjectFile::read(const std::vector<u8>& bytes, Scene& scene, View& view, s
         else if (entry.type == CHUNK_CAMERA) ok = readCamera(reader, scene.camera);
         else if (entry.type == CHUNK_LIGHTS) ok = readLights(reader, scene.lights);
         else if (entry.type == CHUNK_EXPORT) ok = reader.readString(view.exportFolder);
+        else if (entry.type == CHUNK_MATERIALS) ok = readMaterials(reader, scene.materials, materialHandles);
         else if (entry.type == CHUNK_REFERENCE) {
             ReferenceImage image;
             if (!readReference(reader, image, error)) return false;
@@ -549,6 +695,8 @@ bool ProjectFile::read(const std::vector<u8>& bytes, Scene& scene, View& view, s
     const u32 count = static_cast<u32>(objectEntries.size());
     std::vector<Object> objects(count);
     std::vector<u32> parents(count, INVALID_INDEX);
+    std::vector<u32> materials(count, 0);
+    std::vector<std::vector<u32>> faceMaterials(count);
     std::vector<std::string> errors(count);
 
     auto decode = [&](u32 i) {
@@ -556,7 +704,7 @@ bool ProjectFile::read(const std::vector<u8>& bytes, Scene& scene, View& view, s
         if (!checkChunk(bytes, entry, errors[i])) return;
 
         BinaryReader reader(bytes.data() + entry.offset, entry.size);
-        readObject(reader, entry.version, objects[i], parents[i], errors[i]);
+        readObject(reader, entry.version, objects[i], parents[i], materials[i], faceMaterials[i], errors[i]);
     };
 
     if (count > 1 && objectBytes >= PARALLEL_LOAD_BYTES) parallelFor(count, decode);
@@ -578,6 +726,33 @@ bool ProjectFile::read(const std::vector<u8>& bytes, Scene& scene, View& view, s
                 return false;
             }
             up = parents[up];
+        }
+    }
+
+    // A file without materials only has Default
+    if (materialHandles.empty()) materialHandles.push_back(scene.materials.defaultMaterial());
+    for (u32 i = 0; i < count; ++i) {
+        if (materials[i] >= materialHandles.size()) {
+            error = "object '" + objects[i].name + "' uses a material that doesn't exist";
+            return false;
+        }
+        objects[i].material = materialHandles[materials[i]];
+
+        // Faces come back in the order they were written, so the list lines up with the handles
+        if (faceMaterials[i].empty()) continue;
+        const std::vector<FaceHandle> faces = objects[i].meshData.getFaceHandles();
+        if (faceMaterials[i].size() != faces.size()) {
+            error = "object '" + objects[i].name + "' has face materials that don't match its faces";
+            return false;
+        }
+        for (std::size_t f = 0; f < faces.size(); ++f) {
+            const u32 index = faceMaterials[i][f];
+            if (index == INVALID_INDEX) continue;
+            if (index >= materialHandles.size()) {
+                error = "object '" + objects[i].name + "' has a face using a material that doesn't exist";
+                return false;
+            }
+            objects[i].meshData.setFaceMaterial(faces[f], materialHandles[index]);
         }
     }
 
@@ -720,10 +895,17 @@ std::string ProjectFile::describe(const std::vector<u8>& bytes) {
             reader.readArray(transform, 9);
             u32 parent = INVALID_INDEX;
             if (entry.version >= 2) reader.read(parent);
+            u32 material = 0;
+            if (entry.version >= 3) reader.read(material);
             u32 counts[3] {};
             reader.readArray(counts, 3);
             out << "  '" << name << "' " << counts[0] << " vertices, " << counts[1] << " half-edges, " << counts[2] << " faces";
             if (parent != INVALID_INDEX) out << ", child of object " << parent;
+            if (material != 0) out << ", material " << material;
+        } else if (entry.type == CHUNK_MATERIALS) {
+            MaterialCollection materials;
+            std::vector<MaterialHandle> handles;
+            if (readMaterials(reader, materials, handles)) out << "  " << handles.size() << " materials";
         } else if (entry.type == CHUNK_REFERENCE) {
             ReferenceImage image;
             std::string referenceError;

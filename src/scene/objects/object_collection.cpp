@@ -169,7 +169,10 @@ bool ObjectCollection::setParent(ObjectHandle child, ObjectHandle parent) {
 }
 
 void ObjectCollection::markAllDirty() {
+    // Restored copies may hold other positions under the same layout, so every vertex counts as moved
     for (ObjectHandle handle : handles()) {
-        m_objects.get(handle).meshDirty = true;
+        Object& object = m_objects.get(handle);
+        object.meshDirty = true;
+        object.meshData.markAllMoved();
     }
 }

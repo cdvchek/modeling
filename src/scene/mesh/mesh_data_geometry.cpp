@@ -128,12 +128,55 @@ void MeshData::setFacesDirtyByFace(FaceHandle handle) const {
 
 void MeshData::positionVertex(VertexHandle handle, Vec3 position) {
     Vertex* vertex = m_vertices.tryGet(handle);
-    if (vertex) vertex->position = position;
+    if (!vertex) return;
+    vertex->position = position;
+    recordMoved(handle);
 }
 
 void MeshData::translateVertex(VertexHandle handle, Vec3 delta) {
     Vertex* vertex = m_vertices.tryGet(handle);
-    if (vertex) vertex->position += delta;
+    if (!vertex) return;
+    vertex->position += delta;
+    recordMoved(handle);
+}
+
+void MeshData::recordMoved(VertexHandle handle) {
+    if (m_allMoved) return;
+    // A tool moves the same vertices every frame; past a couple of rounds, say "all" rather than keep growing
+    if (m_moved.size() >= 2 * static_cast<std::size_t>(m_vertices.activeSize()) + 64) {
+        m_moved.clear();
+        m_allMoved = true;
+        return;
+    }
+    m_moved.push_back(handle);
+}
+
+void MeshData::clearMoved() {
+    m_moved.clear();
+    m_allMoved = false;
+}
+
+MeshStamp MeshData::stamp() const {
+    return { m_vertices.stamp(), m_edges.stamp(), m_faces.stamp(), m_materialStamp, m_uvStamp, m_shadingStamp };
+}
+
+std::vector<FaceHandle> MeshData::getVertexFaces(VertexHandle handle) const {
+    std::vector<FaceHandle> faces;
+    const Vertex* vertex = m_vertices.tryGet(handle);
+    if (!vertex || !m_edges.isValid(vertex->edge)) return faces;
+
+    // Around the vertex: each outgoing half-edge's face, then across its previous edge to the next outgoing one
+    const EdgeHandle start = vertex->edge;
+    EdgeHandle current = start;
+    do {
+        const Edge& edge = m_edges.get(current);
+        if (m_faces.isValid(edge.face)) faces.push_back(edge.face);
+        const EdgeHandle pair = edge.pair;
+        if (!m_edges.isValid(pair)) break;
+        current = m_edges.get(pair).next;
+        if (!m_edges.isValid(current)) break;
+    } while (current != start);
+    return faces;
 }
 
 struct EarVertex {

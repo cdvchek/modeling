@@ -8,13 +8,14 @@ Files: [src/project/](../../src/project/) (the file format, in `modeling_core`),
 
 | Saved | Not saved |
 |---|---|
-| Objects: name, transform, and the whole half-edge mesh | The selection (elements, objects, lights, images) |
+| Objects: name, transform, material, and the whole half-edge mesh | The selection (elements, objects, lights, images) |
+| Materials, every value, Default included | Which material the Materials tab shows |
 | Lights, every property, and the ambient light | Undo history: opening, or starting a new project, starts it fresh |
 | Reference images, every setting, with their PNG files | |
 | Camera: position, target, up, orbit distance/yaw/pitch, field of view, near/far planes | Console history and vsync (app settings, not project) |
 | The active object | A running tool: saving or opening is refused until it's confirmed or cancelled |
 | Selection mode, and the edit mode Tab returns to | |
-| Headlight, back-face tint, debug overlay on/off, origins shown | |
+| Headlight, exposure, material or clay view, back-face tint, debug overlay on/off, origins shown | |
 | The panel: shown or hidden, position and size, open tab | |
 | The export folder (relative to the project file when nearby) | |
 
@@ -66,12 +67,13 @@ All numbers are little-endian. A file is a header, a directory with one entry pe
 
 | Type | Contents |
 |---|---|
-| `VIEW` (version 2) | `u32` selection mode (0 vertex, 1 edge, 2 face, 3 object), `u32` last edit mode (0–2), `u32` active object (its place among the `OBJC` chunks, or `0xFFFFFFFF` for none), `bool` debug, `bool` headlight on, `vec3` headlight color, `f32` headlight strength, `vec3` back-face tint, `bool` panel shown, `f32 ×4` panel rect (x, y, width, height), `i32` panel tab; version 2 adds `bool` origins shown (version 1 files read as shown) |
+| `VIEW` (version 4) | `u32` selection mode (0 vertex, 1 edge, 2 face, 3 object), `u32` last edit mode (0–2), `u32` active object (its place among the `OBJC` chunks, or `0xFFFFFFFF` for none), `bool` debug, `bool` headlight on, `vec3` headlight color, `f32` headlight strength, `vec3` back-face tint, `bool` panel shown, `f32 ×4` panel rect (x, y, width, height), `i32` panel tab; version 2 adds `bool` origins shown (version 1 files read as shown); version 3 adds `f32` exposure in stops and `bool` material view (older files read 0 and material view); version 4 adds `bool` UV checker shown (older files read off) |
 | `CAMR` | `vec3` position, target, up; `f32` distance, yaw, pitch, field of view (radians), near, far |
 | `LITE` | `vec3` ambient color, `f32` ambient strength, `u32` light count, then per light: string name, `u32` type (0 point, 1 directional, 2 spot), `vec3` position, direction, color, `f32` intensity, range, inner cone, outer cone, `bool` enabled |
 | `EXPT` | String: the export folder as `storeFolder` gives it, empty for the default (`Exports` next to the project). Files without this chunk get the default. |
 | `REFI` | One per reference image, in order: string name, `vec3` position, rotation, `f32` size, opacity, `u8` depth (0 behind, 1 scene, 2 front), `bool` locked, visible, string file name, `u32` width, height (pixels), `u64` PNG size, then the PNG file's bytes unchanged. Opening checks the sizes and that the bytes start like a PNG, but doesn't decode the picture: that happens when it's first drawn, which reports a damaged picture in the console. |
-| `OBJC` (version 2) | One per object, in object order: string name, `vec3` position, rotation, scale (relative to the parent), `u32` parent (its place among the `OBJC` chunks, or `0xFFFFFFFF`; added in version 2, version 1 objects have none), then the mesh (below). Opening checks that every parent exists and that no chain of parents loops back, and links them as stored. |
+| `MATL` | Every material, Default first: `u32` count, then per material: string name, `vec3` base color (sRGB), `f32` roughness, metallic, `vec3` emissive color (sRGB), `f32` emissive strength, opacity, `u8` alpha mode (0 opaque, 1 cutout, 2 blend), `f32` alpha cutoff, `bool` double-sided. The first fills in Default. Files without this chunk have only Default. |
+| `OBJC` (version 6) | One per object, in object order: string name, `vec3` position, rotation, scale (relative to the parent), `u32` parent (its place among the `OBJC` chunks, or `0xFFFFFFFF`; added in version 2, version 1 objects have none), `u32` material (its place in `MATL`, 0 for Default; added in version 3, older objects use Default), then the mesh (below), then (version 4) `u32` face count and that many `u32` (each face's own material as its place in `MATL`, `0xFFFFFFFF` for none, in the mesh's face order), or a count of 0 when no face has one, then (version 5) `u32` half-edge count and that many `f32 ×2` UVs (`getCornerUVs`: each half-edge's UV in the mesh's half-edge order, border ones included); older objects get zeros; then (version 6) `u8` shading (0 flat, 1 smooth, 2 auto), `f32` auto angle in radians (0 to π), `u32` mark count (0 when nothing is marked, otherwise the half-edge count) and that many `u8` marks (0 none, 1 hard, 2 smooth) in the same order; older objects are flat. Opening checks that every parent exists and that no chain of parents loops back, and that every material exists (and the face list matches the faces, the UV list the half-edges), and links them as stored. |
 
 **Mesh** (from `MeshData::writeTo`, see [mesh.md](mesh.md#files)): `u32` vertex, half-edge, and face counts; `f32[3 × vertices]` positions; `u32[vertices]` each vertex's outgoing half-edge; `u32[5 × half-edges]` each half-edge's tip, pair, next, prev, face; `u32[faces]` each face's half-edge. Links are indices into these arrays; `0xFFFFFFFF` means none (a border half-edge's face, a lone vertex's edge). Deleted slots are packed out when saving, so the arrays have no gaps, and the arrays are read straight into memory.
 
@@ -103,11 +105,11 @@ Objects are independent chunks, so both directions split them across threads (`p
 | Function | Description |
 |---|---|
 | `write(scene, view)` | The whole file as bytes. |
-| `read(bytes, scene, view, error)` | Fills an empty `Scene` (objects, lights, reference images, camera, active object) and a `View`; on failure, `error` says why. |
+| `read(bytes, scene, view, error)` | Fills an empty `Scene` (objects, materials, lights, reference images, camera, active object) and a `View`; on failure, `error` says why. |
 | `save(path, scene, view, error)` / `load(path, scene, view, error)` | The same, to and from disk, with the safe save. |
 | `readFile(path, bytes, error)` | Reads a whole file. |
 | `storeFolder(folder, projectFile)` / `resolveFolder(stored, projectFile)` | A folder as the project stores it: relative to the project's folder when it's inside it or at most one level up (`Exports`, `../Shared`), so moving the project together with it keeps it working; otherwise, on another drive, or with no project file, the full path. UTF-8 with forward slashes. And back to a full path for wherever the project is now. |
-| `describe(bytes)` | A readable listing: header, then each chunk's type, version, offset, size, CRC (`DAMAGED` when it doesn't match), and for objects the name and counts, for reference images the name, file, and size. |
+| `describe(bytes)` | A readable listing: header, then each chunk's type, version, offset, size, CRC (`DAMAGED` when it doesn't match), and for objects the name, counts, and material, for materials how many, for reference images the name, file, and size. |
 
 `ProjectFile::View` is the editor state saved with the scene (mode, headlight, tint, debug, panel, export folder). The app fills it from `AppContext` and applies it after opening (`captureView` / `applyView` in project_actions.cpp).
 

@@ -44,7 +44,11 @@ void main() {
     float blur = v_Shape.z;
     float mode = v_Shape.w;
 
-    if (mode > 1.5) {
+    if (mode > 2.5) {
+        // Images are premultiplied (a render target's edges were averaged with its clear color), so undo it
+        vec4 color = texture(u_Texture, v_UV);
+        FragColor = vec4(color.rgb / max(color.a, 1e-4), color.a * v_Fill.a);
+    } else if (mode > 1.5) {
         FragColor = shade(ringSliceDistance(v_Local, v_HalfSize.x, v_HalfSize.y, radius, blur), borderWidth);
     } else if (mode > 0.5) {
         FragColor = vec4(v_Fill.rgb, v_Fill.a * texture(u_Texture, v_UV).r);

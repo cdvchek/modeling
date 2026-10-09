@@ -109,8 +109,7 @@ void MeshData::setSlideWidth(const SlideSession& session, f32 width) {
     width = std::clamp(width, 0.0f, session.maxWidth);
 
     for (u32 i = 0; i < static_cast<u32>(session.vertices.size()); ++i) {
-        Vertex* vertex = m_vertices.tryGet(session.vertices[i]);
-        if (vertex) vertex->position = session.starts[i] + session.directions[i] * width;
+        positionVertex(session.vertices[i], session.starts[i] + session.directions[i] * width);
     }
 
     for (VertexHandle handle : session.vertices) {
@@ -122,6 +121,7 @@ void MeshData::cancelSlide(const SlideSession& session) {
     m_vertices = session.savedVertices;
     m_edges = session.savedEdges;
     m_faces = session.savedFaces;
+    markAllMoved();
 }
 
 bool MeshData::bevel(
@@ -455,9 +455,13 @@ bool MeshData::replaceFaces(
     std::map<u64, EdgeHandle> outside;
     std::vector<EdgeHandle> removed;
 
+    // Edge marks by their ends, so a rebuilt edge between the same two vertices keeps its mark
+    std::map<u64, EdgeMark> oldMarks;
+
     for (FaceHandle face : oldFaces) {
         for (EdgeHandle edge : getFaceEdges(face)) {
             removed.push_back(edge);
+            if (m_edges.get(edge).mark != EdgeMark::None) oldMarks[edgeKey(getEdgeOrigin(edge), getEdgeTip(edge))] = m_edges.get(edge).mark;
 
             const EdgeHandle pair = m_edges.get(edge).pair;
             if (!isOld(m_edges.get(pair).face)) {
@@ -466,18 +470,89 @@ bool MeshData::replaceFaces(
         }
     }
 
-    // 2. Remove the old faces and their half-edges.
+    // 2. Remove the old faces and their half-edges, keeping their materials and corner UVs for the new faces.
+    std::vector<MaterialHandle> oldMaterials;
+    for (FaceHandle face : oldFaces) oldMaterials.push_back(m_faces.get(face).material);
+    const MaterialHandle shared = sharedFaceMaterial(oldFaces);
+
+    struct OldCorner {
+        VertexHandle vertex;
+        Vec3 position;
+        Vec2 uv;
+    };
+    std::vector<std::vector<OldCorner>> oldCorners;
+    for (FaceHandle face : oldFaces) {
+        std::vector<OldCorner> corners;
+        for (EdgeHandle edge : getFaceEdges(face)) {
+            const Edge& half = m_edges.get(edge);
+            corners.push_back({ half.tip, m_vertices.get(half.tip).position, half.uv });
+        }
+        oldCorners.push_back(std::move(corners));
+    }
+
+    // A new corner's UV: the old corner at the same vertex, or at the same spot (copies are made where their
+    // originals are), in the face it came from first; failing that any old face; failing that the nearest corner
+    const auto findIn = [&](const std::vector<OldCorner>& corners, VertexHandle vertex, const Vec3& position, Vec2& uv) {
+        for (const OldCorner& corner : corners) {
+            if (corner.vertex == vertex) { uv = corner.uv; return true; }
+        }
+        for (const OldCorner& corner : corners) {
+            if (corner.position.x == position.x && corner.position.y == position.y && corner.position.z == position.z) { uv = corner.uv; return true; }
+        }
+        return false;
+    };
+    const auto cornerUV = [&](std::size_t reference, VertexHandle vertex) {
+        const Vec3 position = m_vertices.get(vertex).position;
+        Vec2 uv;
+        if (reference < oldCorners.size() && findIn(oldCorners[reference], vertex, position, uv)) return uv;
+        for (const std::vector<OldCorner>& corners : oldCorners) {
+            if (findIn(corners, vertex, position, uv)) return uv;
+        }
+        f32 best = std::numeric_limits<f32>::max();
+        for (const std::vector<OldCorner>& corners : oldCorners) {
+            for (const OldCorner& corner : corners) {
+                const f32 distance = (corner.position - position).length();
+                if (distance < best) {
+                    best = distance;
+                    uv = corner.uv;
+                }
+            }
+        }
+        return uv;
+    };
+    // The old face a new one shares the most corners with
+    const auto referenceFor = [&](const std::vector<VertexHandle>& loop) {
+        std::size_t best = 0;
+        u32 bestShared = 0;
+        for (std::size_t f = 0; f < oldCorners.size(); ++f) {
+            u32 sharedCorners = 0;
+            Vec2 unused;
+            for (VertexHandle vertex : loop) {
+                if (findIn(oldCorners[f], vertex, m_vertices.get(vertex).position, unused)) ++sharedCorners;
+            }
+            if (sharedCorners > bestShared) {
+                bestShared = sharedCorners;
+                best = f;
+            }
+        }
+        return best;
+    };
+
     for (EdgeHandle edge : removed) m_edges.remove(edge);
     for (FaceHandle face : oldFaces) m_faces.remove(face);
 
     // 3. Build each new face's loop.
     std::map<u64, EdgeHandle> created;
 
-    for (const std::vector<VertexHandle>& loop : newFaces) {
+    for (std::size_t n = 0; n < newFaces.size(); ++n) {
+        const std::vector<VertexHandle>& loop = newFaces[n];
         const u32 count = static_cast<u32>(loop.size());
         if (count < 3) return false;
 
-        const FaceHandle face = m_faces.insert(Face{});
+        Face newFace;
+        newFace.material = n < oldMaterials.size() ? oldMaterials[n] : shared;
+        const FaceHandle face = m_faces.insert(newFace);
+        const std::size_t reference = n < oldCorners.size() ? n : referenceFor(loop);
         if (createdFaces) createdFaces->push_back(face);
         std::vector<EdgeHandle> halves;
 
@@ -485,6 +560,7 @@ bool MeshData::replaceFaces(
             Edge edge;
             edge.tip = loop[(i + 1) % count];
             edge.face = face;
+            edge.uv = cornerUV(reference, edge.tip);
 
             const EdgeHandle handle = m_edges.insert(edge);
 
@@ -507,6 +583,8 @@ bool MeshData::replaceFaces(
 
     for (const auto& [key, handle] : created) {
         const u64 reverse = (key << 32) | (key >> 32);
+        const auto oldMark = oldMarks.find(key);
+        if (oldMark != oldMarks.end()) m_edges.get(handle).mark = oldMark->second;
 
         auto twin = created.find(reverse);
         if (twin != created.end()) {
@@ -518,6 +596,8 @@ bool MeshData::replaceFaces(
         if (outer != outside.end()) {
             m_edges.get(handle).pair = outer->second;
             m_edges.get(outer->second).pair = handle;
+            // The outside half was never removed, so it still holds the edge's mark
+            m_edges.get(handle).mark = m_edges.get(outer->second).mark;
             usedOutside.push_back(key);
             continue;
         }
@@ -527,6 +607,7 @@ bool MeshData::replaceFaces(
         Edge border;
         border.tip = m_edges.get(m_edges.get(handle).prev).tip;
         border.pair = handle;
+        border.mark = m_edges.get(handle).mark;
 
         m_edges.get(handle).pair = m_edges.insert(border);
         bordersChanged = true;

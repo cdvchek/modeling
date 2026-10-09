@@ -326,3 +326,58 @@ TEST_CASE(vlmobj_combine_places_children_without_skew) {
     // Scales multiply along the child's own axes
     CHECK(near(world.scale[0], 2.0f) && near(world.scale[1], 3.0f) && near(world.scale[2], 1.0f));
 }
+
+TEST_CASE(vlmobj_materials_round_trip_and_are_checked) {
+    Writer writer;
+    MaterialInput gold;
+    gold.name = "Gold";
+    gold.baseColor[0] = 1.0f;
+    gold.baseColor[1] = 0.77f;
+    gold.baseColor[2] = 0.34f;
+    gold.metallic = 1.0f;
+    gold.roughness = 0.25f;
+    gold.alphaMode = AlphaMode::Cutout;
+    gold.alphaCutoff = 0.4f;
+    gold.doubleSided = true;
+    const u32 material = writer.addMaterial(gold);
+
+    MeshInput mesh = quad();
+    mesh.parts = { { 0, 6, material } };
+    NodeInput node;
+    node.name = "Quad";
+    node.mesh = writer.addMesh(mesh);
+    writer.addNode(node);
+    std::vector<u8> bytes = writer.finish();
+
+    File file;
+    CHECK(file.open(bytes.data(), bytes.size()));
+    CHECK(file.materials().size() == 1);
+    const Material& stored = file.materials()[0];
+    CHECK(file.string(stored.name) == "Gold");
+    CHECK(stored.baseColor[1] == 0.77f && stored.metallic == 1.0f && stored.roughness == 0.25f);
+    CHECK(stored.alphaMode == static_cast<u8>(AlphaMode::Cutout) && stored.alphaCutoff == 0.4f);
+    CHECK(stored.flags == MATERIAL_DOUBLE_SIDED);
+    CHECK(file.parts()[0].material == 0);
+
+    // A part pointing past the materials, and an unknown alpha mode, are refused
+    Writer bad;
+    MeshInput badMesh = quad();
+    badMesh.parts = { { 0, 6, 3 } };
+    NodeInput badNode;
+    badNode.name = "Quad";
+    badNode.mesh = bad.addMesh(badMesh);
+    bad.addNode(badNode);
+    const std::vector<u8> badBytes = bad.finish();
+    File badFile;
+    CHECK(!badFile.open(badBytes.data(), badBytes.size()));
+    CHECK(std::string(badFile.error()).find("material") != std::string::npos);
+
+    const DirectoryEntry* section = file.find(Section::MATERIALS);
+    CHECK(section != nullptr);
+    bytes[section->offset + offsetof(Material, alphaMode)] = 7;
+    File modeFile;
+    ReadOptions noChecksums;
+    noChecksums.verifyChecksums = false;
+    CHECK(!modeFile.open(bytes.data(), bytes.size(), noChecksums));
+    CHECK(std::string(modeFile.error()).find("alpha mode") != std::string::npos);
+}

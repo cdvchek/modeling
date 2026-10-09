@@ -8,6 +8,10 @@ FaceHandle MeshData::insertFaceRing(FaceHandle handle) {
 
     if (count < 3) return INVALID_FACE;
 
+    // The face's UV at each old vertex: bottom[i] ends at oldVerts[i + 1], so it holds that corner's
+    std::vector<Vec2> cornerUV(count);
+    for (u32 i = 0; i < count; ++i) cornerUV[(i + 1) % count] = m_edges.get(bottom[i]).uv;
+
     std::vector<VertexHandle> oldVerts(count);
 
     for (u32 i = 0; i < count; ++i) {
@@ -45,13 +49,21 @@ FaceHandle MeshData::insertFaceRing(FaceHandle handle) {
         link(topTwin, down);
         link(down, bottom[i]);
 
-        const FaceHandle side = m_faces.insert(Face{});
+        // A side copies the UVs of the edge it grew from, both rows the same (a strip with no height to unwrap later)
+        m_edges.get(up[next]).uv = cornerUV[next];
+        m_edges.get(topTwin).uv = cornerUV[i];
+        m_edges.get(down).uv = cornerUV[i];
+
+        Face sideFace;
+        sideFace.material = m_faces.get(handle).material;
+        const FaceHandle side = m_faces.insert(sideFace);
         assignFace(bottom[i], side);
     }
 
-    // 5. Link the top loop and give it the original face.
+    // 5. Link the top loop and give it the original face, with its UVs.
     for (u32 i = 0; i < count; ++i) {
         link(top[i], top[(i + 1) % count]);
+        m_edges.get(top[i]).uv = cornerUV[(i + 1) % count];
     }
 
     assignFace(top[0], handle);
@@ -77,6 +89,12 @@ VertexHandle MeshData::splitEdge(EdgeHandle handle) {
     const EdgeHandle edgeNext = m_edges.get(handle).next;
     const EdgeHandle pairPrev = m_edges.get(pairHandle).prev;
 
+    // UVs on each side: the corners at either end of the edge, in that side's face
+    const Vec2 tipUV = m_edges.get(handle).uv;
+    const Vec2 originUV = isValidHandle(m_edges.get(handle).prev) ? m_edges.get(m_edges.get(handle).prev).uv : tipUV;
+    const Vec2 pairOriginUV = m_edges.get(pairHandle).uv;
+    const Vec2 pairTipUV = isValidHandle(pairPrev) ? m_edges.get(pairPrev).uv : pairOriginUV;
+
     // 1. Create the midpoint and the second half of the edge (mid -> tip, tip -> mid).
     const VertexHandle mid = addVertex((getVertexPosition(origin) + getVertexPosition(tip)) / 2);
     const EdgeHandle second = addEdgePair(mid, tip);
@@ -84,6 +102,13 @@ VertexHandle MeshData::splitEdge(EdgeHandle handle) {
 
     m_edges.get(second).face = m_edges.get(handle).face;
     m_edges.get(secondPair).face = m_edges.get(pairHandle).face;
+
+    // The new corner sits halfway along the edge on each side
+    m_edges.get(handle).uv = (originUV + tipUV) * 0.5f;
+    m_edges.get(second).uv = tipUV;
+    m_edges.get(secondPair).uv = (pairTipUV + pairOriginUV) * 0.5f;
+    // Both pieces keep the edge's mark
+    m_edges.get(second).mark = m_edges.get(secondPair).mark = m_edges.get(handle).mark;
 
     // 2. The original pair becomes origin -> mid / mid -> origin.
     m_edges.get(handle).tip = mid;
@@ -159,7 +184,7 @@ bool MeshData::removeFace(FaceHandle handle) {
     return true;
 }
 
-bool MeshData::fillFaceLoop(EdgeHandle handle) {
+bool MeshData::fillFaceLoop(EdgeHandle handle, const MaterialHandle* material, const std::unordered_map<u32, Vec2>* uvByVertex) {
     if (!isValidHandle(handle)) return false;
     Edge& edge = m_edges.get(handle);
 
@@ -188,8 +213,43 @@ bool MeshData::fillFaceLoop(EdgeHandle handle) {
         current = currentEdge.next;
     } while (current != start);
 
-    FaceHandle newFace = m_faces.insert(Face{start});
+    // The faces across the loop decide the new face's material, unless the caller already knows it
+    Face filled { start };
+    if (material) {
+        filled.material = *material;
+    } else {
+        std::vector<FaceHandle> neighbors;
+        current = start;
+        do {
+            const FaceHandle across = m_edges.get(m_edges.get(current).pair).face;
+            if (isValidHandle(across)) neighbors.push_back(across);
+            current = m_edges.get(current).next;
+        } while (current != start);
+        filled.material = sharedFaceMaterial(neighbors);
+    }
+
+    FaceHandle newFace = m_faces.insert(filled);
     assignFace(start, newFace);
+
+    // Each corner: the given UV for its vertex, or the one the face across the loop has there (in that face, the
+    // half-edge ending at this corner's vertex comes just before the pair)
+    current = start;
+    do {
+        Edge& edge = m_edges.get(current);
+        bool given = false;
+        if (uvByVertex) {
+            const auto found = uvByVertex->find(edge.tip.index);
+            if (found != uvByVertex->end()) {
+                edge.uv = found->second;
+                given = true;
+            }
+        }
+        if (!given) {
+            const Edge& pair = m_edges.get(edge.pair);
+            if (isValidHandle(pair.face) && isValidHandle(pair.prev)) edge.uv = m_edges.get(pair.prev).uv;
+        }
+        current = edge.next;
+    } while (current != start);
 
     return true;
 }
@@ -275,8 +335,12 @@ bool MeshData::connectVertices(VertexHandle a, VertexHandle b) {
 
     if (splittingFace && bPrev.face != face) return false;
 
-    // 6. Remove the old face before changing its loop.
-
+    // 6. Remove the old face before changing its loop; both halves keep its material and its corners' UVs.
+    const MaterialHandle material = splittingFace ? m_faces.get(face).material : INVALID_MATERIAL;
+    std::unordered_map<u32, Vec2> uvByVertex;
+    if (splittingFace) {
+        for (EdgeHandle edge : getFaceEdges(face)) uvByVertex[m_edges.get(edge).tip.index] = m_edges.get(edge).uv;
+    }
     if (splittingFace) if (!removeFace(face)) return false;
 
 
@@ -299,8 +363,8 @@ bool MeshData::connectVertices(VertexHandle a, VertexHandle b) {
 
     // 9. Recreate the two faces if we split a face
     if (splittingFace) {
-        if (!fillFaceLoop(newAH)) return false;
-        if (!fillFaceLoop(newBH)) return false;
+        if (!fillFaceLoop(newAH, &material, &uvByVertex)) return false;
+        if (!fillFaceLoop(newBH, &material, &uvByVertex)) return false;
     }
 
     return true;

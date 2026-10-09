@@ -5,6 +5,7 @@
 #include "core/containers/dynamic_array.hpp"
 #include "scene/transform.hpp"
 #include "scene/mesh/mesh_data.hpp"
+#include "scene/materials/material.hpp"
 
 using ObjectHandle = Handle<struct Object>;
 
@@ -14,6 +15,7 @@ struct Object {
     Transform transform;        // relative to the parent (the world, for a top-level object)
     MeshData meshData;
     ObjectHandle parent { INVALID_INDEX, 0 };
+    MaterialHandle material = INVALID_MATERIAL;     // not valid (none, or removed) means Default
 
     bool meshDirty = true;   // set after any change to meshData so the GPU copy is rebuilt
 };

@@ -31,6 +31,7 @@ namespace UIStyle {
     constexpr f32 SCROLLBAR_MIN_THUMB = 24.0f;
     constexpr f32 CHILD_PADDING = 4.0f;
     constexpr f32 TAB_PADDING = 14.0f;
+    constexpr f32 MIN_TAB_PADDING = 6.0f;
     constexpr f32 TAB_INSET = 5.0f;              // gap above and beside the tabs inside the header
     constexpr f32 TAB_UNDERLINE = 2.0f;
     constexpr f32 POPUP_PADDING = 4.0f;

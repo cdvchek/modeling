@@ -12,10 +12,7 @@
 #include <unordered_set>
 
 namespace {
-    constexpr u32 FLOATS_PER_VERTEX = 6;
-
-    // How far a face's corners may sit off its plane, relative to its size, and still count as flat
-    constexpr f32 PLANAR_TOLERANCE = 1e-5f;
+    constexpr u32 FLOATS_PER_VERTEX = 8;
 
     // A vertex compared bit for bit, so only exactly equal vertices merge
     struct VertexKey {
@@ -34,21 +31,6 @@ namespace {
     // -0 and 0 draw the same, so they shouldn't keep vertices apart
     f32 positiveZero(f32 value) {
         return value == 0.0f ? 0.0f : value;
-    }
-
-    bool isPlanar(const MeshData& mesh, FaceHandle face, const Vec3& normal) {
-        if (Vec3::dot(normal, normal) < 0.5f) return false;
-
-        const std::vector<VertexHandle> corners = mesh.getFaceVertices(face);
-        const Vec3 origin = mesh.getVertexPosition(corners[0]);
-
-        f32 size = 0.0f;
-        for (VertexHandle corner : corners) size = std::max(size, (mesh.getVertexPosition(corner) - origin).length());
-
-        for (VertexHandle corner : corners) {
-            if (std::fabs(Vec3::dot(mesh.getVertexPosition(corner) - origin, normal)) > PLANAR_TOLERANCE * size) return false;
-        }
-        return true;
     }
 
     u64 edgeKey(u32 origin, u32 tip) {
@@ -82,7 +64,8 @@ namespace {
         return true;
     }
 
-    bool buildMesh(const std::vector<Vec3>& positions, const std::vector<std::vector<u32>>& faces, MeshData& mesh, std::string& error) {
+    bool buildMesh(const std::vector<Vec3>& positions, const std::vector<std::vector<u32>>& faces, MeshData& mesh, std::string& error,
+                   const std::vector<std::vector<Vec2>>& faceUVs = {}, const std::vector<std::vector<EdgeMark>>& faceMarks = {}) {
         if (faces.empty()) {
             error = "the asset's mesh has no faces";
             return false;
@@ -93,7 +76,7 @@ namespace {
         }
 
         MeshData built;
-        built.setMesh(MeshFactory::fromPolygons(positions, faces));
+        built.setMesh(MeshFactory::fromPolygons(positions, faces, faceUVs, faceMarks));
         if (!built.validate()) {
             error = "the asset's mesh couldn't be rebuilt";
             return false;
@@ -106,8 +89,10 @@ namespace {
     // Without editable polygons: every triangle becomes a face, joined where corners share a position exactly
     bool weldTriangles(const vlmobj::File& file, const vlmobj::Mesh& mesh, MeshData& out, std::string& error) {
         const vlmobj::VertexAttribute* position = nullptr;
+        const vlmobj::VertexAttribute* uv = nullptr;
         for (u32 a = 0; a < mesh.attributeCount; ++a) {
             if (mesh.attributes[a].semantic == static_cast<u8>(vlmobj::Semantic::Position)) position = &mesh.attributes[a];
+            if (mesh.attributes[a].semantic == static_cast<u8>(vlmobj::Semantic::UV0) && mesh.attributes[a].format == static_cast<u8>(vlmobj::Format::F32x2)) uv = &mesh.attributes[a];
         }
         if (!position || position->format != static_cast<u8>(vlmobj::Format::F32x3)) {
             error = "the asset's mesh has no positions Valuma can read";
@@ -147,7 +132,15 @@ namespace {
             return value;
         };
 
+        // Each triangle corner keeps the UV of the vertex it came from
+        const auto uvOf = [&](u32 v) {
+            f32 value[2] = { 0.0f, 0.0f };
+            if (uv) std::memcpy(value, vertexData + std::size_t(v) * mesh.vertexStride + uv->offset, sizeof(value));
+            return Vec2(value[0], value[1]);
+        };
+
         std::vector<std::vector<u32>> faces;
+        std::vector<std::vector<Vec2>> faceUVs;
         for (u32 k = 0; k + 2 < mesh.indexCount; k += 3) {
             const u32 a = welded[index(k)];
             const u32 b = welded[index(k + 1)];
@@ -155,9 +148,10 @@ namespace {
             // Triangles that collapse to a line or point once joined have no area to keep
             if (a == b || b == c || a == c) continue;
             faces.push_back({ a, b, c });
+            faceUVs.push_back({ uvOf(index(k)), uvOf(index(k + 1)), uvOf(index(k + 2)) });
         }
 
-        return buildMesh(positions, faces, out, error);
+        return buildMesh(positions, faces, out, error, faceUVs);
     }
 
     std::string displayName(const std::filesystem::path& path) {
@@ -199,40 +193,41 @@ Vec3 AssetFile::quaternionToEuler(const f32 q[4]) {
     return Vec3(std::atan2(r21, r22), pitch, std::atan2(r10, r00));
 }
 
-AssetFile::BakedMesh AssetFile::bake(const MeshData& mesh) {
+AssetFile::BakedMesh AssetFile::bake(const MeshData& mesh, const FaceGroupOf& groupOf) {
     BakedMesh baked;
     std::unordered_map<VertexKey, u32, VertexKeyHash> shared;
 
+    // Faces in group order (no material of their own first), keeping mesh order within a group
+    std::vector<std::pair<MaterialHandle, FaceHandle>> faces;
     for (FaceHandle face : mesh.getFaceHandles()) {
-        const Vec3 faceNormal = mesh.getFaceNormal(face);
-        const bool planar = isPlanar(mesh, face, faceNormal);
+        const MaterialHandle own = mesh.getFaceMaterial(face);
+        faces.push_back({ groupOf ? groupOf(own) : own, face });
+    }
+    const auto key = [](MaterialHandle handle) {
+        return handle.isNull() ? 0ull : (static_cast<u64>(handle.index) << 32 | handle.generation) + 1;
+    };
+    std::stable_sort(faces.begin(), faces.end(), [&](const auto& a, const auto& b) { return key(a.first) < key(b.first); });
+    std::vector<f32> corners;
 
-        for (const Triangle& triangle : mesh.getFaceTriangles(face)) {
-            const Vec3 corners[3] = {
-                mesh.getVertexPosition(triangle.v0), mesh.getVertexPosition(triangle.v1), mesh.getVertexPosition(triangle.v2)
-            };
+    for (const auto& [group, face] : faces) {
+        if (baked.parts.empty() || !(baked.parts.back().material == group)) {
+            baked.parts.push_back({ group, static_cast<u32>(baked.indices.size()), 0 });
+        }
 
-            // Same normal the viewport draws: the triangle's own unless the face is flat (then exactly equal across it)
-            Vec3 normal = faceNormal;
-            if (!planar) {
-                const Vec3 cross = Vec3::cross(corners[1] - corners[0], corners[2] - corners[0]);
-                const f32 length = cross.length();
-                if (length > Math::EPSILON) normal = cross / length;
-            }
+        // The same corners the viewport draws: position, normal (flat or smooth), UV
+        corners.clear();
+        mesh.appendFaceCorners(face, corners);
+        for (std::size_t at = 0; at + FLOATS_PER_VERTEX <= corners.size(); at += FLOATS_PER_VERTEX) {
+            f32 values[FLOATS_PER_VERTEX];
+            for (u32 k = 0; k < FLOATS_PER_VERTEX; ++k) values[k] = positiveZero(corners[at + k]);
 
-            for (const Vec3& corner : corners) {
-                const f32 values[FLOATS_PER_VERTEX] = {
-                    positiveZero(corner.x), positiveZero(corner.y), positiveZero(corner.z),
-                    positiveZero(normal.x), positiveZero(normal.y), positiveZero(normal.z)
-                };
+            VertexKey vertexKey;
+            std::memcpy(vertexKey.bits, values, sizeof(values));
 
-                VertexKey key;
-                std::memcpy(key.bits, values, sizeof(values));
-
-                auto [it, added] = shared.emplace(key, static_cast<u32>(baked.vertices.size() / FLOATS_PER_VERTEX));
-                if (added) baked.vertices.insert(baked.vertices.end(), std::begin(values), std::end(values));
-                baked.indices.push_back(it->second);
-            }
+            auto [it, added] = shared.emplace(vertexKey, static_cast<u32>(baked.vertices.size() / FLOATS_PER_VERTEX));
+            if (added) baked.vertices.insert(baked.vertices.end(), std::begin(values), std::end(values));
+            baked.indices.push_back(it->second);
+            ++baked.parts.back().indexCount;
         }
     }
 
@@ -259,17 +254,75 @@ namespace {
             const std::vector<VertexHandle> corners = mesh.getFaceVertices(face);
             editMesh.faceSizes.push_back(static_cast<u32>(corners.size()));
             for (VertexHandle corner : corners) editMesh.corners.push_back(vertexIndex.at(corner.index));
+            for (const Vec2& uv : mesh.getFaceUVs(face)) editMesh.uvs.insert(editMesh.uvs.end(), { uv.x, uv.y });
+            for (EdgeMark mark : mesh.getFaceEdgeMarks(face)) editMesh.edgeMarks.push_back(static_cast<u8>(mark));
         }
+        editMesh.shading = static_cast<u32>(mesh.getShading());
+        editMesh.smoothAngle = mesh.getSmoothAngle();
+        // No marks anywhere writes none
+        if (!mesh.hasEdgeMarks()) editMesh.edgeMarks.clear();
         return editMesh;
     }
 
-    std::vector<u8> writeNodes(const std::vector<ExportNode>& nodes) {
+    vlmobj::MaterialInput materialInput(const Material& material) {
+        vlmobj::MaterialInput input;
+        input.name = material.name;
+        input.baseColor[0] = material.baseColor.x;
+        input.baseColor[1] = material.baseColor.y;
+        input.baseColor[2] = material.baseColor.z;
+        input.roughness = material.roughness;
+        input.metallic = material.metallic;
+        input.emissiveColor[0] = material.emissiveColor.x;
+        input.emissiveColor[1] = material.emissiveColor.y;
+        input.emissiveColor[2] = material.emissiveColor.z;
+        input.emissiveStrength = material.emissiveStrength;
+        input.opacity = material.opacity;
+        input.alphaCutoff = material.alphaCutoff;
+        input.alphaMode = static_cast<vlmobj::AlphaMode>(material.alphaMode);
+        input.doubleSided = material.doubleSided;
+        return input;
+    }
+
+    Material materialFrom(const vlmobj::File& file, const vlmobj::Material& stored) {
+        Material material;
+        material.name = std::string(file.string(stored.name));
+        if (material.name.empty()) material.name = "Material";
+        material.baseColor = Vec3(stored.baseColor[0], stored.baseColor[1], stored.baseColor[2]);
+        material.roughness = stored.roughness;
+        material.metallic = stored.metallic;
+        material.emissiveColor = Vec3(stored.emissiveColor[0], stored.emissiveColor[1], stored.emissiveColor[2]);
+        material.emissiveStrength = stored.emissiveStrength;
+        material.opacity = stored.opacity;
+        material.alphaCutoff = stored.alphaCutoff;
+        material.alphaMode = static_cast<AlphaMode>(stored.alphaMode);
+        material.doubleSided = (stored.flags & vlmobj::MATERIAL_DOUBLE_SIDED) != 0;
+        return material;
+    }
+
+    std::vector<u8> writeNodes(const std::vector<ExportNode>& nodes, const MaterialCollection& materials) {
         vlmobj::Writer writer;
         vlmobj::EditData edit;
 
-        for (const ExportNode& exported : nodes) {
+        // Only the materials these objects and their faces use, in the order they're first used
+        std::vector<MaterialHandle> used;
+        const auto materialIndex = [&](MaterialHandle material) {
+            u32 index = 0;
+            while (index < used.size() && used[index] != material) ++index;
+            if (index == used.size()) {
+                used.push_back(material);
+                writer.addMaterial(materialInput(materials.get(material)));
+            }
+            return index;
+        };
+
+        // A face's own material counts while it exists; otherwise the face uses its object's
+        const FaceGroupOf groupOf = [&materials](MaterialHandle own) { return materials.isValid(own) ? own : INVALID_MATERIAL; };
+
+        for (std::size_t n = 0; n < nodes.size(); ++n) {
+            const ExportNode& exported = nodes[n];
             const Object& object = *exported.object;
-            const AssetFile::BakedMesh baked = AssetFile::bake(object.meshData);
+            const AssetFile::BakedMesh baked = AssetFile::bake(object.meshData, groupOf);
+            const u32 objectMaterial = materialIndex(materials.resolve(object.material));
 
             vlmobj::MeshInput meshInput;
             meshInput.name = object.name;
@@ -277,10 +330,16 @@ namespace {
             meshInput.attributes = {
                 { static_cast<u8>(vlmobj::Semantic::Position), static_cast<u8>(vlmobj::Format::F32x3), 0, 0 },
                 { static_cast<u8>(vlmobj::Semantic::Normal), static_cast<u8>(vlmobj::Format::F32x3), 0, 12 },
+                { static_cast<u8>(vlmobj::Semantic::UV0), static_cast<u8>(vlmobj::Format::F32x2), 0, 24 },
             };
             meshInput.vertices.resize(baked.vertices.size() * sizeof(f32));
             std::memcpy(meshInput.vertices.data(), baked.vertices.data(), meshInput.vertices.size());
             meshInput.indices = baked.indices;
+            // One part per material: a face group without its own material draws in the object's
+            for (const AssetFile::BakedPart& part : baked.parts) {
+                const u32 material = part.material.isNull() ? objectMaterial : materialIndex(part.material);
+                meshInput.parts.push_back({ part.firstIndex, part.indexCount, material });
+            }
 
             const Transform& transform = exported.transform;
             vlmobj::NodeInput node;
@@ -298,7 +357,16 @@ namespace {
 
             // Editable polygons: vertices in mesh order, faces as corner lists; and the exact angles
             edit.eulerRotations.insert(edit.eulerRotations.end(), { transform.rotation.x, transform.rotation.y, transform.rotation.z });
-            edit.meshes.push_back(editablePolygons(object.meshData));
+            vlmobj::EditMesh editMesh = editablePolygons(object.meshData);
+            editMesh.material = objectMaterial;
+            const std::vector<FaceHandle> faces = object.meshData.getFaceHandles();
+            for (std::size_t f = 0; f < faces.size(); ++f) {
+                const MaterialHandle own = object.meshData.getFaceMaterial(faces[f]);
+                if (!materials.isValid(own)) continue;
+                if (editMesh.faceMaterials.empty()) editMesh.faceMaterials.assign(faces.size(), vlmobj::NONE);
+                editMesh.faceMaterials[f] = materialIndex(own);
+            }
+            edit.meshes.push_back(std::move(editMesh));
         }
 
         writer.setEditData(std::move(edit));
@@ -338,24 +406,41 @@ namespace {
             }
 
             std::vector<std::vector<u32>> faces;
+            std::vector<std::vector<Vec2>> faceUVs;
+            std::vector<std::vector<EdgeMark>> faceMarks;
             faces.reserve(editMesh.faceSizes.size());
+            const bool hasUVs = editMesh.uvs.size() == editMesh.corners.size() * 2;
+            const bool hasMarks = editMesh.edgeMarks.size() == editMesh.corners.size();
             std::size_t at = 0;
             for (u32 sides : editMesh.faceSizes) {
                 faces.emplace_back(editMesh.corners.begin() + at, editMesh.corners.begin() + at + sides);
+                if (hasUVs) {
+                    std::vector<Vec2> corners;
+                    for (std::size_t k = at; k < at + sides; ++k) corners.push_back(Vec2(editMesh.uvs[k * 2], editMesh.uvs[k * 2 + 1]));
+                    faceUVs.push_back(std::move(corners));
+                }
+                if (hasMarks) {
+                    std::vector<EdgeMark> marks;
+                    for (std::size_t k = at; k < at + sides; ++k) marks.push_back(static_cast<EdgeMark>(editMesh.edgeMarks[k]));
+                    faceMarks.push_back(std::move(marks));
+                }
                 at += sides;
             }
-            return buildMesh(positions, faces, result.meshData, error);
+            if (!buildMesh(positions, faces, result.meshData, error, faceUVs, faceMarks)) return false;
+            result.meshData.setShading(static_cast<ShadingMode>(editMesh.shading));
+            result.meshData.setSmoothAngle(editMesh.smoothAngle);
+            return true;
         }
 
         return weldTriangles(file, file.meshes()[node.mesh], result.meshData, error);
     }
 }
 
-std::vector<u8> AssetFile::write(const Object& object) {
-    return writeNodes({ { &object, vlmobj::NONE, pivotTransform(object.transform) } });
+std::vector<u8> AssetFile::write(const Object& object, const MaterialCollection& materials) {
+    return writeNodes({ { &object, vlmobj::NONE, pivotTransform(object.transform) } }, materials);
 }
 
-std::vector<u8> AssetFile::write(const ObjectCollection& objects, ObjectHandle root) {
+std::vector<u8> AssetFile::write(const ObjectCollection& objects, ObjectHandle root, const MaterialCollection& materials) {
     // The root and every object under it, parents first; each child keeps its transform relative to its parent
     std::vector<ExportNode> nodes;
     std::vector<ObjectHandle> handles;
@@ -369,10 +454,15 @@ std::vector<u8> AssetFile::write(const ObjectCollection& objects, ObjectHandle r
         }
     }
 
-    return writeNodes(nodes);
+    return writeNodes(nodes, materials);
 }
 
 bool AssetFile::read(const std::vector<u8>& bytes, std::vector<ImportedObject>& out, std::string& error) {
+    std::vector<Material> materials;
+    return read(bytes, out, materials, error);
+}
+
+bool AssetFile::read(const std::vector<u8>& bytes, std::vector<ImportedObject>& out, std::vector<Material>& materialsOut, std::string& error) {
     vlmobj::File file;
     if (!file.open(bytes.data(), bytes.size())) {
         error = file.error();
@@ -386,7 +476,20 @@ bool AssetFile::read(const std::vector<u8>& bytes, std::vector<ImportedObject>& 
     for (u32 i = 0; i < result.size(); ++i) {
         if (!readNode(file, hasEdit ? &edit : nullptr, i, result[i].object, error)) return false;
         result[i].parent = file.nodes()[i].parent;
+
+        // The object's material and its faces' own come from the editable polygons when Valuma wrote them;
+        // otherwise the mesh's first part says the object's material
+        const u32 mesh = file.nodes()[i].mesh;
+        if (hasEdit && mesh != vlmobj::NONE && edit.meshes[mesh].material != vlmobj::NONE) {
+            result[i].material = edit.meshes[mesh].material;
+            result[i].faceMaterials = edit.meshes[mesh].faceMaterials;
+        } else if (mesh != vlmobj::NONE && file.meshes()[mesh].partCount > 0) {
+            result[i].material = file.parts()[file.meshes()[mesh].firstPart].material;
+        }
     }
+
+    std::vector<Material> materials;
+    for (const vlmobj::Material& stored : file.materials()) materials.push_back(materialFrom(file, stored));
 
     if (result.empty() || file.nodes()[0].mesh == vlmobj::NONE) {
         error = "the asset has no mesh";
@@ -394,6 +497,7 @@ bool AssetFile::read(const std::vector<u8>& bytes, std::vector<ImportedObject>& 
     }
 
     out = std::move(result);
+    materialsOut = std::move(materials);
     return true;
 }
 
@@ -404,8 +508,8 @@ bool AssetFile::read(const std::vector<u8>& bytes, Object& object, std::string& 
     return true;
 }
 
-bool AssetFile::save(const std::filesystem::path& path, const ObjectCollection& objects, ObjectHandle root, std::string& error) {
-    return saveBytes(path, write(objects, root), error);
+bool AssetFile::save(const std::filesystem::path& path, const ObjectCollection& objects, ObjectHandle root, const MaterialCollection& materials, std::string& error) {
+    return saveBytes(path, write(objects, root, materials), error);
 }
 
 bool AssetFile::save(const std::filesystem::path& path, const Object& object, std::string& error) {
@@ -447,6 +551,11 @@ bool saveBytes(const std::filesystem::path& path, const std::vector<u8>& bytes, 
 }
 
 bool AssetFile::load(const std::filesystem::path& path, std::vector<ImportedObject>& objects, std::string& error) {
+    std::vector<Material> materials;
+    return load(path, objects, materials, error);
+}
+
+bool AssetFile::load(const std::filesystem::path& path, std::vector<ImportedObject>& objects, std::vector<Material>& materials, std::string& error) {
     std::error_code code;
     const std::uintmax_t size = std::filesystem::file_size(path, code);
     if (code) {
@@ -461,7 +570,7 @@ bool AssetFile::load(const std::filesystem::path& path, std::vector<ImportedObje
         return false;
     }
 
-    return read(bytes, objects, error);
+    return read(bytes, objects, materials, error);
 }
 
 bool AssetFile::load(const std::filesystem::path& path, Object& object, std::string& error) {

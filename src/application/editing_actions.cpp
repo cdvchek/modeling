@@ -415,3 +415,11 @@ void toggleHeadlight(AppContext& ctx) {
 void toggleDebugView(AppContext& ctx) {
     ctx.systems.input_ctx.toggleContext(InputContext_Debug);
 }
+
+void toggleMaterials(AppContext& ctx) {
+    ctx.viewport.showMaterials = !ctx.viewport.showMaterials;
+}
+
+void toggleUVChecker(AppContext& ctx) {
+    ctx.viewport.showUVChecker = !ctx.viewport.showUVChecker;
+}

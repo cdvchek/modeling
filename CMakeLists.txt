@@ -46,9 +46,11 @@ set(CORE_SRC
     src/scene/mesh/mesh_data_region.cpp
     src/scene/mesh/mesh_data_validate.cpp
     src/scene/mesh/mesh_data_gpu.cpp
+    src/scene/mesh/mesh_data_shading.cpp
     src/scene/mesh/mesh_data_serialize.cpp
     src/scene/lights/light_collection.cpp
     src/scene/references/reference_collection.cpp
+    src/scene/materials/material_collection.cpp
     src/scene/objects/object_collection.cpp
     src/scene/objects/origin.cpp
     src/scene/selection/selection.cpp
@@ -77,6 +79,10 @@ set(APP_SRC
     src/application/radial_menu.cpp
     src/application/reference_images.cpp
     src/application/reference_commands.cpp
+    src/application/material_view.cpp
+    src/application/material_commands.cpp
+    src/application/shading_commands.cpp
+    src/application/stats_overlay.cpp
     src/application/console_view.cpp
     src/application/tool_guides.cpp
     src/application/application_commands.cpp
@@ -103,6 +109,7 @@ set(APP_SRC
     src/renderer/opengl/opengl_font.cpp
     src/renderer/opengl/opengl_mesh.cpp
     src/renderer/opengl/opengl_renderer_common.cpp
+    src/renderer/opengl/opengl_material_preview.cpp
     src/renderer/opengl/opengl_ui_renderer.cpp
     src/renderer/opengl/shaders/opengl_shader.cpp
     src/renderer/opengl/shaders/opengl_shader_library.cpp

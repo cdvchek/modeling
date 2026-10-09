@@ -4,6 +4,7 @@
 #include "application/asset_actions.hpp"
 #include "application/modal_windows.hpp"
 #include "application/origin_actions.hpp"
+#include "application/shading_commands.hpp"
 #include "application/action_checks/action_checks.hpp"
 
 void Application::registerDefaultActions(AppContext& ctx) {
@@ -108,6 +109,16 @@ void Application::registerDefaultActions(AppContext& ctx) {
     actions.setHandler(Action::ParentToActive, { "Parent", [&ctx] { return canParentToActive(ctx); }, [&ctx] { parentToActive(ctx); } });
     actions.setHandler(Action::ClearParents, { "Unparent", [&ctx] { return canClearParents(ctx); }, [&ctx] { clearParents(ctx); } });
     actions.setHandler(Action::ToggleOrigins, { "Origins", always, [&ctx] { toggleOrigins(ctx); } });
+    actions.setHandler(Action::ToggleMaterials, { "Materials", always, [&ctx] { toggleMaterials(ctx); } });
+    actions.setHandler(Action::ToggleUVChecker, { "UV checker", always, [&ctx] { toggleUVChecker(ctx); } });
+    auto shading = [&ctx] { return canSetShading(ctx); };
+    actions.setHandler(Action::ShadeFlat, { "Flat", shading, [&ctx] { setShading(ctx, ShadingMode::Flat); } });
+    actions.setHandler(Action::ShadeSmooth, { "Smooth", shading, [&ctx] { setShading(ctx, ShadingMode::Smooth); } });
+    actions.setHandler(Action::ShadeAuto, { "Auto smooth", shading, [&ctx] { setShading(ctx, ShadingMode::Auto); } });
+    auto marking = [&ctx] { return canMarkEdges(ctx); };
+    actions.setHandler(Action::MarkHard, { "Mark hard", marking, [&ctx] { markSelectedEdges(ctx, EdgeMark::Hard); } });
+    actions.setHandler(Action::MarkSmooth, { "Mark smooth", marking, [&ctx] { markSelectedEdges(ctx, EdgeMark::Smooth); } });
+    actions.setHandler(Action::ClearEdgeMark, { "Clear mark", marking, [&ctx] { markSelectedEdges(ctx, EdgeMark::None); } });
 
     actions.setHandler(Action::ModalConfirm, { "OK", always, [&ctx] { confirmModal(ctx); } });
     actions.setHandler(Action::ModalCancel, { "Cancel", always, [&ctx] { cancelModal(ctx); } });

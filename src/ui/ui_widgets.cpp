@@ -19,6 +19,12 @@ namespace {
         return { rgb.x, rgb.y, rgb.z, 1.0f };
     }
 
+    constexpr f32 PICKER_HEIGHT = 120.0f;
+    // Icons in rows: inset from the row's top and bottom, then a gap before the label
+    constexpr f32 ICON_INSET = 2.0f;
+    constexpr f32 ICON_GAP = 6.0f;
+    constexpr f32 HUE_STRIP_WIDTH = 16.0f;
+
     // Under this much mouse movement, pressing and releasing a drag field is a click
     constexpr f32 DRAG_THRESHOLD = 3.0f;
     // Space between an X/Y/Z box's edge and its letter or value
@@ -193,7 +199,8 @@ bool UIContext::segmentedControl(std::string_view id, const Rect& controlRect, i
     return changed;
 }
 
-bool UIContext::dropdown(std::string_view label, const Rect& rect, i32& index, const std::vector<std::string_view>& options) {
+bool UIContext::dropdown(std::string_view label, const Rect& rect, i32& index, const std::vector<std::string_view>& options,
+                         const std::vector<u32>& icons) {
     const UIId id = makeId(label);
     const bool ownsPopup = m_popup.open && m_popup.owner == id;
     if (ownsPopup) m_popupOwnerSeen = true;
@@ -213,7 +220,7 @@ bool UIContext::dropdown(std::string_view label, const Rect& rect, i32& index, c
         if (m_popup.open && m_popup.owner == id) {
             m_popup.open = false;
         } else {
-            m_popup = { true, id, rect, std::vector<std::string>(options.begin(), options.end()), index, -1 };
+            m_popup = { true, id, rect, std::vector<std::string>(options.begin(), options.end()), icons, index, -1 };
             m_popupOwnerSeen = true;
         }
     }
@@ -221,9 +228,12 @@ bool UIContext::dropdown(std::string_view label, const Rect& rect, i32& index, c
     const bool open = m_popup.open && m_popup.owner == id;
     m_drawList->roundedRect(rect, UIStyle::CORNER_RADIUS, frameColor(interaction.hovered || open, interaction.held), open ? UIStyle::ACCENT : UIStyle::FRAME_BORDER, 1.0f);
 
-    const std::string_view text = index >= 0 && index < static_cast<i32>(options.size()) ? options[index] : std::string_view();
+    const bool valid = index >= 0 && index < static_cast<i32>(options.size());
+    const std::string_view text = valid ? options[index] : std::string_view();
+    const u32 icon = valid && index < static_cast<i32>(icons.size()) ? icons[index] : 0;
+    const f32 textLeft = rect.x + UIStyle::TEXT_PADDING + (icon != 0 ? drawIcon(rect, icon) : 0.0f);
     m_drawList->pushClip({ rect.x, rect.y, rect.width - 18.0f, rect.height });
-    drawLabelText({ rect.x + UIStyle::TEXT_PADDING, rect.y, rect.width, rect.height }, text, UIStyle::TEXT);
+    drawLabelText({ textLeft, rect.y, rect.right() - textLeft, rect.height }, text, UIStyle::TEXT);
     m_drawList->popClip();
 
     // Small chevron on the right
@@ -235,7 +245,13 @@ bool UIContext::dropdown(std::string_view label, const Rect& rect, i32& index, c
     return changed;
 }
 
-bool UIContext::selectable(std::string_view label, bool selected, std::string_view detail) {
+f32 UIContext::drawIcon(const Rect& row, u32 icon) {
+    const f32 size = row.height - ICON_INSET * 2.0f;
+    m_drawList->image({ row.x + UIStyle::TEXT_PADDING, row.y + ICON_INSET, size, size }, icon);
+    return size + ICON_GAP;
+}
+
+bool UIContext::selectable(std::string_view label, bool selected, std::string_view detail, u32 icon) {
     const Rect row = nextRow();
     const Interaction interaction = interact(makeId(label), row);
 
@@ -247,9 +263,10 @@ bool UIContext::selectable(std::string_view label, bool selected, std::string_vi
     }
 
     // The name gets whatever the detail leaves, and is shortened with "..." rather than running into it
+    const f32 iconWidth = icon != 0 ? drawIcon(row, icon) : 0.0f;
     const f32 detailWidth = detail.empty() ? 0.0f : measureText(m_font, detail).x + UIStyle::TEXT_PADDING;
-    const f32 labelRoom = row.width - UIStyle::TEXT_PADDING * 2.0f - detailWidth;
-    drawLabelText({ row.x + UIStyle::TEXT_PADDING, row.y, labelRoom, row.height }, fitText(m_font, label, labelRoom), UIStyle::TEXT);
+    const f32 labelRoom = row.width - UIStyle::TEXT_PADDING * 2.0f - detailWidth - iconWidth;
+    drawLabelText({ row.x + UIStyle::TEXT_PADDING + iconWidth, row.y, labelRoom, row.height }, fitText(m_font, label, labelRoom), UIStyle::TEXT);
 
     if (!detail.empty()) {
         const f32 width = detailWidth - UIStyle::TEXT_PADDING;
@@ -496,47 +513,133 @@ bool UIContext::colorEdit(std::string_view label, Vec3& color) {
 
     drawLabelText(labelRect, fitText(m_font, label, labelRect.width - LABEL_GAP), UIStyle::TEXT_DIM);
 
-    // Clicking the swatch shows or hides the RGB sliders under it
+    // Clicking the swatch opens or closes the picker under it; it remembers the color it opened with
     const Interaction swatch = interact(id, controlRect);
     if (swatch.clicked) {
-        if (m_openWidgets.count(id)) m_openWidgets.erase(id);
-        else m_openWidgets.insert(id);
+        if (m_colorPickers.count(id)) {
+            m_colorPickers.erase(id);
+        } else {
+            ColorPicker picker;
+            picker.opened = color;
+            rgbToHsv(color, picker.hue, picker.saturation, picker.value);
+            m_colorPickers[id] = picker;
+        }
     }
 
-    const bool open = m_openWidgets.count(id) > 0;
-    m_drawList->roundedRect(controlRect, UIStyle::CORNER_RADIUS, toColor(color), swatch.hovered || open ? UIStyle::ACCENT : UIStyle::FRAME_BORDER, 1.0f);
+    const auto found = m_colorPickers.find(id);
+    const bool open = found != m_colorPickers.end();
+    const Color border = swatch.hovered || open ? UIStyle::ACCENT : UIStyle::FRAME_BORDER;
+
+    // While open, the left half shows the color it had when opened, so a change can be compared
+    const bool split = open && !(found->second.opened.x == color.x && found->second.opened.y == color.y && found->second.opened.z == color.z);
+    if (split) {
+        const f32 half = std::floor(controlRect.width * 0.5f);
+        m_drawList->roundedRect(controlRect, UIStyle::CORNER_RADIUS, toColor(color), border, 1.0f);
+        m_drawList->pushClip({ controlRect.x, controlRect.y, half, controlRect.height });
+        m_drawList->roundedRect(controlRect, UIStyle::CORNER_RADIUS, toColor(found->second.opened), border, 1.0f);
+        m_drawList->popClip();
+    } else {
+        m_drawList->roundedRect(controlRect, UIStyle::CORNER_RADIUS, toColor(color), border, 1.0f);
+    }
 
     Interaction combined = swatch;
     bool changed = false;
 
+    // The parts below report their own interactions; they're folded into this one item, so a whole drag or one
+    // typed value is a single edit
+    const auto absorb = [&](bool partChanged) {
+        changed |= partChanged;
+        combined.activated |= m_last.activated;
+        combined.deactivated |= m_last.deactivated;
+        combined.hovered |= m_last.hovered;
+    };
+
     if (open) {
-        const Color channelColors[3] = { UIStyle::AXIS_X, UIStyle::AXIS_Y, UIStyle::AXIS_Z };
-        const char* channelNames[3] = { "R", "G", "B" };
-        f32* channels[3] = { &color.x, &color.y, &color.z };
+        ColorPicker& picker = found->second;
+
+        // Typed or picked elsewhere since last frame (undo, another field): follow it, keeping the hue of grays
+        f32 hue = 0.0f, saturation = 0.0f, value = 0.0f;
+        rgbToHsv(color, hue, saturation, value);
+        if (!(std::abs(hsvToRgb(picker.hue, picker.saturation, picker.value).x - color.x) < 1e-4f
+              && std::abs(hsvToRgb(picker.hue, picker.saturation, picker.value).y - color.y) < 1e-4f
+              && std::abs(hsvToRgb(picker.hue, picker.saturation, picker.value).z - color.z) < 1e-4f)) {
+            if (saturation > 0.0f && value > 0.0f) picker.hue = hue;
+            if (value > 0.0f) picker.saturation = saturation;
+            picker.value = value;
+        }
 
         pushId(label);
-        for (u32 i = 0; i < 3; ++i) {
-            const Rect channelRow = nextRow();
-            Rect channelLabel;
-            Rect channelControl;
-            splitLabeledRow(channelRow, channelLabel, channelControl);
 
-            drawLabelText({ channelControl.x - m_font.glyphWidth - 6.0f, channelRow.y, m_font.glyphWidth, channelRow.height }, channelNames[i], channelColors[i]);
+        // Saturation (left to right) and value (top to bottom) square, with the hue strip to its right
+        const Rect area = nextRow(PICKER_HEIGHT);
+        const Rect square { controlRect.x, area.y, controlRect.width - HUE_STRIP_WIDTH - UIStyle::COMPONENT_GAP, area.height };
+        const Rect strip { square.right() + UIStyle::COMPONENT_GAP, area.y, HUE_STRIP_WIDTH, area.height };
 
-            Color fill = channelColors[i];
-            fill.a = 0.45f;
-
-            Interaction interaction;
-            changed |= sliderControl(makeId(channelNames[i]), channelControl, *channels[i], 0.0f, 1.0f, "%.2f", &fill, interaction);
-
-            combined.activated |= interaction.activated;
-            combined.held |= interaction.held;
-            combined.deactivated |= interaction.deactivated;
+        const Interaction squareInteraction = interact(makeId("square"), square);
+        if (squareInteraction.held) {
+            picker.saturation = std::clamp((m_input.mouse.x - square.x) / square.width, 0.0f, 1.0f);
+            picker.value = 1.0f - std::clamp((m_input.mouse.y - square.y) / square.height, 0.0f, 1.0f);
         }
+        const Interaction stripInteraction = interact(makeId("hue"), strip);
+        if (stripInteraction.held) picker.hue = std::clamp((m_input.mouse.y - strip.y) / strip.height, 0.0f, 1.0f);
+
+        if (squareInteraction.held || stripInteraction.held) {
+            const Vec3 picked = hsvToRgb(picker.hue, picker.saturation, picker.value);
+            if (picked.x != color.x || picked.y != color.y || picked.z != color.z) {
+                color = picked;
+                changed = true;
+            }
+        }
+        for (const Interaction& part : { squareInteraction, stripInteraction }) {
+            combined.activated |= part.activated;
+            combined.held |= part.held;
+            combined.deactivated |= part.deactivated;
+        }
+
+        const Vec3 pure = hsvToRgb(picker.hue, 1.0f, 1.0f);
+        m_drawList->gradientRect(square, { 1, 1, 1, 1 }, toColor(pure), toColor(pure), { 1, 1, 1, 1 });
+        m_drawList->gradientRect(square, { 0, 0, 0, 0 }, { 0, 0, 0, 0 }, { 0, 0, 0, 1 }, { 0, 0, 0, 1 });
+        m_drawList->roundedRect(square, 0.0f, {}, UIStyle::FRAME_BORDER, 1.0f);
+
+        // Six bands, red to red
+        for (u32 band = 0; band < 6; ++band) {
+            const f32 top = strip.y + strip.height * band / 6.0f;
+            const f32 bottom = strip.y + strip.height * (band + 1) / 6.0f;
+            const Color from = toColor(hsvToRgb(band / 6.0f, 1.0f, 1.0f));
+            const Color to = toColor(hsvToRgb((band + 1) / 6.0f, 1.0f, 1.0f));
+            m_drawList->gradientRect({ strip.x, top, strip.width, bottom - top }, from, from, to, to);
+        }
+        m_drawList->roundedRect(strip, 0.0f, {}, UIStyle::FRAME_BORDER, 1.0f);
+
+        // Markers: a ring at the picked spot, a bar at the hue
+        const Vec2 spot(square.x + picker.saturation * square.width, square.y + (1.0f - picker.value) * square.height);
+        m_drawList->roundedRect({ spot.x - 5.0f, spot.y - 5.0f, 10.0f, 10.0f }, 5.0f, {}, { 0, 0, 0, 0.8f }, 3.0f);
+        m_drawList->roundedRect({ spot.x - 4.0f, spot.y - 4.0f, 8.0f, 8.0f }, 4.0f, {}, { 1, 1, 1, 1 }, 1.5f);
+        const f32 hueY = strip.y + picker.hue * strip.height;
+        m_drawList->roundedRect({ strip.x - 2.0f, hueY - 2.0f, strip.width + 4.0f, 4.0f }, 1.0f, { 1, 1, 1, 1 }, { 0, 0, 0, 0.8f }, 1.0f);
+
+        // Hex, as image editors and web colors write it
+        std::string hex = toHex(color);
+        Vec3 parsed;
+        if (textField("Hex", hex) && parseHex(hex, parsed)) {
+            color = parsed;
+            absorb(true);
+        } else {
+            absorb(false);
+        }
+
+        // Exact values
+        f32* channels[3] = { &color.x, &color.y, &color.z };
+        const char* channelNames[3] = { "R", "G", "B" };
+        const Color* channelColors[3] = { &UIStyle::AXIS_X, &UIStyle::AXIS_Y, &UIStyle::AXIS_Z };
+        const bool typed = dragFloats("RGB", channels, channelNames, channelColors, 3, 0.005f, "%.2f");
+        color = Vec3(std::clamp(color.x, 0.0f, 1.0f), std::clamp(color.y, 0.0f, 1.0f), std::clamp(color.z, 0.0f, 1.0f));
+        absorb(typed);
+
         popId();
     }
 
-    // The swatch itself never edits, so only the sliders count as the start and end of an edit
+    // The swatch itself never edits, so only the parts count as the start and end of an edit
     combined.activated &= !swatch.activated;
     combined.deactivated &= !swatch.deactivated;
 
@@ -740,4 +843,74 @@ UIContext::TextEditResult UIContext::textEditBox(const Rect& rect, std::string& 
 
     m_drawList->popClip();
     return TextEditResult::Editing;
+}
+
+void rgbToHsv(const Vec3& rgb, f32& hue, f32& saturation, f32& value) {
+    const f32 high = std::max(rgb.x, std::max(rgb.y, rgb.z));
+    const f32 low = std::min(rgb.x, std::min(rgb.y, rgb.z));
+    const f32 range = high - low;
+
+    value = high;
+    saturation = high > 0.0f ? range / high : 0.0f;
+
+    if (range <= 0.0f) {
+        hue = 0.0f;
+        return;
+    }
+
+    f32 sixths = 0.0f;
+    if (high == rgb.x) sixths = std::fmod((rgb.y - rgb.z) / range + 6.0f, 6.0f);
+    else if (high == rgb.y) sixths = (rgb.z - rgb.x) / range + 2.0f;
+    else sixths = (rgb.x - rgb.y) / range + 4.0f;
+    hue = sixths / 6.0f;
+}
+
+Vec3 hsvToRgb(f32 hue, f32 saturation, f32 value) {
+    const f32 sixths = std::fmod(std::clamp(hue, 0.0f, 1.0f) * 6.0f, 6.0f);
+    const i32 sector = static_cast<i32>(sixths);
+    const f32 fraction = sixths - sector;
+
+    const f32 p = value * (1.0f - saturation);
+    const f32 q = value * (1.0f - saturation * fraction);
+    const f32 t = value * (1.0f - saturation * (1.0f - fraction));
+
+    switch (sector) {
+        case 0: return Vec3(value, t, p);
+        case 1: return Vec3(q, value, p);
+        case 2: return Vec3(p, value, t);
+        case 3: return Vec3(p, q, value);
+        case 4: return Vec3(t, p, value);
+        default: return Vec3(value, p, q);
+    }
+}
+
+std::string toHex(const Vec3& rgb) {
+    char text[8];
+    const auto byte = [](f32 channel) { return static_cast<int>(std::lround(std::clamp(channel, 0.0f, 1.0f) * 255.0f)); };
+    std::snprintf(text, sizeof(text), "#%02x%02x%02x", byte(rgb.x), byte(rgb.y), byte(rgb.z));
+    return text;
+}
+
+bool parseHex(std::string_view text, Vec3& out) {
+    if (!text.empty() && text.front() == '#') text.remove_prefix(1);
+    if (text.size() != 6 && text.size() != 3) return false;
+
+    const auto digit = [](char c) -> int {
+        if (c >= '0' && c <= '9') return c - '0';
+        if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+        if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+        return -1;
+    };
+
+    int channels[3];
+    for (int i = 0; i < 3; ++i) {
+        // #rgb doubles each digit: #f80 is #ff8800
+        const int high = digit(text.size() == 6 ? text[i * 2] : text[i]);
+        const int low = digit(text.size() == 6 ? text[i * 2 + 1] : text[i]);
+        if (high < 0 || low < 0) return false;
+        channels[i] = high * 16 + low;
+    }
+
+    out = Vec3(channels[0] / 255.0f, channels[1] / 255.0f, channels[2] / 255.0f);
+    return true;
 }

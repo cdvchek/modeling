@@ -22,6 +22,21 @@ void UIDrawList::shadow(const Rect& rect, f32 radius, f32 blur, Color color) {
     addShape(rect.center(), Vec2(rect.width * 0.5f, rect.height * 0.5f), Vec2(1.0f, 0.0f), radius, 0.0f, blur, color, {});
 }
 
+void UIDrawList::gradientRect(const Rect& rect, Color topLeft, Color topRight, Color bottomRight, Color bottomLeft) {
+    // The shape is half a pixel bigger than the quad, so its edges are fully covered instead of anti-aliased
+    const Vec2 half(rect.width * 0.5f, rect.height * 0.5f);
+    const Vec2 shapeHalf(half.x + 0.5f, half.y + 0.5f);
+    const Vec2 center = rect.center();
+    const Vec2 locals[4] = { Vec2(-half.x, -half.y), Vec2(half.x, -half.y), Vec2(half.x, half.y), Vec2(-half.x, half.y) };
+    const Color colors[4] = { topLeft, topRight, bottomRight, bottomLeft };
+
+    UIVertex corners[4];
+    for (u32 i = 0; i < 4; ++i) {
+        corners[i] = { center + locals[i], Vec2(), locals[i], shapeHalf, 0.0f, 0.0f, 0.0f, MODE_SHAPE, colors[i].packed(), 0 };
+    }
+    addQuad(corners, false, FontId::UI);
+}
+
 void UIDrawList::line(Vec2 start, Vec2 end, f32 width, Color color) {
     const Vec2 delta = end - start;
     const f32 length = delta.length();
@@ -122,7 +137,24 @@ void UIDrawList::addShape(Vec2 center, Vec2 halfSize, Vec2 axis, f32 radius, f32
     addQuad(corners, false, FontId::UI);
 }
 
-void UIDrawList::addQuad(const UIVertex (&corners)[4], bool needsTexture, FontId texture) {
+void UIDrawList::image(const Rect& rect, u32 texture, f32 alpha) {
+    if (texture == 0) return;
+
+    const Vec2 half(rect.width * 0.5f, rect.height * 0.5f);
+    const Vec2 center = rect.center();
+    const Color tint { 1.0f, 1.0f, 1.0f, alpha };
+    const Vec2 locals[4] = { Vec2(-half.x, -half.y), Vec2(half.x, -half.y), Vec2(half.x, half.y), Vec2(-half.x, half.y) };
+    // Render targets keep their first row at the bottom
+    const Vec2 uvs[4] = { Vec2(0.0f, 1.0f), Vec2(1.0f, 1.0f), Vec2(1.0f, 0.0f), Vec2(0.0f, 0.0f) };
+
+    UIVertex corners[4];
+    for (u32 i = 0; i < 4; ++i) {
+        corners[i] = { center + locals[i], uvs[i], locals[i], half, 0.0f, 0.0f, 0.0f, MODE_IMAGE, tint.packed(), 0 };
+    }
+    addQuad(corners, false, FontId::UI, texture);
+}
+
+void UIDrawList::addQuad(const UIVertex (&corners)[4], bool needsTexture, FontId texture, u32 image) {
     const bool clipped = !m_clipStack.empty();
     const Rect clip = clipped ? m_clipStack.back() : Rect();
 
@@ -130,8 +162,10 @@ void UIDrawList::addQuad(const UIVertex (&corners)[4], bool needsTexture, FontId
     bool newBatch = m_batches.empty();
     if (!newBatch) {
         const UIDrawBatch& last = m_batches.back();
+        // A batch binds one texture: a font or an image
         newBatch = last.clipped != clipped || (clipped && !(last.clip == clip))
-                || (needsTexture && last.hasTexture && last.texture != texture);
+                || (needsTexture && last.hasTexture && last.texture != texture)
+                || last.image != image || (needsTexture && last.image != 0);
     }
 
     if (newBatch) {
@@ -143,6 +177,7 @@ void UIDrawList::addQuad(const UIVertex (&corners)[4], bool needsTexture, FontId
     }
 
     UIDrawBatch& batch = m_batches.back();
+    batch.image = image;
     if (needsTexture && !batch.hasTexture) {
         batch.hasTexture = true;
         batch.texture = texture;

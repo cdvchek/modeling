@@ -2,6 +2,7 @@
 
 #include <types>
 #include <cfloat>
+#include <functional>
 
 #include "scene/mesh/mesh_handles.hpp"
 #include "scene/selection/ray.hpp"
@@ -44,8 +45,13 @@ struct FaceHit {
     f32 distance = FLT_MAX;
 };
 
-// only limits the test to one object; exclude skips one (used to find another object under the mouse)
-FaceHit pickFace(const Scene& scene, const Ray& ray, ObjectHandle only = INVALID_OBJECT, ObjectHandle exclude = INVALID_OBJECT);
+// Whether an object's back faces aren't drawn, so they can't be clicked either
+using BackFacesCulled = std::function<bool(ObjectHandle)>;
+
+// only limits the test to one object; exclude skips one (used to find another object under the mouse).
+// With culled, faces seen from behind on objects it names are skipped, as the GPU skips drawing them.
+FaceHit pickFace(const Scene& scene, const Ray& ray, ObjectHandle only = INVALID_OBJECT, ObjectHandle exclude = INVALID_OBJECT,
+                 const BackFacesCulled& culled = {});
 
 struct LightHit {
     bool hit = false;

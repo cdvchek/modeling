@@ -55,10 +55,14 @@ Holds the line being typed, the cursor, the history of entered lines (for Up/Dow
 | `merge` | `center` (default) / `first` / `last` | Vertex mode, exactly 2 selected, connected by an edge: collapses them into one vertex at the chosen position. Undoable. |
 | `dissolve` | — | Edge mode with 1 edge: collapses it to its midpoint. Face mode with 1 face: collapses it to its center. Undoable. |
 | `light` | see [below](#light-command) | Lists, adds, removes, and edits scene lights and the ambient light. Undoable. |
+| `stats` | none / `on` / `off` | Shows or hides the stats readout: CPU input and render time, GPU time, the last click's pick time, draw calls, triangles, lines, points, uniform uploads, mesh rebuilds (Uploads) and in-place updates (Patches) with their bytes, and the scene's objects, faces, and vertices. With vsync on, CPU render time includes waiting for the screen, so turn vsync off to measure. |
+| `material` | see [below](#material-command) | Lists, adds, removes, edits, and assigns materials. Undoable. |
+| `shading` | none / `flat` / `smooth` / `auto [<degrees>]` / `mark hard\|smooth\|clear` | No argument prints the active object's shading and how many edges are marked. A mode applies to the selected objects in object mode, otherwise the active object (`auto` with an angle, 0 to 180, sets that too). `mark` marks the selected edges in edge mode. Undoable. |
 | `reference` | see [below](#reference-command) | Lists, adds, removes, and edits reference images. Undoable. |
+| `exposure` | none / `<stops>` | Prints or sets the exposure, −5 to 5 (0 is normal; each +1 doubles how bright lit surfaces look). A viewport setting saved with the project, not undoable. |
 | `headlight` | none / `on` / `off` / `color <r> <g> <b>` / `strength <s>` | Prints or changes the camera headlight (values 0 to 1). A viewport setting, not undoable. |
 | `backface` | `tint` / `tint <r> <g> <b>` | Prints or sets the color back faces are multiplied by (each 0 to 1; `1 1 1` turns the tint off). A display setting stored on the renderer, so not undoable. |
-| `ui` | `panel` | Shows or hides the floating panel (shown by default). |
+| `ui` | `panel` / `materials` / `checker` | Shows or hides the floating panel (shown by default), switches between material view and clay view, or shows or hides the UV checker grid. |
 | `vsync` | `on` / `off` / none (toggle) | Turns vertical sync on or off and prints the new state. Off lets the frame rate (status bar FPS) go past the monitor's refresh rate. Not saved; starts on each launch. |
 | `object` | see [below](#object-command) | Lists, adds, removes, edits, and switches the active object. |
 
@@ -86,6 +90,28 @@ A light's `<id>` is its slot index, shown by `light list` and printed by `light 
 | `light <id> cone <inner> <outer>` | Spot; half-angles in degrees, full brightness inside `inner`, fading to zero at `outer`. `0 <= inner <= outer < 90`. |
 
 Every change goes through `history.begin`/`commit`, so Ctrl+Z undoes it. Bad input prints the usage for that property and changes nothing.
+
+## Material command
+
+A material's `<id>` is its slot index, shown by `material list`; Default is always 0.
+
+| Form | Description |
+|---|---|
+| `material list` | Prints every material: name, base color, roughness, metallic, emissive (when it glows), alpha mode with opacity and cutoff, single- or double-sided, and how many objects and faces use it. |
+| `material add [name]` | Adds a material with default values (named "Material", numbered if taken). |
+| `material <id>` | Prints one material. |
+| `material <id> remove` | Removes it; its objects go back to Default. Default can't be removed. |
+| `material <id> assign [<object id> ...]` | Gives it to those objects; without ids, to the selected faces in face mode, otherwise to the selected objects (object mode) or the active object. |
+| `material <id> select` | Face mode: selects the active object's faces that show it (their own, or the object's when they have none). |
+| `material clear` | Face mode: the selected faces stop having their own material and use the object's again. |
+| `material <id> name <n>` | Renames it (one word). |
+| `material <id> color <r> <g> <b>` / `emissive <r> <g> <b>` | Base and emissive color, each 0 to 1 (sRGB). |
+| `material <id> roughness` / `metallic` / `opacity` / `cutoff <0 to 1>` | |
+| `material <id> glow <strength>` | Emissive strength, 0 or more (0 doesn't glow). |
+| `material <id> mode <opaque \| cutout \| blend>` | Alpha mode. |
+| `material <id> sides <single \| double>` | Whether back faces are drawn in material view (and in the game). |
+
+Every change is one undo step; bad input prints the usage for that property and changes nothing.
 
 ## Reference command
 

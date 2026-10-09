@@ -26,6 +26,8 @@ public:
     void setFloat(const char* name, f32 value);
     void setFloatArray(const char* name, const f32* values, u32 count);
     void setInt(const char* name, i32 value);
+    // Points a uniform block at a buffer binding point
+    void bindUniformBlock(const char* name, u32 binding);
 
 private:
     i32 getUniformLocation(const char* name);

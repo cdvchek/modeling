@@ -15,7 +15,7 @@ Developer documentation for Valuma Studio, the modeling application (project fil
 | [systems/project.md](systems/project.md) | Saving and opening projects (`.vlm`): what's saved, the binary file format, threads |
 | [systems/vlmobj.md](systems/vlmobj.md) | The `.vlmobj` asset format exported for the Aevora engine, the shared `vlmobj` library, and Valuma's baking |
 | [systems/image.md](systems/image.md) | The shared `image` library: the PNG reader and its DEFLATE decompressor |
-| [systems/scene.md](systems/scene.md) | Objects, lights, reference images, transforms, camera, selection, picking, and undo/redo history |
+| [systems/scene.md](systems/scene.md) | Objects, materials, lights, reference images, transforms, camera, selection, picking, and undo/redo history |
 | [systems/renderer.md](systems/renderer.md) | Renderer interface, OpenGL backend, shaders, grid, text, debug overlay |
 | [systems/ui.md](systems/ui.md) | 2D UI draw list, UI shader, fonts |
 | [systems/math.md](systems/math.md) | Vector and matrix types |

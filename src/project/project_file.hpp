@@ -25,7 +25,7 @@ namespace ProjectFile {
 
         bool headlightEnabled = true;
         Vec3 headlightColor { 1.0f, 1.0f, 1.0f };
-        f32 headlightStrength = 0.4f;
+        f32 headlightStrength = 0.8f;
 
         Vec3 backFaceTint { 1.0f, 1.0f, 1.0f };
 
@@ -34,6 +34,12 @@ namespace ProjectFile {
         i32 panelTab = 0;
 
         bool showOrigins = true;
+
+        // Stops; 0 leaves lighting as it is
+        f32 exposure = 0.0f;
+        // Material view; off is clay view
+        bool showMaterials = true;
+        bool showUVChecker = false;
 
         // Where assets were last exported, as storeFolder gives it (relative to the project file when nearby);
         // empty means the default, an Exports folder next to the project file

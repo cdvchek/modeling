@@ -25,6 +25,7 @@ struct UIDrawBatch {
     Rect clip;
     bool hasTexture = false;
     FontId texture = FontId::UI;
+    u32 image = 0;      // a renderer texture drawn with MODE_IMAGE (one per batch); 0 for none
 };
 
 class UIDrawList {
@@ -32,16 +33,22 @@ public:
     static constexpr f32 MODE_SHAPE = 0.0f;
     static constexpr f32 MODE_GLYPH = 1.0f;
     static constexpr f32 MODE_RING_SLICE = 2.0f;
+    static constexpr f32 MODE_IMAGE = 3.0f;
 
     void clear();
 
     void rect(const Rect& rect, Color fill);
     void roundedRect(const Rect& rect, f32 radius, Color fill, Color border = {}, f32 borderWidth = 0.0f);
     void shadow(const Rect& rect, f32 radius, f32 blur, Color color);
+    // Square corners, each its own color, blended across (color pickers)
+    void gradientRect(const Rect& rect, Color topLeft, Color topRight, Color bottomRight, Color bottomLeft);
     void line(Vec2 start, Vec2 end, f32 width, Color color);
     // A wedge of a ring centered on angle (radians, counterclockwise from right); gap is the pixel space between neighbors
     void ringSlice(Vec2 center, f32 innerRadius, f32 outerRadius, f32 angle, f32 halfAngle, f32 gap, Color fill, Color border = {}, f32 borderWidth = 0.0f);
     void text(Vec2 position, std::string_view text, const UIFont& font, Color color);
+    // A renderer texture (from IRenderer, such as a material preview) stretched over rect; its colors are
+    // premultiplied by alpha, as a render target's are
+    void image(const Rect& rect, u32 texture, f32 alpha = 1.0f);
 
     // Nested clips intersect with the current one
     void pushClip(const Rect& rect);
@@ -53,7 +60,7 @@ public:
 
 private:
     void addShape(Vec2 center, Vec2 halfSize, Vec2 axis, f32 radius, f32 borderWidth, f32 blur, Color fill, Color border);
-    void addQuad(const UIVertex (&corners)[4], bool needsTexture, FontId texture);
+    void addQuad(const UIVertex (&corners)[4], bool needsTexture, FontId texture, u32 image = 0);
 
     std::vector<UIVertex> m_vertices;
     std::vector<u32> m_indices;

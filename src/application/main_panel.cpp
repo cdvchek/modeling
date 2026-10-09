@@ -3,6 +3,7 @@
 #include "application/light_commands.hpp"
 #include "application/object_commands.hpp"
 #include "application/reference_images.hpp"
+#include "application/material_commands.hpp"
 #include "ui/ui_style.hpp"
 
 #include <algorithm>
@@ -22,10 +23,18 @@ namespace {
     constexpr f32 PRESET_DROPDOWN_WIDTH = 130.0f;
     constexpr f32 MIN_SCALE = 0.001f;
 
-    const std::vector<std::string_view> TABS = { "Objects", "Lights", "Images" };
+    const std::vector<std::string_view> TABS = { "Objects", "Materials", "Lights", "Images" };
     constexpr i32 OBJECTS_TAB = 0;
-    constexpr i32 LIGHTS_TAB = 1;
-    constexpr i32 IMAGES_TAB = 2;
+    constexpr i32 MATERIALS_TAB = 1;
+    constexpr i32 LIGHTS_TAB = 2;
+    constexpr i32 IMAGES_TAB = 3;
+
+    // The big swatch at the top of the selected material
+    constexpr f32 PREVIEW_SIZE = 112.0f;
+    constexpr f32 MAX_GLOW = 10.0f;
+
+    const std::vector<AlphaMode> ALPHA_MODES = { AlphaMode::Opaque, AlphaMode::Cutout, AlphaMode::Blend };
+    const std::vector<std::string_view> ALPHA_MODE_LABELS = { "Opaque", "Cutout", "Blend" };
 
     // Order of the depth switch
     const std::vector<ReferenceDepth> DEPTHS = { ReferenceDepth::Behind, ReferenceDepth::InScene, ReferenceDepth::InFront };
@@ -77,7 +86,7 @@ namespace {
         const ListHeader header = listHeader(ui, "Objects", PRESET_DROPDOWN_WIDTH);
         ui.dropdown("preset", header.picker, preset, presetLabels());
 
-        // The entry after the presets is Import…: + opens the file dialog (next frame, not while drawing)
+        // The entry after the presets is Importâ€¦: + opens the file dialog (next frame, not while drawing)
         if (ui.button("+", header.plus)) {
             if (preset >= static_cast<i32>(objectPresets().size())) {
                 ctx.importRequested = true;
@@ -199,6 +208,43 @@ namespace {
             changed = true;
         }
         trackUndo(ctx);
+
+        // The object's material, with swatches; picking one is an undo step
+        const MaterialCollection& materials = ctx.scene.materials;
+        const std::vector<MaterialHandle> materialHandles = materials.handles();
+        std::vector<std::string_view> materialNames;
+        std::vector<u32> swatches;
+        i32 current = 0;
+        for (u32 i = 0; i < materialHandles.size(); ++i) {
+            materialNames.push_back(materials.get(materialHandles[i]).name);
+            swatches.push_back(ctx.materialPreviews.texture(materialHandles[i]));
+            if (materialHandles[i] == materials.resolve(object.material)) current = static_cast<i32>(i);
+        }
+
+        const Rect materialRow = ui.row();
+        const f32 labelWidth = std::floor(materialRow.width * 0.38f);
+        ui.text({ materialRow.x, materialRow.y, labelWidth, materialRow.height }, "Material", UIStyle::TEXT_DIM);
+        if (ui.dropdown("Material", { materialRow.x + labelWidth, materialRow.y, materialRow.width - labelWidth, materialRow.height }, current, materialNames, swatches)) {
+            assignMaterial(ctx, { handle }, materialHandles[current]);
+        }
+        const u32 ownFaces = facesWithOwnMaterial(ctx, object);
+        if (ownFaces > 0) ui.label(std::to_string(ownFaces) + (ownFaces == 1 ? " face has its own material" : " faces have their own materials"), true);
+
+        // Shading: picking a mode is an undo step; Auto adds its angle
+        static const std::vector<std::string_view> SHADING_LABELS = { "Flat", "Smooth", "Auto" };
+        i32 shading = static_cast<i32>(mesh.getShading());
+        const Rect shadingRow = ui.row();
+        ui.text({ shadingRow.x, shadingRow.y, labelWidth, shadingRow.height }, "Shading", UIStyle::TEXT_DIM);
+        if (ui.dropdown("Shading", { shadingRow.x + labelWidth, shadingRow.y, shadingRow.width - labelWidth, shadingRow.height }, shading, SHADING_LABELS)) {
+            ctx.history.begin(ctx.scene);
+            objects.get(handle).meshData.setShading(static_cast<ShadingMode>(shading));
+            ctx.history.commit();
+        }
+        if (objects.get(handle).meshData.getShading() == ShadingMode::Auto) {
+            f32 degrees = objects.get(handle).meshData.getSmoothAngle() * RADIANS_TO_DEGREES;
+            if (ui.dragFloat("Angle", degrees, 0.5f, "%.0f")) objects.get(handle).meshData.setSmoothAngle(std::clamp(degrees, 0.0f, 180.0f) / RADIANS_TO_DEGREES);
+            trackUndo(ctx);
+        }
 
         ui.popId();
 
@@ -343,6 +389,120 @@ namespace {
         if (changed && lights.isValid(handle)) lights.replace(handle, light);
     }
 
+    // Heading with + and - on the right, then a fixed-height list of swatches
+    void materialListSection(AppContext& ctx) {
+        UIContext& ui = ctx.ui;
+        MaterialCollection& materials = ctx.scene.materials;
+        MaterialHandle& selected = ctx.viewport.selectedMaterial;
+        selected = materials.resolve(selected);
+
+        const ListHeader header = listHeader(ui, "Materials", 0.0f);
+        if (ui.button("+", header.plus)) {
+            Material material;
+            material.name = materials.uniqueName("Material");
+            ctx.history.begin(ctx.scene);
+            selected = materials.add(material);
+            ctx.history.commit();
+        }
+        if (ui.button("-", header.minus, !materials.isDefault(selected))) {
+            removeMaterial(ctx, selected);
+            selected = materials.defaultMaterial();
+        }
+
+        ui.beginChild("list", listHeight());
+        for (MaterialHandle handle : materials.handles()) {
+            const std::string detail = describeUse(materialUse(ctx, handle));
+
+            ui.pushId(handle.index);
+            if (ui.selectable(materials.get(handle).name, handle == selected, detail, ctx.materialPreviews.texture(handle))) selected = handle;
+            ui.popId();
+        }
+        ui.endChild();
+    }
+
+    // Edits a copy so an undo restore mid-frame never leaves a dangling reference
+    void selectedMaterialSection(AppContext& ctx) {
+        UIContext& ui = ctx.ui;
+        MaterialCollection& materials = ctx.scene.materials;
+        const MaterialHandle handle = materials.resolve(ctx.viewport.selectedMaterial);
+
+        ui.heading("Selected material");
+
+        Material material = materials.get(handle);
+        bool changed = false;
+
+        ui.pushId(handle.index);
+
+        // The swatch, large; see-through materials sit on a checkerboard
+        const Rect previewRow = ui.row(PREVIEW_SIZE);
+        ui.drawList().image({ previewRow.x + std::floor((previewRow.width - PREVIEW_SIZE) * 0.5f), previewRow.y, PREVIEW_SIZE, PREVIEW_SIZE },
+                            ctx.materialPreviews.texture(handle));
+
+        // Default keeps its name, so it's always clear what objects without a material use
+        if (materials.isDefault(handle)) {
+            ui.label("Default: used by objects without a material", true);
+        } else {
+            changed |= ui.textField("Name", material.name);
+            trackUndo(ctx);
+        }
+
+        changed |= ui.colorEdit("Base color", material.baseColor);
+        trackUndo(ctx);
+        changed |= ui.sliderFloat("Roughness", material.roughness, 0.0f, 1.0f);
+        trackUndo(ctx);
+        changed |= ui.sliderFloat("Metallic", material.metallic, 0.0f, 1.0f);
+        trackUndo(ctx);
+        changed |= ui.colorEdit("Emissive", material.emissiveColor);
+        trackUndo(ctx);
+        changed |= ui.sliderFloat("Glow", material.emissiveStrength, 0.0f, MAX_GLOW, "%.1f");
+        trackUndo(ctx);
+
+        i32 mode = static_cast<i32>(std::find(ALPHA_MODES.begin(), ALPHA_MODES.end(), material.alphaMode) - ALPHA_MODES.begin());
+        if (ui.segmented("Alpha", mode, ALPHA_MODE_LABELS)) {
+            material.alphaMode = ALPHA_MODES[mode];
+            changed = true;
+        }
+        trackUndo(ctx);
+
+        if (material.alphaMode != AlphaMode::Opaque) {
+            changed |= ui.sliderFloat("Opacity", material.opacity, 0.0f, 1.0f);
+            trackUndo(ctx);
+        }
+        if (material.alphaMode == AlphaMode::Cutout) {
+            changed |= ui.sliderFloat("Cutoff", material.alphaCutoff, 0.0f, 1.0f);
+            trackUndo(ctx);
+        }
+
+        changed |= ui.checkbox("Both sides", material.doubleSided);
+        trackUndo(ctx);
+
+        ui.label("Used by " + describeUse(materialUse(ctx, handle)), true);
+
+        // Selected faces in face mode; otherwise the selected objects (object mode) or the object being edited
+        const Rect assignRow = ui.row();
+        if (assignsToFaces(ctx)) {
+            const std::size_t faces = ctx.scene.selection.getFaces().size();
+            const std::string label = "Assign to " + std::to_string(faces) + (faces == 1 ? " face" : " faces");
+            if (ui.button(label, assignRow)) assignFaceMaterial(ctx, handle);
+
+            // Back to the object's material, whatever material the tab shows
+            if (ui.button("Use object's material", ui.row())) assignFaceMaterial(ctx, INVALID_MATERIAL);
+        } else {
+            const std::vector<ObjectHandle> targets = materialTargets(ctx);
+            const std::string label = targets.size() > 1 ? "Assign to " + std::to_string(targets.size()) + " objects" : "Assign to selected";
+            if (ui.button(label, assignRow, !targets.empty())) assignMaterial(ctx, targets, handle);
+        }
+
+        const bool faceMode = ctx.systems.input_ctx.getSelectionContext() == InputContext_SelectionFace;
+        if (faceMode && ui.button("Select its faces", ui.row(), ctx.scene.objects.isValid(ctx.scene.selection.getActiveObject()))) {
+            selectFacesWithMaterial(ctx, handle);
+        }
+
+        ui.popId();
+
+        if (changed && materials.isValid(handle)) materials.get(handle) = material;
+    }
+
     // Heading with + and - on the right, then a fixed-height scrolling list
     void imageListSection(AppContext& ctx) {
         UIContext& ui = ctx.ui;
@@ -459,6 +619,14 @@ namespace {
         ui.sliderFloat("Strength", headlight.strength, 0.0f, 1.0f);
         ui.colorEdit("Color", headlight.color);
     }
+
+    // View-only setting, so no undo
+    void exposureSection(AppContext& ctx) {
+        UIContext& ui = ctx.ui;
+
+        ui.heading("Exposure");
+        ui.sliderFloat("Stops", ctx.viewport.exposure, ViewportSettings::MIN_EXPOSURE, ViewportSettings::MAX_EXPOSURE, "%.1f");
+    }
 }
 
 void drawMainPanel(AppContext& ctx, const Rect& bounds) {
@@ -484,6 +652,15 @@ void drawMainPanel(AppContext& ctx, const Rect& bounds) {
         ui.pushId("selected object");
         selectedObjectSection(ctx);
         ui.popId();
+    } else if (panel.activeTab == MATERIALS_TAB) {
+        ui.pushId("materials");
+        materialListSection(ctx);
+        ui.popId();
+        ui.spacing();
+
+        ui.pushId("selected material");
+        selectedMaterialSection(ctx);
+        ui.popId();
     } else if (panel.activeTab == LIGHTS_TAB) {
         ui.pushId("lights");
         lightListSection(ctx);
@@ -502,6 +679,11 @@ void drawMainPanel(AppContext& ctx, const Rect& bounds) {
 
         ui.pushId("headlight");
         headlightSection(ctx);
+        ui.popId();
+        ui.spacing();
+
+        ui.pushId("exposure");
+        exposureSection(ctx);
         ui.popId();
     } else if (panel.activeTab == IMAGES_TAB) {
         ui.pushId("images");

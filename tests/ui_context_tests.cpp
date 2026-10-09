@@ -2,6 +2,7 @@
 #include "ui/ui_context.hpp"
 #include "ui/ui_style.hpp"
 
+#include <cmath>
 #include <functional>
 
 namespace {
@@ -637,4 +638,91 @@ TEST_CASE(ui_tree_row_arrow_folds_without_selecting) {
     h.frame(Vec2(120, 20), true, false, widgets);
     h.frame(Vec2(120, 20), false, true, widgets);
     CHECK(clicked && !open);
+}
+
+TEST_CASE(color_conversions_round_trip) {
+    f32 h = 0.0f, s = 0.0f, v = 0.0f;
+    rgbToHsv(Vec3(1.0f, 0.0f, 0.0f), h, s, v);
+    CHECK(h == 0.0f && s == 1.0f && v == 1.0f);
+    rgbToHsv(Vec3(0.0f, 0.0f, 1.0f), h, s, v);
+    CHECK(std::abs(h - 2.0f / 3.0f) < 1e-5f);
+    rgbToHsv(Vec3(0.5f, 0.5f, 0.5f), h, s, v);
+    CHECK(s == 0.0f && v == 0.5f);
+
+    bool roundTrips = true;
+    for (f32 r = 0.0f; r <= 1.0f; r += 0.25f) {
+        for (f32 g = 0.0f; g <= 1.0f; g += 0.25f) {
+            for (f32 b = 0.0f; b <= 1.0f; b += 0.25f) {
+                rgbToHsv(Vec3(r, g, b), h, s, v);
+                const Vec3 back = hsvToRgb(h, s, v);
+                roundTrips = roundTrips && std::abs(back.x - r) < 1e-5f && std::abs(back.y - g) < 1e-5f && std::abs(back.z - b) < 1e-5f;
+            }
+        }
+    }
+    CHECK(roundTrips);
+
+    CHECK(toHex(Vec3(1.0f, 0.5f, 0.0f)) == "#ff8000");
+    Vec3 parsed;
+    CHECK(parseHex("#336699", parsed) && std::abs(parsed.y - 0.4f) < 1e-6f);
+    CHECK(parseHex("F80", parsed) && parsed.x == 1.0f && std::abs(parsed.y - 0x88 / 255.0f) < 1e-6f && parsed.z == 0.0f);
+    parsed = Vec3(0.25f);
+    CHECK(!parseHex("#12345", parsed) && !parseHex("#gg0000", parsed) && parsed.x == 0.25f);
+}
+
+TEST_CASE(ui_color_picker_square_and_hue_strip) {
+    Harness h;
+    Vec3 color(0.5f, 0.5f, 0.5f);
+    bool activated = false, committed = false;
+    const auto widgets = [&]() {
+        h.ui.colorEdit("Color", color);
+        activated |= h.ui.isItemActivated();
+        committed |= h.ui.isItemDeactivatedAfterEdit();
+    };
+
+    // Open it by clicking the swatch; that alone isn't an edit
+    h.frame(Vec2(200, 20), false, false, widgets);
+    h.frame(Vec2(200, 20), true, false, widgets);
+    h.frame(Vec2(200, 20), false, true, widgets);
+    CHECK(!activated && !committed);
+
+    // The square spans x 116..270 and y 38..158: its top-right corner is full saturation and value, hue red (gray's 0)
+    h.frame(Vec2(268, 40), false, false, widgets);
+    h.frame(Vec2(268, 40), true, false, widgets);
+    CHECK(activated);
+    h.frame(Vec2(269, 39), true, true, widgets);
+    h.frame(Vec2(269, 39), false, true, widgets);
+    CHECK(committed);
+    CHECK(color.x > 0.97f && color.y < 0.03f && color.z < 0.03f);
+
+    // The middle of the hue strip (x 274..290) is cyan
+    h.frame(Vec2(282, 98), false, false, widgets);
+    h.frame(Vec2(282, 98), true, false, widgets);
+    h.frame(Vec2(282, 98), false, true, widgets);
+    CHECK(color.x < 0.03f && color.y > 0.97f && color.z > 0.97f);
+}
+
+TEST_CASE(ui_color_picker_hex_field_commits_one_edit) {
+    Harness h;
+    Vec3 color(0.5f, 0.5f, 0.5f);
+    bool committed = false;
+    const auto widgets = [&]() {
+        h.ui.colorEdit("Color", color);
+        committed |= h.ui.isItemDeactivatedAfterEdit();
+    };
+
+    h.frame(Vec2(200, 20), false, false, widgets);
+    h.frame(Vec2(200, 20), true, false, widgets);
+    h.frame(Vec2(200, 20), false, true, widgets);
+
+    // The hex field is the row under the square (y 162..186): click it, type, Enter
+    h.frame(Vec2(200, 174), false, false, widgets);
+    h.frame(Vec2(200, 174), true, false, widgets);
+    h.frame(Vec2(200, 174), false, true, widgets);
+    h.typed = "#336699";
+    h.frame(Vec2(200, 174), false, false, widgets);
+    h.keys = { UIKey::Enter };
+    h.frame(Vec2(200, 174), false, false, widgets);
+
+    CHECK(committed);
+    CHECK(std::abs(color.x - 0.2f) < 1e-6f && std::abs(color.y - 0.4f) < 1e-6f && std::abs(color.z - 0.6f) < 1e-6f);
 }

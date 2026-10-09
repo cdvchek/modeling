@@ -1,6 +1,6 @@
 # Scene
 
-What's being edited and how you look at it: objects, lights, reference images, transforms, the camera, the selection, picking, and undo history.
+What's being edited and how you look at it: objects, materials, lights, reference images, transforms, the camera, the selection, picking, and undo history.
 
 Files: `src/scene/` (meshes are covered separately in [mesh.md](mesh.md))
 
@@ -14,6 +14,7 @@ struct Scene {
     ObjectCollection objects;
     LightCollection lights;
     ReferenceCollection references;
+    MaterialCollection materials;
     Selection selection;
 
     Object* activeObject();   // the object being edited, or null when there are none
@@ -34,7 +35,7 @@ struct Object {
 };
 ```
 
-`Object` is scene data only. Its GPU copy lives in the application's `ObjectMeshCache` ([object_meshes.hpp](../../src/application/object_meshes.hpp)), keyed by handle, so objects can be copied freely (undo snapshots copy the whole collection). Set `meshDirty = true` after changing `meshData`; `renderFrame` rebuilds the GPU copy and clears the flag.
+`Object` is scene data only. Its GPU copy lives in the application's `ObjectMeshCache` ([object_meshes.hpp](../../src/application/object_meshes.hpp)), keyed by handle, so objects can be copied freely (undo snapshots copy the whole collection). Set `meshDirty = true` after changing `meshData`; `renderFrame` brings the GPU copy up to date (patching only what moved when the layout is unchanged, see [renderer.md](renderer.md#gpu-meshes)) and clears the flag.
 
 `ObjectCollection` stores objects in a `DynamicArray<Object>` and hands out `ObjectHandle` (`Handle<Object>`), the same pattern as lights. `INVALID_OBJECT` is the null handle. A removed object's handle stays invalid even if its slot is reused.
 
@@ -49,7 +50,7 @@ struct Object {
 | `handleAt(slot)` | The live object in that slot, or an invalid handle. The `object` command uses slot indices as ids. |
 | `count()` | Number of objects. |
 | `uniqueName(base)` | `base`, or `base N` with the lowest N that isn't taken. |
-| `markAllDirty()` | Sets `meshDirty` on every object (after an undo restore). |
+| `markAllDirty()` | Sets `meshDirty` on every object and marks all their vertices moved (after an undo restore: a restored copy can hold other positions under the same layout). |
 | `parentOf(h)`, `childrenOf(h)`, `isAncestor(a, h)`, `topLevelOf(h)` | The family: the parent (or `INVALID_OBJECT`), the direct children in slot order, whether `a` is above `h`, and the object at the top of `h`'s family. |
 | `hierarchy()` | Every object as a `HierarchyEntry` (handle, depth): parents before their children, siblings in slot order. The Objects tab's tree. |
 | `worldTransform(h)` / `worldMatrix(h)` | Where the object is in the world: its transform combined with every parent's (`combineTransforms`). A top-level object's is its own, returned as is. Drawing, picking, and every tool use these. |
@@ -71,7 +72,7 @@ Clicking in the viewport (any selection mode): the click is tested against the a
 
 Besides the individual lights, the collection holds one `AmbientLight` (color and strength only). All enabled lights shade mesh faces: each frame `renderFrame` copies them into a `LightingState` for the renderer (see [renderer.md](renderer.md#object-drawing)). Every light is drawn as a marker in the viewport (see [application.md](application.md)); `light list` prints them (see [console.md](console.md#light-command)).
 
-The default scene (`loadTestScene`) adds one directional light, `Sun`, traveling along `(0.4, −1, −0.6)` (from above, front, left) at intensity 0.6.
+The default scene (`loadTestScene`) adds one directional light, `Sun`, traveling along `(0.4, −1, −0.6)` (from above, front, left) at intensity 1.2.
 
 ```cpp
 enum class LightType { Point, Directional, Spot };
@@ -91,7 +92,7 @@ struct Light {
 
 struct AmbientLight {
     Vec3 color;                 // default white
-    f32 strength = 0.6f;
+    f32 strength = 0.3f;
 };
 ```
 
@@ -113,6 +114,43 @@ struct AmbientLight {
 | `setAmbientColor(color)` / `setAmbientStrength(s)` | Set the ambient light; values are clamped to 0..1. |
 
 Lights are part of the undo snapshot (see [History](#history)), so wrapping a light edit in `history.begin`/`commit` makes it undoable.
+
+## Materials
+
+[material.hpp](../../src/scene/materials/material.hpp), [material_collection.hpp](../../src/scene/materials/material_collection.hpp)
+
+How a surface looks, shared by the objects that use it (see [features.md](../features.md)). The values are the metallic-roughness set glTF and the game engines use, so a material exports as it is.
+
+```cpp
+struct Material {
+    std::string name;
+    Vec3 baseColor;             // sRGB, as picked
+    f32 roughness = 0.5;        // 0 mirror-sharp highlights, 1 none
+    f32 metallic = 0;           // 0 plastic, stone, wood; 1 metal
+    Vec3 emissiveColor;         // sRGB
+    f32 emissiveStrength = 0;   // 0 gives no glow
+    f32 opacity = 1;
+    AlphaMode alphaMode;        // Opaque, Cutout (drawn where opacity reaches alphaCutoff), Blend (see-through)
+    f32 alphaCutoff = 0.5;
+    bool doubleSided = false;   // otherwise back faces are culled, as the engine will
+
+    bool sameLook(const Material& other) const;   // every value equal, the name aside
+};
+```
+
+`MaterialCollection` always holds a **Default** material (the old face gray, roughness 0.5, not metallic), created first, so it's first in `handles()`. It can be edited but `remove` refuses it.
+
+Each `Object` has a `MaterialHandle material`. A handle that isn't valid (none set, or its material was removed) means Default: `resolve(handle)` gives the handle itself when valid, otherwise `defaultMaterial()`. So new objects use Default without setting anything, removing a material puts its objects back on Default without touching them (handles are generational, so a reused slot never matches an old handle), and undoing the removal reconnects them.
+
+| Method | Description |
+|---|---|
+| `add(material)`, `remove(handle)` | `remove` returns false for Default. |
+| `isValid`, `isDefault`, `defaultMaterial()`, `resolve(handle)` | See above. |
+| `get`, `tryGet`, `handles()`, `handleAt(slot)`, `count()` | As for the other collections. |
+| `uniqueName(base)` | `base`, or `base N` with the lowest free N. |
+| `findIdentical(material)` | A material with the same name and every value the same (import reuses it). |
+
+`alphaModeName(mode)` gives `"opaque"`, `"cutout"`, or `"blend"`.
 
 ## Reference images
 
@@ -238,7 +276,7 @@ Targets keep the object's rotation and scale unless they say otherwise.
 | `makeRayFromScreenPosition(mouseX, mouseY, width, height, camera)` | World-space ray through a pixel, built by unprojecting the near and far planes. |
 | `pickVertex(scene, ray, radius, only)` | Nearest vertex within `radius` (world units) of the ray. |
 | `pickEdge(scene, ray, radius, only)` | Nearest edge within `radius` of the ray. |
-| `pickFace(scene, ray, only, exclude)` | Nearest face whose triangulation the ray hits. With `exclude`, finds another object under the mouse. |
+| `pickFace(scene, ray, only, exclude, culled)` | Nearest face whose triangulation the ray hits. With `exclude`, finds another object under the mouse. `culled` (a `BackFacesCulled` function of the object) names objects whose back faces aren't drawn; their triangles seen from behind (counterclockwise is the front) are skipped. |
 | `pickLight(scene, viewProjection, mouseX, mouseY, width, height, radius)` | Nearest light whose marker is within `radius` pixels of the mouse, measured on screen. Returns a `LightHit` with the handle and pixel distance. Checked before the mesh picks (after origins); the radius is `LIGHT_MARKER_PICK_RADIUS` (11 px) from `light_markers.hpp`. |
 | `pickOrigin(scene, viewProjection, mouseX, mouseY, width, height, radius)` | The object whose origin projects nearest the mouse within `radius` pixels (`OriginHit`: object and pixel distance). Checked first of all, when origins show; the radius is `ORIGIN_MARKER_PICK_RADIUS` (9 px) from `origin_markers.hpp`. |
 
@@ -250,7 +288,7 @@ The mesh picks test every object (with its transform), or only `only` when it's 
 
 [history.hpp](../../src/scene/history.hpp)
 
-Undo/redo by snapshot. A `State` is a copy of the whole `ObjectCollection`, the whole `LightCollection`, the whole `ReferenceCollection` (cheap: pictures are shared, not copied), and the `Selection` (including the active object). Up to 100 undo steps are kept.
+Undo/redo by snapshot. A `State` is a copy of the whole `ObjectCollection`, the whole `MaterialCollection`, the whole `LightCollection`, the whole `ReferenceCollection` (cheap: pictures are shared, not copied), and the `Selection` (including the active object). Up to 100 undo steps are kept.
 
 | Method | Description |
 |---|---|
@@ -263,4 +301,4 @@ Undo/redo by snapshot. A `State` is a copy of the whole `ObjectCollection`, the 
 
 Usage pattern: call `begin` before changing anything, then exactly one of `commit` or `cancel`. Modal tools call `begin` when they start and `commit`/`cancel` when they end.
 
-Restoring replaces objects, lights, and reference images wholesale and sets `meshDirty` on every object, so adding, removing, and editing objects and lights are all undoable.
+Restoring replaces objects, materials, lights, and reference images wholesale and sets `meshDirty` on every object, so adding, removing, and editing objects and lights are all undoable.

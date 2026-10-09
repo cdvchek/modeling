@@ -11,6 +11,8 @@
 
 // Every vertex position, in mesh order (getVertexHandles), for setOrigin to start from
 std::vector<Vec3> vertexPositions(const MeshData& mesh);
+// The mesh's bounding box in its own space; both corners are the origin for an empty mesh
+void localBounds(const MeshData& mesh, Vec3& low, Vec3& high);
 
 // What setOrigin starts from: the origin in the world, the mesh, and where each child is in the world
 struct OriginStart {

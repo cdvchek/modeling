@@ -13,7 +13,10 @@
 #include "application/project_actions.hpp"
 #include "application/modal_windows.hpp"
 #include "application/reference_images.hpp"
+#include "application/material_view.hpp"
+#include "application/stats_overlay.hpp"
 #include "core/math/vec4.hpp"
+#include "core/math/color.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -109,7 +112,9 @@ void Application::run(AppContext& ctx) {
         ctx.systems.actions.setMouseBlocked(ctx.ui.wantsMouse());
         ctx.systems.actions.setKeyboardBlocked(ctx.ui.wantsKeyboard());
 
+        const auto inputStart = std::chrono::steady_clock::now();
         checkActions(ctx);
+        ctx.frameStats.inputMilliseconds = std::chrono::duration<f32, std::milli>(std::chrono::steady_clock::now() - inputStart).count();
         updateWindowTitle(ctx);
         Application::renderFrame(ctx);
 
@@ -118,17 +123,42 @@ void Application::run(AppContext& ctx) {
 }
 
 namespace {
-    LightingState buildLightingState(const LightCollection& lights, const Headlight& headlight, const Camera& camera) {
+    // The environment's sky and ground: brighter above, darker below, averaging out to the ambient light
+    constexpr f32 SKY_SCALE = 1.4f;
+    constexpr f32 GROUND_SCALE = 0.6f;
+    // How much of the background's hue they take (1 all of it); half keeps gray surfaces from turning blue
+    constexpr f32 BACKGROUND_TINT = 0.5f;
+
+    // A color's hue at brightness 1, faded toward white by amount
+    Vec3 tintOf(const Vec3& srgb, f32 amount) {
+        const Vec3 linear = srgbToLinear(srgb);
+        const f32 luminance = 0.2126f * linear.x + 0.7152f * linear.y + 0.0722f * linear.z;
+        if (luminance <= 0.0f) return Vec3(1.0f);
+        const Vec3 hue = linear / luminance;
+        return Vec3(1.0f + (hue.x - 1.0f) * amount, 1.0f + (hue.y - 1.0f) * amount, 1.0f + (hue.z - 1.0f) * amount);
+    }
+
+    Vec3 multiply(const Vec3& a, const Vec3& b) {
+        return Vec3(a.x * b.x, a.y * b.y, a.z * b.z);
+    }
+
+    // Colors are picked in sRGB; the shader lights in linear, so they're converted here
+    LightingState buildLightingState(const LightCollection& lights, const Headlight& headlight, const Camera& camera, const BackgroundGradient& background) {
         LightingState state;
 
         const AmbientLight& ambient = lights.getAmbient();
-        state.ambientColor = ambient.color;
+        state.ambientColor = srgbToLinear(ambient.color);
         state.ambientStrength = ambient.strength;
+
+        const Vec3 ambientLight = state.ambientColor * ambient.strength;
+        state.skyColor = multiply(ambientLight, tintOf(background.top, BACKGROUND_TINT)) * SKY_SCALE;
+        state.groundColor = multiply(ambientLight, tintOf(background.bottom, BACKGROUND_TINT)) * GROUND_SCALE;
+        state.cameraPosition = camera.position;
 
         // Headlight goes first so scene lights can never push it out
         if (headlight.enabled) {
             state.directionalDirections[0] = camera.getForward();
-            state.directionalColors[0] = headlight.color * headlight.strength;
+            state.directionalColors[0] = srgbToLinear(headlight.color) * headlight.strength;
             state.directionalCount = 1;
         }
 
@@ -140,7 +170,7 @@ namespace {
                 if (state.directionalCount == MAX_DIRECTIONAL_LIGHTS) continue;
 
                 state.directionalDirections[state.directionalCount] = light.direction.normalized();
-                state.directionalColors[state.directionalCount] = light.color * light.intensity;
+                state.directionalColors[state.directionalCount] = srgbToLinear(light.color) * light.intensity;
                 ++state.directionalCount;
                 continue;
             }
@@ -149,7 +179,7 @@ namespace {
 
             const u32 i = state.localCount++;
             state.localPositions[i] = light.position;
-            state.localColors[i] = light.color * light.intensity;
+            state.localColors[i] = srgbToLinear(light.color) * light.intensity;
             state.localRanges[i] = light.range;
 
             if (light.type == LightType::Spot) {
@@ -175,10 +205,12 @@ void Application::renderFrame(AppContext& ctx) {
 
     if (width == 0 || height == 0) return;
 
-    const auto now = std::chrono::steady_clock::now().time_since_epoch();
-    ctx.frameTimer.tick(std::chrono::duration<f64>(now).count());
+    const auto start = std::chrono::steady_clock::now();
+    ctx.frameTimer.tick(std::chrono::duration<f64>(start.time_since_epoch()).count());
 
     ctx.renderer->beginFrame();
+    // Swatches render into their own targets, so before the main pass starts drawing
+    ctx.materialPreviews.sync(ctx);
     ctx.renderer->beginMainPass(ctx.renderer->m_clearState);
 
     f32 aspectRatio = static_cast<f32>(width) / static_cast<f32>(height);
@@ -187,13 +219,26 @@ void Application::renderFrame(AppContext& ctx) {
     Mat4 projection = ctx.scene.camera.getProjectionMatrix(aspectRatio);
     Mat4 viewProjection = projection * view;
 
-    ctx.renderer->setLighting(buildLightingState(ctx.scene.lights, ctx.viewport.headlight, ctx.scene.camera));
+    LightingState lighting = buildLightingState(ctx.scene.lights, ctx.viewport.headlight, ctx.scene.camera, ctx.renderer->getBackground());
+    lighting.uvChecker = ctx.viewport.showUVChecker;
+    ctx.renderer->setLighting(lighting);
+    ctx.renderer->setExposure(ctx.viewport.exposure);
 
     ctx.objectMeshes.prune(ctx.scene.objects);
     ctx.referenceTextures.prune(*ctx.renderer);
 
     // Backdrop images go first so everything draws over them
     drawReferenceImages(ctx, viewProjection, ReferenceDepth::Behind);
+
+    // See-through objects and reference images among them wait until everything solid is drawn, then go farthest first
+    struct SeeThrough {
+        f32 distance;
+        DrawCommand object;
+        ReferenceHandle image = INVALID_REFERENCE;
+    };
+    std::vector<SeeThrough> seeThrough;
+
+    const FaceGroupOf groupOf = faceGroupsFor(ctx);
 
     for (ObjectHandle handle : ctx.scene.objects.handles()) {
         Object& object = ctx.scene.objects.get(handle);
@@ -216,11 +261,12 @@ void Application::renderFrame(AppContext& ctx) {
 
         // In object mode a selected object is outlined: every edge in the selection color
         if (objectMode) {
-            if (selection.hasObject(handle)) cmd.highlightedEdges = object.meshData.getEdgeHandles();
+            cmd.outlineAll = selection.hasObject(handle);
         } else if (active) {
             cmd.highlightedVerts = selection.getVertexHandles();
             cmd.highlightedEdges = selection.getEdgeHandles();
             cmd.highlightedFaces = selection.getFaceHandles();
+            cmd.hardEdges = object.meshData.getHardEdges();
 
             // Selected faces are outlined with the same treatment as selected edges
             for (FaceHandle face : cmd.highlightedFaces) {
@@ -230,15 +276,45 @@ void Application::renderFrame(AppContext& ctx) {
             }
         }
         
-        cmd.mesh = ctx.objectMeshes.sync(handle, object);
+        OpenGLMesh* mesh = ctx.objectMeshes.sync(handle, object, groupOf, ctx.scene.materials.stamp());
+        cmd.mesh = mesh;
         cmd.model = model;
         cmd.mvp = mvp;
+
+        // The object's own look tints selected faces; its faces draw by material (or all at once in clay view)
+        const std::optional<SurfaceLook> surface = surfaceFor(ctx, object);
+        cmd.surface = surface ? *surface : claySurface();
+        ObjectParts parts = partsFor(ctx, object, *mesh);
+        cmd.showFaces = parts.whole || !parts.solid.empty();
+        cmd.parts = std::move(parts.solid);
+
+        // See-through parts wait for everything solid; the wireframe and selection stay with the solid draw
+        if (!parts.seeThrough.empty()) {
+            const f32 distance = (worldCenter(ctx, handle) - ctx.scene.camera.position).length();
+            DrawCommand faces;
+            faces.mesh = mesh;
+            faces.model = model;
+            faces.mvp = mvp;
+            faces.showVerts = faces.showEdges = false;
+            faces.parts = std::move(parts.seeThrough);
+            seeThrough.push_back({ distance, std::move(faces) });
+        }
 
         ctx.renderer->draw(cmd);
     }
 
-    // After the meshes, so see-through images blend over them
-    drawReferenceImages(ctx, viewProjection, ReferenceDepth::InScene);
+    for (ReferenceHandle handle : ctx.scene.references.handles()) {
+        const ReferenceImage& image = ctx.scene.references.get(handle);
+        if (image.visible && image.depth == ReferenceDepth::InScene && image.opacity > 0.0f) {
+            seeThrough.push_back({ (image.position - ctx.scene.camera.position).length(), {}, handle });
+        }
+    }
+
+    std::sort(seeThrough.begin(), seeThrough.end(), [](const SeeThrough& a, const SeeThrough& b) { return a.distance > b.distance; });
+    for (const SeeThrough& item : seeThrough) {
+        if (!item.image.isNull()) drawReferenceImage(ctx, viewProjection, item.image);
+        else ctx.renderer->draw(item.object);
+    }
 
     DrawGridCommand gridCmd;
     gridCmd.viewProjection = viewProjection;
@@ -267,6 +343,7 @@ void Application::renderFrame(AppContext& ctx) {
     drawOriginMarkers(ctx, ui, viewProjection, static_cast<f32>(width), static_cast<f32>(height));
     drawToolGuides(ctx, ui);
     drawStatusBar(ctx, ui, static_cast<f32>(width), static_cast<f32>(height));
+    drawStatsOverlay(ctx, ui);
 
     ctx.ui.setDrawList(&ui);
     ctx.ui.setFont(makeUIFont(FontId::UI, ctx.fonts.get(FontId::UI)));
@@ -285,5 +362,7 @@ void Application::renderFrame(AppContext& ctx) {
 
     ctx.renderer->endMainPass();
     ctx.renderer->endFrame();
+    // Before present, which waits for the screen when vsync is on
+    ctx.frameStats.renderMilliseconds = std::chrono::duration<f32, std::milli>(std::chrono::steady_clock::now() - start).count();
     ctx.renderer->present();
 }

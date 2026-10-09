@@ -3,13 +3,20 @@
 #include "scene/selection/scene_queries.hpp"
 #include "application/light_markers.hpp"
 #include "application/origin_markers.hpp"
+#include "application/material_view.hpp"
 
 #include "core/math/vec4.hpp"
 
 #include <algorithm>
+#include <chrono>
 #include <cfloat>
 
 namespace {
+    // In material view, faces seen from behind on single-sided materials aren't drawn, so they aren't clicked either
+    BackFacesCulled culledFaces(const AppContext& ctx) {
+        return [&ctx](ObjectHandle handle) { return backFacesCulled(ctx, handle); };
+    }
+
     Vec3 toWorld(const Mat4& model, Vec3 point) {
         const Vec4 world = model * Vec4(point.x, point.y, point.z, 1.0f);
         return Vec3(world.x, world.y, world.z);
@@ -86,7 +93,7 @@ namespace {
                 selectEdge(selection, hit.object, mesh, edge);
             }
         } else if (ctx.systems.input_ctx.getSelectionContext() == InputContext_SelectionFace) {
-            FaceHit hit = pickFace(ctx.scene, ray, selection.getActiveObject());
+            FaceHit hit = pickFace(ctx.scene, ray, selection.getActiveObject(), INVALID_OBJECT, culledFaces(ctx));
             if (!hit.hit) return;
 
             const Object& object = ctx.scene.objects.get(hit.object);
@@ -185,6 +192,13 @@ void checkSelectionContext(AppContext& ctx) {
             camera
         );
 
+        // Times the click's picking and selecting, for the stats readout
+        struct PickTimer {
+            f32& result;
+            std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
+            ~PickTimer() { result = std::chrono::duration<f32, std::milli>(std::chrono::steady_clock::now() - start).count(); }
+        } pickTimer { ctx.frameStats.lastPickMilliseconds };
+
         Selection& selection = ctx.scene.selection;
         const bool toggling = actions.isActionDown(Action::ToggleSelection, input, ictx.getContext());
 
@@ -204,7 +218,7 @@ void checkSelectionContext(AppContext& ctx) {
         // A reference image wins when it's drawn over the mesh under the mouse
         ReferenceHit referenceHit = (originHit.hit || lightHit.hit) ? ReferenceHit {} : pickReference(ctx.scene, ray);
         if (referenceHit.hit && referenceHit.depth != ReferenceDepth::InFront) {
-            const FaceHit meshHit = pickFace(ctx.scene, ray);
+            const FaceHit meshHit = pickFace(ctx.scene, ray, INVALID_OBJECT, INVALID_OBJECT, culledFaces(ctx));
             const bool hidden = meshHit.hit && (referenceHit.depth == ReferenceDepth::Behind || meshHit.distance < referenceHit.distance);
             if (hidden) referenceHit = {};
         }
@@ -234,7 +248,7 @@ void checkSelectionContext(AppContext& ctx) {
             }
         } else if (ictx.getSelectionContext() == InputContext_SelectionObject) {
             // Object mode picks whole objects; the last one clicked becomes the active object
-            const FaceHit objectHit = pickFace(ctx.scene, ray);
+            const FaceHit objectHit = pickFace(ctx.scene, ray, INVALID_OBJECT, INVALID_OBJECT, culledFaces(ctx));
 
             if (objectHit.hit) {
                 selection.clearLights();
@@ -253,14 +267,14 @@ void checkSelectionContext(AppContext& ctx) {
             // What the click hits on the active object, in the current mode
             const VertexHit vertexHit = (mode & InputContext_SelectionVertex) ? pickVertex(ctx.scene, ray, 0.03f, active) : VertexHit {};
             const EdgeHit edgeHit = (mode & InputContext_SelectionEdge) ? pickEdge(ctx.scene, ray, 0.03f, active) : EdgeHit {};
-            const FaceHit faceHit = pickFace(ctx.scene, ray, active);
+            const FaceHit faceHit = pickFace(ctx.scene, ray, active, INVALID_OBJECT, culledFaces(ctx));
 
             f32 activeDistance = faceHit.hit ? faceHit.distance : FLT_MAX;
             if (vertexHit.hit) activeDistance = std::min(activeDistance, vertexHit.distance);
             if (edgeHit.hit) activeDistance = std::min(activeDistance, edgeHit.distance);
 
             // Another object in front of the active one becomes the active object, in the same mode
-            const FaceHit other = pickFace(ctx.scene, ray, INVALID_OBJECT, active);
+            const FaceHit other = pickFace(ctx.scene, ray, INVALID_OBJECT, active, culledFaces(ctx));
 
             if (other.hit && other.distance < activeDistance) {
                 selection.clearLights();

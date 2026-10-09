@@ -101,3 +101,53 @@ bool MeshData::isValidHandle(EdgeHandle handle) const {
 bool MeshData::isValidHandle(FaceHandle handle) const {
     return m_faces.isValid(handle);
 }
+
+MaterialHandle MeshData::getFaceMaterial(FaceHandle handle) const {
+    const Face* face = m_faces.tryGet(handle);
+    return face ? face->material : INVALID_MATERIAL;
+}
+
+void MeshData::setFaceMaterial(FaceHandle handle, MaterialHandle material) {
+    Face* face = m_faces.tryGet(handle);
+    if (!face) return;
+    face->material = material;
+    // Faces regroup by material on the GPU, so the layout changes
+    m_materialStamp = nextStructureStamp();
+}
+
+MaterialHandle MeshData::sharedFaceMaterial(const std::vector<FaceHandle>& faces) const {
+    MaterialHandle shared = INVALID_MATERIAL;
+    for (std::size_t i = 0; i < faces.size(); ++i) {
+        const MaterialHandle material = getFaceMaterial(faces[i]);
+        if (i == 0) shared = material;
+        else if (!(material == shared)) return INVALID_MATERIAL;
+    }
+    return shared;
+}
+
+std::vector<Vec2> MeshData::getFaceUVs(FaceHandle handle) const {
+    std::vector<Vec2> uvs;
+    for (EdgeHandle edge : getFaceEdges(handle)) uvs.push_back(m_edges.get(edge).uv);
+    return uvs;
+}
+
+void MeshData::setFaceUVs(FaceHandle handle, const std::vector<Vec2>& uvs) {
+    const std::vector<EdgeHandle> edges = getFaceEdges(handle);
+    if (edges.size() != uvs.size()) return;
+    for (std::size_t i = 0; i < edges.size(); ++i) m_edges.get(edges[i]).uv = uvs[i];
+    // The GPU copy's corners change everywhere on the face, so it's rebuilt
+    m_uvStamp = nextStructureStamp();
+}
+
+std::vector<Vec2> MeshData::getCornerUVs() const {
+    std::vector<Vec2> uvs;
+    for (EdgeHandle edge : m_edges.getActiveHandles()) uvs.push_back(m_edges.get(edge).uv);
+    return uvs;
+}
+
+void MeshData::setCornerUVs(const std::vector<Vec2>& uvs) {
+    const std::vector<EdgeHandle> edges = m_edges.getActiveHandles();
+    if (edges.size() != uvs.size()) return;
+    for (std::size_t i = 0; i < edges.size(); ++i) m_edges.get(edges[i]).uv = uvs[i];
+    m_uvStamp = nextStructureStamp();
+}

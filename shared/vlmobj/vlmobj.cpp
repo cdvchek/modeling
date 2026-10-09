@@ -29,8 +29,10 @@ namespace vlmobj {
                 case Section::PARTS:
                 case Section::VERTICES:
                 case Section::INDICES:
-                case Section::EDIT:
+                case Section::MATERIALS:
                     return 1;
+                case Section::EDIT:
+                    return 4;
                 default:
                     return 0;
             }
@@ -106,6 +108,18 @@ namespace vlmobj {
                 appendArray(bytes, mesh.positions);
                 appendArray(bytes, mesh.faceSizes);
                 appendArray(bytes, mesh.corners);
+                // Version 2
+                append(bytes, mesh.material);
+                append(bytes, static_cast<u32>(mesh.faceMaterials.size()));
+                appendArray(bytes, mesh.faceMaterials);
+                // Version 3
+                append(bytes, static_cast<u32>(mesh.uvs.size() / 2));
+                appendArray(bytes, mesh.uvs);
+                // Version 4
+                append(bytes, mesh.shading);
+                append(bytes, mesh.smoothAngle);
+                append(bytes, static_cast<u32>(mesh.edgeMarks.size()));
+                appendArray(bytes, mesh.edgeMarks);
             }
 
             return bytes;
@@ -266,14 +280,17 @@ namespace vlmobj {
         const u8* nodes = nullptr;
         const u8* meshes = nullptr;
         const u8* parts = nullptr;
-        u64 nodeCount = 0, meshCount = 0, partCount = 0;
+        const u8* materials = nullptr;
+        u64 nodeCount = 0, meshCount = 0, partCount = 0, materialCount = 0;
         if (!records(Section::NODES, sizeof(Node), nodes, nodeCount)) return fail("section NODE has the wrong size for its count");
         if (!records(Section::MESHES, sizeof(Mesh), meshes, meshCount)) return fail("section MESH has the wrong size for its count");
         if (!records(Section::PARTS, sizeof(Part), parts, partCount)) return fail("section PART has the wrong size for its count");
+        if (!records(Section::MATERIALS, sizeof(Material), materials, materialCount)) return fail("section MATL has the wrong size for its count");
 
         m_nodes = { reinterpret_cast<const Node*>(nodes), static_cast<std::size_t>(nodeCount) };
         m_meshes = { reinterpret_cast<const Mesh*>(meshes), static_cast<std::size_t>(meshCount) };
         m_parts = { reinterpret_cast<const Part*>(parts), static_cast<std::size_t>(partCount) };
+        m_materials = { reinterpret_cast<const Material*>(materials), static_cast<std::size_t>(materialCount) };
 
         const DirectoryEntry* strings = find(Section::STRINGS);
         if (!strings || strings->size == 0 || m_data[strings->offset] != 0) return fail("the string table is missing or doesn't start with an empty string");
@@ -296,6 +313,13 @@ namespace vlmobj {
             if (i == 0 ? node.parent != NONE : node.parent >= i) return fail("node " + std::to_string(i) + " has a parent that isn't before it (the root must be first)");
             if (node.mesh != NONE && node.mesh >= m_meshes.size()) return fail("node " + std::to_string(i) + " points at a mesh that doesn't exist");
             if (!fits(node.name.offset, node.name.length, m_stringBytes)) return fail("node " + std::to_string(i) + "'s name is out of range");
+        }
+
+        // 5. Materials
+        for (std::size_t i = 0; i < m_materials.size(); ++i) {
+            const Material& material = m_materials[i];
+            if (!fits(material.name.offset, material.name.length, m_stringBytes)) return fail("material " + std::to_string(i) + "'s name is out of range");
+            if (material.alphaMode > static_cast<u8>(AlphaMode::Blend)) return fail("material " + std::to_string(i) + " has an alpha mode this reader doesn't know");
         }
 
         if (!checkMeshes(options)) return false;
@@ -328,6 +352,7 @@ namespace vlmobj {
             for (u32 p = 0; p < mesh.partCount; ++p) {
                 const Part& part = m_parts[mesh.firstPart + p];
                 if (!fits(part.firstIndex, part.indexCount, mesh.indexCount) || part.indexCount % 3 != 0) return fail(which + " has a part outside its indices");
+                if (part.material != NONE && part.material >= m_materials.size()) return fail(which + " has a part whose material doesn't exist");
             }
 
             if (!options.verifyIndices) continue;
@@ -378,6 +403,33 @@ namespace vlmobj {
             }
             if (total != cornerCount) return false;
             for (u32 corner : mesh.corners) if (corner >= vertexCount) return false;
+
+            // Version 1 meshes carry no materials
+            if (entry->version < 2) continue;
+            u32 faceMaterialCount = 0;
+            if (!cursor.read(mesh.material) || !cursor.read(faceMaterialCount)) return false;
+            if (faceMaterialCount != 0 && faceMaterialCount != faceCount) return false;
+            if (!cursor.readArray(mesh.faceMaterials, faceMaterialCount)) return false;
+
+            const auto known = [&](u32 material) { return material == NONE || material < m_materials.size(); };
+            if (!known(mesh.material)) return false;
+            for (u32 material : mesh.faceMaterials) if (!known(material)) return false;
+
+            // Version 2 meshes carry no UVs
+            if (entry->version < 3) continue;
+            u32 uvCount = 0;
+            if (!cursor.read(uvCount)) return false;
+            if (uvCount != 0 && uvCount != cornerCount) return false;
+            if (!cursor.readArray(mesh.uvs, u64(uvCount) * 2)) return false;
+
+            // Version 3 meshes are flat with no marks
+            if (entry->version < 4) continue;
+            u32 markCount = 0;
+            if (!cursor.read(mesh.shading) || !cursor.read(mesh.smoothAngle) || !cursor.read(markCount)) return false;
+            if (mesh.shading > 2 || !(mesh.smoothAngle >= 0.0f && mesh.smoothAngle <= 3.1416f)) return false;
+            if (markCount != 0 && markCount != cornerCount) return false;
+            if (!cursor.readArray(mesh.edgeMarks, markCount)) return false;
+            for (u8 mark : mesh.edgeMarks) if (mark > 2) return false;
         }
 
         out = std::move(edit);
@@ -389,6 +441,11 @@ namespace vlmobj {
     u32 Writer::addNode(const NodeInput& node) {
         m_nodes.push_back(node);
         return static_cast<u32>(m_nodes.size() - 1);
+    }
+
+    u32 Writer::addMaterial(const MaterialInput& material) {
+        m_materials.push_back(material);
+        return static_cast<u32>(m_materials.size() - 1);
     }
 
     u32 Writer::addMesh(MeshInput mesh) {
@@ -427,6 +484,22 @@ namespace vlmobj {
             std::copy(std::begin(input.rotation), std::end(input.rotation), node.rotation);
             std::copy(std::begin(input.scale), std::end(input.scale), node.scale);
             append(nodes, node);
+        }
+
+        std::vector<u8> materials;
+        for (const MaterialInput& input : m_materials) {
+            Material material {};
+            material.name = intern(input.name);
+            std::copy(std::begin(input.baseColor), std::end(input.baseColor), material.baseColor);
+            material.roughness = input.roughness;
+            material.metallic = input.metallic;
+            std::copy(std::begin(input.emissiveColor), std::end(input.emissiveColor), material.emissiveColor);
+            material.emissiveStrength = input.emissiveStrength;
+            material.opacity = input.opacity;
+            material.alphaCutoff = input.alphaCutoff;
+            material.alphaMode = static_cast<u8>(input.alphaMode);
+            material.flags = input.doubleSided ? MATERIAL_DOUBLE_SIDED : 0;
+            append(materials, material);
         }
 
         std::vector<u8> meshes, parts, vertices, indices;
@@ -516,6 +589,7 @@ namespace vlmobj {
             sections.push_back({ Section::VERTICES, 0, 0, &vertices });
             sections.push_back({ Section::INDICES, 0, 0, &indices });
         }
+        if (!m_materials.empty()) sections.push_back({ Section::MATERIALS, static_cast<u32>(m_materials.size()), 0, &materials });
         if (m_hasEdit) sections.push_back({ Section::EDIT, 0, SECTION_EDITOR_ONLY, &edit });
 
         // Header, directory, then each section on a 64-byte boundary

@@ -9,6 +9,7 @@
 #include "core/math/mat4.hpp"
 #include "core/math/vec3.hpp"
 #include "renderer/gpu_mesh.hpp"
+#include "renderer/render_stats.hpp"
 #include "core/font/font_library.hpp"
 #include "ui/ui_draw_list.hpp"
 
@@ -50,6 +51,7 @@ struct BackgroundGradient {
     Vec3 bottom { 0.10f, 0.10f, 0.13f };
 };
 
+// Colors here are linear (converted from the sRGB colors that were picked) and include intensity
 struct LightingState {
     Vec3 ambientColor { 1.0f, 1.0f, 1.0f };
     f32 ambientStrength = 1.0f;
@@ -67,6 +69,53 @@ struct LightingState {
     f32 localCosInner[MAX_LOCAL_LIGHTS] = {};
     f32 localCosOuter[MAX_LOCAL_LIGHTS] = {};
     u32 localCount = 0;
+
+    // The environment surfaces reflect and are lit by: a sky above and a ground below
+    Vec3 skyColor { 0.3f, 0.3f, 0.3f };
+    Vec3 groundColor { 0.1f, 0.1f, 0.1f };
+
+    Vec3 cameraPosition;
+
+    // Faces show a UV checker grid in place of their base colors
+    bool uvChecker = false;
+};
+
+// What happens to the back of a face
+enum class BackFaces : u8 {
+    Tinted,     // drawn and tinted, so flipped or open faces stand out (clay view)
+    Lit,        // drawn and lit as if they faced you (double-sided materials)
+    Culled      // not drawn, as the game engine does for single-sided materials
+};
+
+// How a mesh's faces look: a material's values (colors sRGB), and how its back faces and transparency are drawn
+struct SurfaceLook {
+    Vec3 baseColor { 0.72f, 0.73f, 0.78f };
+    f32 roughness = 0.5f;
+    f32 metallic = 0.0f;
+    Vec3 emissiveColor { 1.0f, 1.0f, 1.0f };
+    f32 emissiveStrength = 0.0f;
+
+    // Blended faces are see-through by opacity and don't write depth; draw them after everything solid, farthest
+    // first. Back faces of a blended mesh are drawn before its front faces.
+    bool blend = false;
+    f32 opacity = 1.0f;
+
+    BackFaces backFaces = BackFaces::Tinted;
+};
+
+// Every value the same: a run of draws in one material sends it once
+inline bool sameSurface(const SurfaceLook& a, const SurfaceLook& b) {
+    return a.baseColor.x == b.baseColor.x && a.baseColor.y == b.baseColor.y && a.baseColor.z == b.baseColor.z
+        && a.roughness == b.roughness && a.metallic == b.metallic
+        && a.emissiveColor.x == b.emissiveColor.x && a.emissiveColor.y == b.emissiveColor.y && a.emissiveColor.z == b.emissiveColor.z
+        && a.emissiveStrength == b.emissiveStrength && a.blend == b.blend && a.opacity == b.opacity && a.backFaces == b.backFaces;
+}
+
+// One material's run of a mesh's faces (a FaceGroup), with how it looks
+struct DrawPart {
+    u32 firstIndex = 0;
+    u32 indexCount = 0;
+    SurfaceLook surface;
 };
 
 struct DrawCommand {
@@ -81,6 +130,15 @@ struct DrawCommand {
     IMesh* mesh = nullptr;
     Mat4 model;
     Mat4 mvp;
+
+    // The object's own look: every face when parts is empty, and the selection tint's base
+    SurfaceLook surface;
+    // Faces drawn by material; empty draws every face in surface
+    std::vector<DrawPart> parts;
+    // Object mode's outline: every edge in the selection style, in one draw per pass
+    bool outlineAll = false;
+    // Edges that shade hard (smooth shading), drawn in their own color under the selection
+    std::vector<EdgeHandle> hardEdges;
 };
 
 struct DrawText3DCommand {
@@ -124,6 +182,9 @@ public:
     virtual void setLighting(const LightingState& lighting) = 0;
     virtual void setBackground(const BackgroundGradient& background) = 0;
     virtual BackgroundGradient getBackground() const = 0;
+    // Brightens or darkens lit surfaces before tone mapping, in stops (each +1 doubles the light)
+    virtual void setExposure(f32 stops) = 0;
+    virtual f32 getExposure() const = 0;
     virtual void setBackFaceTint(const Vec3& tint) = 0;
     virtual Vec3 getBackFaceTint() const = 0;
     virtual void draw(const DrawCommand& command) = 0;
@@ -134,11 +195,18 @@ public:
     // A texture from 8-bit RGBA pixels, rows from the top, with mipmaps; 0 if it couldn't be made (too large)
     virtual u32 createTexture(const u8* pixels, u32 width, u32 height) = 0;
     virtual void destroyTexture(u32 texture) = 0;
+
+    // A swatch: a lit sphere in the look, size pixels square, over a checkerboard when it's see-through, under fixed
+    // studio lighting. Draws into texture (a new one when 0) and returns it; call outside the main pass.
+    virtual u32 renderMaterialPreview(const SurfaceLook& look, u32 size, u32 texture) = 0;
     virtual void drawDebugLine(const Vec3& start, const Vec3& end, const Mat4& mvp) = 0;
     virtual void drawUI(const UIDrawList& list) = 0;
     virtual void endMainPass() = 0;
     virtual void endFrame() = 0;
     virtual void present() = 0;
+
+    // What the last finished frame did (GPU time from a few frames back, as it arrives)
+    virtual RenderStats getStats() const = 0;
 
     virtual RendererBackend getBackend() const = 0;
     virtual const char* getBackendName() const = 0;

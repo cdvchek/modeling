@@ -47,9 +47,9 @@ namespace vlmobj {
         inline constexpr u32 VERTICES = fourCC("VTXS");
         inline constexpr u32 INDICES = fourCC("IDXS");
         inline constexpr u32 EDIT = fourCC("EDIT");
+        inline constexpr u32 MATERIALS = fourCC("MATL");
 
         // Reserved for later versions
-        inline constexpr u32 MATERIALS = fourCC("MATL");
         inline constexpr u32 TEXTURES = fourCC("TEXR");
         inline constexpr u32 SKELETON = fourCC("SKEL");
         inline constexpr u32 ANIMATIONS = fourCC("ANIM");
@@ -155,8 +155,28 @@ namespace vlmobj {
     struct Part {
         u32 firstIndex;
         u32 indexCount;
-        u32 material;
+        u32 material;       // into the MATL section, or NONE for the engine's default material
         u32 reserved;
+    };
+
+    enum class AlphaMode : u8 { Opaque = 0, Cutout = 1, Blend = 2 };
+
+    inline constexpr u8 MATERIAL_DOUBLE_SIDED = 1 << 0;
+
+    // Metallic-roughness, as glTF. Colors are sRGB as authored (convert to linear when loading), each 0 to 1.
+    struct Material {
+        StringRef name;
+        f32 baseColor[3];
+        f32 roughness;
+        f32 metallic;
+        f32 emissiveColor[3];
+        f32 emissiveStrength;   // multiplies emissiveColor; 0 doesn't glow
+        f32 opacity;
+        f32 alphaCutoff;        // Cutout: drawn where opacity reaches it
+        u8 alphaMode;           // AlphaMode
+        u8 flags;               // MATERIAL_DOUBLE_SIDED
+        u16 reserved0;
+        u32 reserved1[2];
     };
 
     static_assert(sizeof(Header) == 64 && offsetof(Header, directoryOffset) == 24 && offsetof(Header, headerCrc) == 48);
@@ -166,6 +186,7 @@ namespace vlmobj {
     static_assert(sizeof(VertexAttribute) == 8);
     static_assert(sizeof(Mesh) == 160 && offsetof(Mesh, vertexStride) == 32 && offsetof(Mesh, boundsMin) == 48 && offsetof(Mesh, attributes) == 88);
     static_assert(sizeof(Part) == 16);
+    static_assert(sizeof(Material) == 64 && offsetof(Material, roughness) == 20 && offsetof(Material, emissiveStrength) == 40 && offsetof(Material, alphaMode) == 52);
 
     // Standard CRC-32 (zlib/PNG)
     u32 crc32(const void* data, std::size_t size);
@@ -191,6 +212,16 @@ namespace vlmobj {
         std::vector<f32> positions;     // x, y, z per vertex
         std::vector<u32> faceSizes;     // corners per face
         std::vector<u32> corners;       // vertex indices, face after face, counter-clockwise from the front
+        // Version 2: the object's material and each face's own (empty when no face has one); MATL indices or NONE
+        u32 material = NONE;
+        std::vector<u32> faceMaterials;
+        // Version 3: each corner's UV (u, v), in corner order; empty for none
+        std::vector<f32> uvs;
+        // Version 4: shading (0 flat, 1 smooth, 2 auto), the auto angle in radians, and the mark of the edge
+        // ending at each corner (0 none, 1 hard, 2 smooth), in corner order; empty for none
+        u32 shading = 0;
+        f32 smoothAngle = 0.5235988f;
+        std::vector<u8> edgeMarks;
     };
 
     struct EditData {
@@ -222,6 +253,7 @@ namespace vlmobj {
         std::span<const Node> nodes() const { return m_nodes; }
         std::span<const Mesh> meshes() const { return m_meshes; }
         std::span<const Part> parts() const { return m_parts; }
+        std::span<const Material> materials() const { return m_materials; }
 
         // A mesh's vertices (vertexCount × vertexStride bytes) and indices (indexCount × indexSize bytes)
         const u8* vertexData(const Mesh& mesh) const { return m_vertices + mesh.vertexOffset; }
@@ -248,6 +280,7 @@ namespace vlmobj {
         std::span<const Node> m_nodes;
         std::span<const Mesh> m_meshes;
         std::span<const Part> m_parts;
+        std::span<const Material> m_materials;
         const u8* m_strings = nullptr;
         u64 m_stringBytes = 0;
         const u8* m_vertices = nullptr;
@@ -274,6 +307,19 @@ namespace vlmobj {
         u32 material = NONE;
     };
 
+    struct MaterialInput {
+        std::string name;
+        f32 baseColor[3] = { 1.0f, 1.0f, 1.0f };
+        f32 roughness = 0.5f;
+        f32 metallic = 0.0f;
+        f32 emissiveColor[3] = { 1.0f, 1.0f, 1.0f };
+        f32 emissiveStrength = 0.0f;
+        f32 opacity = 1.0f;
+        f32 alphaCutoff = 0.5f;
+        AlphaMode alphaMode = AlphaMode::Opaque;
+        bool doubleSided = false;
+    };
+
     struct MeshInput {
         std::string name;
         std::vector<VertexAttribute> attributes;   // must include a Position in F32x3 (used for the bounds)
@@ -288,6 +334,8 @@ namespace vlmobj {
         // Returns the node's index; nodes must be added parents first, the root (parent NONE) first of all
         u32 addNode(const NodeInput& node);
         u32 addMesh(MeshInput mesh);
+        // Returns the material's index, for parts to point at
+        u32 addMaterial(const MaterialInput& material);
         void setEditData(EditData edit);
 
         // The finished file. Deterministic: the same input always gives the same bytes.
@@ -296,6 +344,7 @@ namespace vlmobj {
     private:
         std::vector<NodeInput> m_nodes;
         std::vector<MeshInput> m_meshes;
+        std::vector<MaterialInput> m_materials;
         EditData m_edit;
         bool m_hasEdit = false;
     };

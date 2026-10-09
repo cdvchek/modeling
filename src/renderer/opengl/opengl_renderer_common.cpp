@@ -4,19 +4,24 @@
 
 #include <iostream>
 #include <algorithm>
+#include <cmath>
 
 #include <glad/glad.h>
+#include "renderer/opengl/opengl_counters.hpp"
 
 namespace {
     // Dracula-themed: a cool gray surface, edges in the theme's darker background
-    const Vec3 FACE_COLOR { 0.72f, 0.73f, 0.78f };
     const Vec3 EDGE_COLOR { 0.13f, 0.13f, 0.17f };
     const Vec3 VERTEX_COLOR { 0.10f, 0.10f, 0.13f };
     const Vec3 OUTLINE_COLOR { 0.06f, 0.06f, 0.08f };
+    // Hard edges on a smooth-shaded mesh: Dracula cyan
+    const Vec3 HARD_EDGE_COLOR { 0.55f, 0.91f, 0.99f };
 
     // Selection matches the light markers and UI accent: Dracula purple with a soft glow
     const Vec3 SELECTED_COLOR { 0.74f, 0.58f, 0.98f };
     const Vec3 SELECTED_FACE_COLOR { 0.46f, 0.34f, 0.74f };
+    // How far selected faces' base color goes toward SELECTED_FACE_COLOR; their shading stays
+    constexpr f32 SELECTED_FACE_MIX = 0.8f;
     constexpr f32 SELECTED_GLOW_ALPHA = 0.35f;
 
     constexpr f32 EDGE_WIDTH = 2.0f;
@@ -84,13 +89,25 @@ bool OpenGLRenderer::createResources() {
         std::cerr << "[renderer] some shaders failed to load; their draws will be skipped" << std::endl;
     }
 
+    // The lit shader reads the lights from one buffer at a fixed binding
+    m_shaders.get(ShaderId::Lit).bindUniformBlock("Lighting", 0);
+    m_lightingDirty = true;
+
     m_ui.create();
 
     return true;
 }
 
 void OpenGLRenderer::destroyResources() {
+    if (m_lightingBuffer != 0) glDeleteBuffers(1, &m_lightingBuffer);
+    m_lightingBuffer = 0;
+    if (m_timerQueries[0] != 0) glDeleteQueries(TIMER_QUERIES, m_timerQueries);
+    for (u32 i = 0; i < TIMER_QUERIES; ++i) {
+        m_timerQueries[i] = 0;
+        m_timerPending[i] = false;
+    }
     m_shaders.destroy();
+    destroyPreviewResources();
     destroyRenderTargets();
     m_ui.destroy();
 
@@ -164,6 +181,25 @@ void OpenGLRenderer::destroyRenderTargets() {
 
 void OpenGLRenderer::beginFrame(){
     if (!m_initialized) return;
+
+    glCounters() = {};
+    if (m_timerQueries[0] == 0) glGenQueries(TIMER_QUERIES, m_timerQueries);
+
+    // Collect the slot about to be reused if its result is in; otherwise skip timing this frame
+    const u32 slot = m_timerFrame % TIMER_QUERIES;
+    if (m_timerPending[slot]) {
+        GLint available = 0;
+        glGetQueryObjectiv(m_timerQueries[slot], GL_QUERY_RESULT_AVAILABLE, &available);
+        if (!available) return;
+
+        GLuint64 nanoseconds = 0;
+        glGetQueryObjectui64v(m_timerQueries[slot], GL_QUERY_RESULT, &nanoseconds);
+        m_gpuMilliseconds = static_cast<f32>(nanoseconds) / 1.0e6f;
+        m_timerPending[slot] = false;
+    }
+
+    glBeginQuery(GL_TIME_ELAPSED, m_timerQueries[slot]);
+    m_timerPending[slot] = true;
 }
 
 void OpenGLRenderer::beginMainPass(const ClearState& clearState){
@@ -202,7 +238,7 @@ void OpenGLRenderer::beginMainPass(const ClearState& clearState){
         glDepthMask(GL_FALSE);
 
         glBindVertexArray(m_fullscreenVAO);
-        glDrawArrays(GL_TRIANGLES, 0, 3);
+        drawArrays(GL_TRIANGLES, 0, 3);
         glBindVertexArray(0);
 
         glDepthMask(GL_TRUE);
@@ -212,6 +248,12 @@ void OpenGLRenderer::beginMainPass(const ClearState& clearState){
 
 void OpenGLRenderer::setLighting(const LightingState& lighting) {
     m_lighting = lighting;
+    m_lightingDirty = true;
+}
+
+void OpenGLRenderer::setExposure(f32 stops) {
+    if (stops != m_exposure) m_lightingDirty = true;
+    m_exposure = stops;
 }
 
 void OpenGLRenderer::setBackground(const BackgroundGradient& background) {
@@ -224,34 +266,158 @@ BackgroundGradient OpenGLRenderer::getBackground() const {
 
 void OpenGLRenderer::setBackFaceTint(const Vec3& tint) {
     m_backFaceTint = tint;
+    m_lightingDirty = true;
 }
 
 Vec3 OpenGLRenderer::getBackFaceTint() const {
     return m_backFaceTint;
 }
 
+namespace {
+    // The Lighting block in lit.frag, std140: every member a vec4 (or ivec4), so no padding rules to trip on
+    struct LightingBlock {
+        f32 directionalDirections[MAX_DIRECTIONAL_LIGHTS][4];
+        f32 directionalColors[MAX_DIRECTIONAL_LIGHTS][4];
+        f32 localPositions[MAX_LOCAL_LIGHTS][4];
+        f32 localDirections[MAX_LOCAL_LIGHTS][4];
+        f32 localColors[MAX_LOCAL_LIGHTS][4];
+        f32 skyColor[4];
+        f32 groundColor[4];
+        f32 cameraPosition[4];
+        f32 backFaceTint[4];
+        i32 lightCounts[4];
+    };
+    static_assert(sizeof(LightingBlock) == 37 * 16, "std140 layout of the Lighting block");
+
+    void put(f32 (&out)[4], const Vec3& value, f32 w = 0.0f) {
+        out[0] = value.x;
+        out[1] = value.y;
+        out[2] = value.z;
+        out[3] = w;
+    }
+
+    constexpr u32 LIGHTING_BINDING = 0;
+}
+
+void OpenGLRenderer::uploadLighting() {
+    if (!m_lightingDirty) return;
+
+    LightingBlock block {};
+    const u32 directional = std::min(m_lighting.directionalCount, MAX_DIRECTIONAL_LIGHTS);
+    for (u32 i = 0; i < directional; ++i) {
+        put(block.directionalDirections[i], m_lighting.directionalDirections[i]);
+        put(block.directionalColors[i], m_lighting.directionalColors[i]);
+    }
+
+    const u32 local = std::min(m_lighting.localCount, MAX_LOCAL_LIGHTS);
+    for (u32 i = 0; i < local; ++i) {
+        put(block.localPositions[i], m_lighting.localPositions[i], m_lighting.localRanges[i]);
+        put(block.localDirections[i], m_lighting.localDirections[i], m_lighting.localCosInner[i]);
+        put(block.localColors[i], m_lighting.localColors[i], m_lighting.localCosOuter[i]);
+    }
+
+    put(block.skyColor, m_lighting.skyColor, std::exp2(m_exposure));
+    put(block.groundColor, m_lighting.groundColor);
+    put(block.cameraPosition, m_lighting.cameraPosition, m_lighting.uvChecker ? 1.0f : 0.0f);
+    put(block.backFaceTint, m_backFaceTint);
+    block.lightCounts[0] = static_cast<i32>(directional);
+    block.lightCounts[1] = static_cast<i32>(local);
+
+    if (m_lightingBuffer == 0) glGenBuffers(1, &m_lightingBuffer);
+    glBindBuffer(GL_UNIFORM_BUFFER, m_lightingBuffer);
+    glBufferData(GL_UNIFORM_BUFFER, sizeof(block), &block, GL_DYNAMIC_DRAW);
+    glBindBuffer(GL_UNIFORM_BUFFER, 0);
+    glBindBufferBase(GL_UNIFORM_BUFFER, LIGHTING_BINDING, m_lightingBuffer);
+
+    m_lightingDirty = false;
+}
+
+void OpenGLRenderer::setSurfaceUniforms(OpenGLShader& lit, const SurfaceLook& surface) {
+    // A run of draws in the same material (most objects, sorted by material) sends it once
+    const bool same = m_lastSurfaceValid && sameSurface(m_lastSurface, surface);
+    if (same) return;
+
+    lit.setVec3("u_BaseColor", surface.baseColor);
+    lit.setFloat("u_Roughness", surface.roughness);
+    lit.setFloat("u_Metallic", surface.metallic);
+    lit.setVec3("u_EmissiveColor", surface.emissiveColor);
+    lit.setFloat("u_EmissiveStrength", surface.emissiveStrength);
+    lit.setFloat("u_Opacity", surface.blend ? surface.opacity : 1.0f);
+    lit.setInt("u_BackFaces", surface.backFaces == BackFaces::Tinted ? 0 : 1);
+
+    m_lastSurface = surface;
+    m_lastSurfaceValid = true;
+}
+
+void OpenGLRenderer::drawSurfaceRange(OpenGLShader& lit, IMesh& mesh, const SurfaceLook& surface, u32 firstIndex, u32 indexCount, bool whole) {
+    setSurfaceUniforms(lit, surface);
+
+    if (surface.blend) {
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        glDepthMask(GL_FALSE);
+    }
+
+    // One pass per side to draw: a see-through surface shows its far side first, then its near side over it
+    GLenum culls[2] = { GL_NONE, GL_NONE };
+    u32 passes = 1;
+    if (surface.backFaces == BackFaces::Culled) culls[0] = GL_BACK;
+    else if (surface.blend) {
+        culls[0] = GL_FRONT;
+        culls[1] = GL_BACK;
+        passes = 2;
+    }
+
+    // Offset pushes faces back so selected faces and edges win the depth test
+    glEnable(GL_POLYGON_OFFSET_FILL);
+    glPolygonOffset(1.0f, 1.0f);
+    for (u32 pass = 0; pass < passes; ++pass) {
+        if (culls[pass] == GL_NONE) {
+            glDisable(GL_CULL_FACE);
+        } else {
+            glEnable(GL_CULL_FACE);
+            glCullFace(culls[pass]);
+        }
+
+        if (whole) mesh.drawFaces();
+        else mesh.drawFaceRange(firstIndex, indexCount);
+    }
+    glDisable(GL_POLYGON_OFFSET_FILL);
+    glDisable(GL_CULL_FACE);
+
+    if (surface.blend) {
+        glDepthMask(GL_TRUE);
+        glDisable(GL_BLEND);
+    }
+}
+
 void OpenGLRenderer::draw(const DrawCommand& command) {
     if (!m_initialized || !command.mesh) return;
+    IMesh& mesh = *command.mesh;
 
-    // Faces: selected ones stay lit, just tinted
-    if (command.showFaces) {
-        OpenGLShader& lit = m_shaders.get(ShaderId::Lit);
-        if (lit.bind()) {
-            setLitUniforms(lit, command);
+    // Faces: each part in its material; selected faces stay lit, just tinted
+    const bool anyFaces = command.showFaces || !command.highlightedFaces.empty();
+    OpenGLShader& lit = m_shaders.get(ShaderId::Lit);
+    if (anyFaces && lit.bind()) {
+        setLitUniforms(lit, command);
 
-            lit.setVec3("u_Color", SELECTED_FACE_COLOR);
-            for (const FaceHandle& face : command.highlightedFaces) {
-                command.mesh->drawFace(face);
+        if (!command.highlightedFaces.empty()) {
+            setSurfaceUniforms(lit, command.surface);
+            lit.setFloat("u_Highlight", SELECTED_FACE_MIX);
+            mesh.drawFaceSet(command.highlightedFaces);
+            lit.setFloat("u_Highlight", 0.0f);
+        }
+
+        if (command.showFaces) {
+            if (command.parts.empty()) {
+                drawSurfaceRange(lit, mesh, command.surface, 0, 0, true);
+            } else {
+                for (const DrawPart& part : command.parts) drawSurfaceRange(lit, mesh, part.surface, part.firstIndex, part.indexCount, false);
             }
-
-            // Offset pushes the rest back so selected faces and edges win the depth test
-            lit.setVec3("u_Color", FACE_COLOR);
-            glEnable(GL_POLYGON_OFFSET_FILL);
-            glPolygonOffset(1.0f, 1.0f);
-            command.mesh->drawFaces();
-            glDisable(GL_POLYGON_OFFSET_FILL);
         }
     }
+
+    if (!command.showEdges && !command.showVerts) return;
 
     OpenGLShader& shader = m_shaders.get(ShaderId::Unlit);
     if (!shader.bind()) return;
@@ -263,28 +429,45 @@ void OpenGLRenderer::draw(const DrawCommand& command) {
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-    // Edges: selected ones get a wide faint glow under a crisp line
+    // Edges: selected ones get a wide faint glow under a crisp line; an outlined object is every edge, in one draw
     if (command.showEdges) {
-        if (!command.highlightedEdges.empty()) {
+        const bool highlighted = command.outlineAll || !command.highlightedEdges.empty();
+        const auto drawHighlighted = [&] {
+            if (command.outlineAll) mesh.drawEdges();
+            else mesh.drawEdgeSet(command.highlightedEdges);
+        };
+
+        if (highlighted) {
             // Two overlapping bands fake a soft falloff, since lines have no width-wise gradient
             glDepthMask(GL_FALSE);
             shader.setVec3("u_Color", SELECTED_COLOR);
             shader.setFloat("u_Alpha", SELECTED_GLOW_ALPHA * 0.5f);
             glLineWidth(SELECTED_EDGE_GLOW_WIDTH);
-            for (const EdgeHandle& edge : command.highlightedEdges) command.mesh->drawEdge(edge);
+            drawHighlighted();
             glLineWidth(SELECTED_EDGE_INNER_GLOW_WIDTH);
-            for (const EdgeHandle& edge : command.highlightedEdges) command.mesh->drawEdge(edge);
+            drawHighlighted();
             glDepthMask(GL_TRUE);
 
             shader.setFloat("u_Alpha", 1.0f);
             glLineWidth(SELECTED_EDGE_WIDTH);
-            for (const EdgeHandle& edge : command.highlightedEdges) command.mesh->drawEdge(edge);
+            drawHighlighted();
         }
 
-        shader.setVec3("u_Color", EDGE_COLOR);
-        shader.setFloat("u_Alpha", 1.0f);
-        glLineWidth(EDGE_WIDTH);
-        command.mesh->drawEdges();
+        // Hard edges after the selection, so a selected one keeps the selection color, and before the rest
+        if (!command.outlineAll && !command.hardEdges.empty()) {
+            shader.setVec3("u_Color", HARD_EDGE_COLOR);
+            shader.setFloat("u_Alpha", 1.0f);
+            glLineWidth(SELECTED_EDGE_WIDTH);
+            mesh.drawHardEdgeSet(command.hardEdges);
+        }
+
+        // An outlined object's own lines are all drawn already, in the selection color
+        if (!command.outlineAll) {
+            shader.setVec3("u_Color", EDGE_COLOR);
+            shader.setFloat("u_Alpha", 1.0f);
+            glLineWidth(EDGE_WIDTH);
+            mesh.drawEdges();
+        }
     }
 
     // Vertices: round points; selected ones layer glow, dark outline, and purple center like a light marker
@@ -298,7 +481,7 @@ void OpenGLRenderer::draw(const DrawCommand& command) {
                 shader.setInt("u_PointShape", shape);
                 shader.setVec3("u_Color", color);
                 shader.setFloat("u_Alpha", alpha);
-                for (const VertexHandle& vertex : command.highlightedVerts) command.mesh->drawVertex(vertex);
+                mesh.drawVertexSet(command.highlightedVerts);
             };
 
             // Only the center writes depth, so the layers under it don't block it
@@ -313,7 +496,7 @@ void OpenGLRenderer::draw(const DrawCommand& command) {
         shader.setInt("u_PointShape", POINT_DISC);
         shader.setVec3("u_Color", VERTEX_COLOR);
         shader.setFloat("u_Alpha", 1.0f);
-        command.mesh->drawVertices();
+        mesh.drawVertices();
 
         shader.setInt("u_PointShape", POINT_SQUARE);
         shader.setFloat("u_DepthBias", 0.0f);
@@ -325,31 +508,18 @@ void OpenGLRenderer::draw(const DrawCommand& command) {
 }
 
 void OpenGLRenderer::setLitUniforms(OpenGLShader& lit, const DrawCommand& command) {
-    const Mat4 normalMatrix = Mat4::transpose(Mat4::inverse(command.model));
+    uploadLighting();
 
+    // Per object: only its matrices; the lights are in the Lighting buffer, the material set per part
+    const Mat4 normalMatrix = Mat4::transpose(Mat4::inverse(command.model));
     lit.setMat4("u_MVP", command.mvp.m);
     lit.setMat4("u_Model", command.model.m);
     lit.setMat4("u_NormalMatrix", normalMatrix.m);
-    lit.setVec3("u_BackFaceTint", m_backFaceTint);
-    lit.setVec3("u_AmbientColor", m_lighting.ambientColor);
-    lit.setFloat("u_AmbientStrength", m_lighting.ambientStrength);
 
-    const u32 count = std::min(m_lighting.directionalCount, MAX_DIRECTIONAL_LIGHTS);
-    lit.setInt("u_DirectionalLightCount", static_cast<i32>(count));
-    if (count > 0) {
-        lit.setVec3Array("u_DirectionalLightDirections[0]", m_lighting.directionalDirections, count);
-        lit.setVec3Array("u_DirectionalLightColors[0]", m_lighting.directionalColors, count);
-    }
-
-    const u32 localCount = std::min(m_lighting.localCount, MAX_LOCAL_LIGHTS);
-    lit.setInt("u_LocalLightCount", static_cast<i32>(localCount));
-    if (localCount > 0) {
-        lit.setVec3Array("u_LocalLightPositions[0]", m_lighting.localPositions, localCount);
-        lit.setVec3Array("u_LocalLightDirections[0]", m_lighting.localDirections, localCount);
-        lit.setVec3Array("u_LocalLightColors[0]", m_lighting.localColors, localCount);
-        lit.setFloatArray("u_LocalLightRanges[0]", m_lighting.localRanges, localCount);
-        lit.setFloatArray("u_LocalLightCosInner[0]", m_lighting.localCosInner, localCount);
-        lit.setFloatArray("u_LocalLightCosOuter[0]", m_lighting.localCosOuter, localCount);
+    if (!m_litConstantsSet) {
+        lit.setVec3("u_HighlightColor", SELECTED_FACE_COLOR);
+        lit.setFloat("u_Highlight", 0.0f);
+        m_litConstantsSet = true;
     }
 }
 
@@ -465,7 +635,7 @@ void OpenGLRenderer::drawText3D(const DrawText3DCommand& command) {
 
     glBindVertexArray(m_text3DVAO);
 
-    glDrawArrays(
+    drawArrays(
         GL_TRIANGLES,
         0,
         static_cast<GLsizei>(
@@ -506,7 +676,7 @@ void OpenGLRenderer::drawGrid(const DrawGridCommand& command) {
     glDepthMask(GL_FALSE);
 
     glBindVertexArray(m_fullscreenVAO);
-    glDrawArrays(GL_TRIANGLES, 0, 3);
+    drawArrays(GL_TRIANGLES, 0, 3);
     glBindVertexArray(0);
 
     glDepthMask(GL_TRUE);
@@ -533,7 +703,7 @@ void OpenGLRenderer::drawImage(const DrawImageCommand& command) {
     glDepthMask(command.depthTest && command.opacity >= 0.999f ? GL_TRUE : GL_FALSE);
 
     glBindVertexArray(m_fullscreenVAO);
-    glDrawArrays(GL_TRIANGLES, 0, 6);
+    drawArrays(GL_TRIANGLES, 0, 6);
     glBindVertexArray(0);
 
     glDepthMask(GL_TRUE);
@@ -600,7 +770,7 @@ void OpenGLRenderer::drawDebugLine(
     shader.setInt("u_PointShape", POINT_SQUARE);
     shader.setFloat("u_DepthBias", 0.0f);
 
-    glDrawArrays(GL_LINES, 0, 2);
+    drawArrays(GL_LINES, 0, 2);
 
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
@@ -621,6 +791,17 @@ void OpenGLRenderer::endMainPass(){
 
 void OpenGLRenderer::endFrame(){
     if (!m_initialized) return;
+
+    // beginFrame skips timing when the slot's last result hadn't come back yet
+    GLint active = 0;
+    glGetQueryiv(GL_TIME_ELAPSED, GL_CURRENT_QUERY, &active);
+    if (active != 0) {
+        glEndQuery(GL_TIME_ELAPSED);
+        ++m_timerFrame;
+    }
+
+    m_lastStats = glCounters();
+    m_lastStats.gpuMilliseconds = m_gpuMilliseconds;
 }
 
 void OpenGLRenderer::resize(u32 width, u32 height){

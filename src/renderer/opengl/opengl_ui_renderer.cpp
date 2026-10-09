@@ -4,6 +4,7 @@
 #include <cmath>
 #include <cstddef>
 #include <glad/glad.h>
+#include "renderer/opengl/opengl_counters.hpp"
 
 void OpenGLUIRenderer::create() {
     destroy();
@@ -86,9 +87,10 @@ void OpenGLUIRenderer::draw(const UIDrawList& list, OpenGLShader& shader, const 
             glDisable(GL_SCISSOR_TEST);
         }
 
-        glBindTexture(GL_TEXTURE_2D, batch.hasTexture ? fonts[static_cast<u32>(batch.texture)].getTexture() : 0);
+        if (batch.image != 0) glBindTexture(GL_TEXTURE_2D, batch.image);
+        else glBindTexture(GL_TEXTURE_2D, batch.hasTexture ? fonts[static_cast<u32>(batch.texture)].getTexture() : 0);
 
-        glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(batch.indexCount), GL_UNSIGNED_INT,
+        drawElements(GL_TRIANGLES, static_cast<GLsizei>(batch.indexCount), GL_UNSIGNED_INT,
                        reinterpret_cast<void*>(static_cast<std::size_t>(batch.indexOffset) * sizeof(u32)));
     }
 

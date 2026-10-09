@@ -19,6 +19,10 @@ Files: `src/core/math/`
 
 `*` and `/` take a scalar; there's no component-wise vector multiply.
 
+## Color
+
+[color.hpp](../../src/core/math/color.hpp): `srgbToLinear` and `linearToSrgb`, for one value or a `Vec3`, using the exact sRGB curve (a straight segment near black, then a 2.4 power). Colors are picked and stored as sRGB; lighting converts them to linear first (see [renderer.md](renderer.md#object-drawing)).
+
 ## Mat4
 
 [mat4.hpp](../../src/core/math/mat4.hpp)

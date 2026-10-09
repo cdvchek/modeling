@@ -101,11 +101,14 @@ public:
     bool segmented(std::string_view id, const Rect& rect, i32& index, const std::vector<std::string_view>& options);
 
     // A button showing options[index]; clicking it opens a list on top of everything to pick from
-    bool dropdown(std::string_view label, const Rect& rect, i32& index, const std::vector<std::string_view>& options);
+    // icons, when given, are textures (one per option, 0 for none) drawn as small squares before each label
+    bool dropdown(std::string_view label, const Rect& rect, i32& index, const std::vector<std::string_view>& options,
+                  const std::vector<u32>& icons = {});
 
     // Area popups are kept inside (the viewport)
     void setViewport(const Rect& viewport) { m_viewport = viewport; }   // empty label = full row
-    bool selectable(std::string_view label, bool selected, std::string_view detail = {});   // detail is dim, right-aligned
+    // detail is dim, right-aligned; icon, a texture drawn as a small square before the label
+    bool selectable(std::string_view label, bool selected, std::string_view detail = {}, u32 icon = 0);
     // A selectable row in a tree: indented by depth, with an arrow that folds its children away (open toggles
     // on a click on the arrow) when it has any. Returns true when the row itself is clicked.
     bool treeRow(std::string_view label, bool selected, std::string_view detail, u32 depth, bool hasChildren, bool& open);
@@ -132,6 +135,8 @@ public:
     // Click to edit (all text selected). Enter or a click anywhere else keeps the edit, Escape restores the old text.
     // Returns true once, when an edit is kept that changed the text; without allowEmpty, an empty edit is dropped
     bool textField(std::string_view label, std::string& text, bool allowEmpty = false);
+    // A swatch; clicking it opens a picker under it: a saturation/value square and hue strip, a hex field
+    // (#rrggbb), and typed R/G/B values. While open, the swatch shows the color it opened with beside the new one.
     bool colorEdit(std::string_view label, Vec3& color);
 
     // About the widget just drawn; values never change on the activation frame, so undo can begin there
@@ -241,6 +246,15 @@ private:
 
     std::unordered_set<UIId> m_openWidgets;
 
+    // Open color pickers: the color each opened with, and the hue kept while the color is gray or black
+    struct ColorPicker {
+        f32 hue = 0.0f;
+        f32 saturation = 0.0f;
+        f32 value = 0.0f;
+        Vec3 opened;
+    };
+    std::unordered_map<UIId, ColorPicker> m_colorPickers;
+
     // Where in the header the mouse grabbed the panel, so it doesn't jump when dragging starts
     Vec2 m_panelGrabOffset;
 
@@ -283,12 +297,15 @@ private:
         UIId owner = 0;
         Rect anchor;
         std::vector<std::string> options;
+        std::vector<u32> icons;
         i32 current = 0;
         i32 picked = -1;   // read by the owning dropdown next frame
     };
 
     void beginPanelHeader(std::string_view name, UIPanelState& state, const Rect& bounds, const std::vector<std::string_view>& tabs, bool showTabs);
     void drawPopup();
+    // A row's icon at its left; returns the width it takes, gap included
+    f32 drawIcon(const Rect& row, u32 icon);
     bool segmentedControl(std::string_view id, const Rect& rect, i32& index, const std::vector<std::string_view>& options);
     // dragFloat3 and dragFloat: count boxes side by side, each with its axis letter (none when the name is empty)
     bool dragFloats(std::string_view label, f32* const* components, const char* const* axisNames, const Color* const* axisColors,

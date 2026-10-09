@@ -1,4 +1,5 @@
 #include "renderer/opengl/shaders/opengl_shader.hpp"
+#include "renderer/opengl/opengl_counters.hpp"
 
 #include <iostream>
 #include <glad/glad.h>
@@ -93,30 +94,43 @@ i32 OpenGLShader::getUniformLocation(const char* name) {
 }
 
 void OpenGLShader::setMat4(const char* name, const f32* matrix) {
+    ++glCounters().uniformUploads;
     glUniformMatrix4fv(getUniformLocation(name), 1, GL_FALSE, matrix);
 }
 
 void OpenGLShader::setVec2(const char* name, const Vec2& value) {
+    ++glCounters().uniformUploads;
     glUniform2f(getUniformLocation(name), value.x, value.y);
 }
 
 void OpenGLShader::setVec3(const char* name, const Vec3& value) {
+    ++glCounters().uniformUploads;
     glUniform3f(getUniformLocation(name), value.x, value.y, value.z);
 }
 
 void OpenGLShader::setVec3Array(const char* name, const Vec3* values, u32 count) {
+    ++glCounters().uniformUploads;
     static_assert(sizeof(Vec3) == 3 * sizeof(f32), "Vec3 must be tightly packed");
     glUniform3fv(getUniformLocation(name), static_cast<GLsizei>(count), &values[0].x);
 }
 
 void OpenGLShader::setFloat(const char* name, f32 value) {
+    ++glCounters().uniformUploads;
     glUniform1f(getUniformLocation(name), value);
 }
 
 void OpenGLShader::setFloatArray(const char* name, const f32* values, u32 count) {
+    ++glCounters().uniformUploads;
     glUniform1fv(getUniformLocation(name), static_cast<GLsizei>(count), values);
 }
 
 void OpenGLShader::setInt(const char* name, i32 value) {
+    ++glCounters().uniformUploads;
     glUniform1i(getUniformLocation(name), value);
+}
+
+void OpenGLShader::bindUniformBlock(const char* name, u32 binding) {
+    if (m_program == 0) return;
+    const GLuint index = glGetUniformBlockIndex(m_program, name);
+    if (index != GL_INVALID_INDEX) glUniformBlockBinding(m_program, index, binding);
 }

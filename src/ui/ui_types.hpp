@@ -7,6 +7,7 @@
 #include <string_view>
 #include <types>
 #include "core/math/vec2.hpp"
+#include "core/math/vec3.hpp"
 #include "core/font/bitmap_font.hpp"
 #include "core/font/font_library.hpp"
 
@@ -48,6 +49,15 @@ struct Color {
         return channel(r) | (channel(g) << 8) | (channel(b) << 16) | (channel(a) << 24);
     }
 };
+
+// Hue, saturation, and value, each 0 to 1 (hue 0 and 1 are both red)
+void rgbToHsv(const Vec3& rgb, f32& hue, f32& saturation, f32& value);
+Vec3 hsvToRgb(f32 hue, f32 saturation, f32 value);
+
+// "#rrggbb", lowercase
+std::string toHex(const Vec3& rgb);
+// "#rrggbb", "rrggbb", "#rgb", or "rgb", any case; false (out unchanged) for anything else
+bool parseHex(std::string_view text, Vec3& out);
 
 struct UIFont {
     FontId id = FontId::UI;

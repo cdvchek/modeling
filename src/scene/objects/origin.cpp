@@ -10,24 +10,23 @@ namespace {
         return Vec3(result.x, result.y, result.z);
     }
 
-    // The mesh's bounding box in its own space; both corners are the origin for an empty mesh
-    void localBounds(const MeshData& mesh, Vec3& low, Vec3& high) {
-        low = Vec3(FLT_MAX);
-        high = Vec3(-FLT_MAX);
-        for (VertexHandle vertex : mesh.getVertexHandles()) {
-            const Vec3 p = mesh.getVertexPosition(vertex);
-            low = Vec3(std::min(low.x, p.x), std::min(low.y, p.y), std::min(low.z, p.z));
-            high = Vec3(std::max(high.x, p.x), std::max(high.y, p.y), std::max(high.z, p.z));
-        }
-        if (low.x > high.x) low = high = Vec3(0.0f);
-    }
-
     // The origin moved to a point given in the mesh's own space, axes unchanged
     Transform originAtLocalPoint(const ObjectCollection& objects, ObjectHandle handle, const Vec3& point) {
         Transform result = objects.worldTransform(handle);
         result.position = transformPoint(result.getMatrix(), point);
         return result;
     }
+}
+
+void localBounds(const MeshData& mesh, Vec3& low, Vec3& high) {
+    low = Vec3(FLT_MAX);
+    high = Vec3(-FLT_MAX);
+    for (VertexHandle vertex : mesh.getVertexHandles()) {
+        const Vec3 p = mesh.getVertexPosition(vertex);
+        low = Vec3(std::min(low.x, p.x), std::min(low.y, p.y), std::min(low.z, p.z));
+        high = Vec3(std::max(high.x, p.x), std::max(high.y, p.y), std::max(high.z, p.z));
+    }
+    if (low.x > high.x) low = high = Vec3(0.0f);
 }
 
 std::vector<Vec3> vertexPositions(const MeshData& mesh) {

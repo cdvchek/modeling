@@ -41,6 +41,9 @@ namespace {
         view.panelRect = ctx.viewport.panel.rect;
         view.panelTab = ctx.viewport.panel.activeTab;
         view.showOrigins = ctx.viewport.showOrigins;
+        view.exposure = ctx.viewport.exposure;
+        view.showMaterials = ctx.viewport.showMaterials;
+        view.showUVChecker = ctx.viewport.showUVChecker;
         view.exportFolder = ProjectFile::storeFolder(ctx.project.exportFolder, projectFile);
         return view;
     }
@@ -51,6 +54,9 @@ namespace {
         ctx.viewport.headlight.color = view.headlightColor;
         ctx.viewport.headlight.strength = view.headlightStrength;
         ctx.viewport.showOrigins = view.showOrigins;
+        ctx.viewport.exposure = view.exposure;
+        ctx.viewport.showMaterials = view.showMaterials;
+        ctx.viewport.showUVChecker = view.showUVChecker;
         if (ctx.renderer) ctx.renderer->setBackFaceTint(view.backFaceTint);
 
         if (view.debug) ctx.systems.input_ctx.addContext(InputContext_Debug);

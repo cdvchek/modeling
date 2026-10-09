@@ -1,5 +1,6 @@
 #include "scene/mesh/mesh_factory.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <unordered_map>
 
@@ -53,7 +54,28 @@ PackagedMesh MeshFactory::icoSphere(f32 radius, u32 subdivisions) {
         faces = std::move(split);
     }
 
+    // Wrapped like a globe: longitude across, latitude down. A face crossing the back seam gets its low side
+    // shifted by one so it doesn't stretch across the whole texture.
+    constexpr f32 PI = 3.14159265f;
+    std::vector<std::vector<Vec2>> uvs;
+    for (const std::vector<u32>& face : faces) {
+        std::vector<Vec2> corners;
+        for (u32 corner : face) {
+            const Vec3& p = positions[corner];
+            corners.push_back(Vec2(0.5f + std::atan2(-p.z, p.x) / (2.0f * PI), std::acos(std::clamp(p.y, -1.0f, 1.0f)) / PI));
+        }
+        f32 low = corners[0].x, high = corners[0].x;
+        for (const Vec2& uv : corners) {
+            low = std::min(low, uv.x);
+            high = std::max(high, uv.x);
+        }
+        if (high - low > 0.5f) {
+            for (Vec2& uv : corners) if (uv.x < 0.5f) uv.x += 1.0f;
+        }
+        uvs.push_back(corners);
+    }
+
     for (Vec3& position : positions) position = position * radius;
 
-    return fromPolygons(positions, faces);
+    return fromPolygons(positions, faces, uvs);
 }

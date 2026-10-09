@@ -1,6 +1,6 @@
 #include "application/object_meshes.hpp"
 
-OpenGLMesh* ObjectMeshCache::sync(ObjectHandle handle, Object& object) {
+OpenGLMesh* ObjectMeshCache::sync(ObjectHandle handle, Object& object, const FaceGroupOf& groupOf, u64 materialsStamp) {
     if (handle.index >= m_entries.size()) m_entries.resize(handle.index + 1);
     Entry& entry = m_entries[handle.index];
 
@@ -11,13 +11,15 @@ OpenGLMesh* ObjectMeshCache::sync(ObjectHandle handle, Object& object) {
     }
 
     if (!entry.used) {
-        entry.mesh.create(object.meshData);
+        entry.mesh.create(object.meshData, groupOf, materialsStamp);
         entry.used = true;
         entry.generation = handle.generation;
         object.meshDirty = false;
+        object.meshData.clearMoved();
     } else if (object.meshDirty) {
-        entry.mesh.update(object.meshData);
+        if (!entry.mesh.patch(object.meshData, materialsStamp)) entry.mesh.update(object.meshData, groupOf, materialsStamp);
         object.meshDirty = false;
+        object.meshData.clearMoved();
     }
 
     return &entry.mesh;

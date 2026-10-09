@@ -30,6 +30,20 @@ namespace {
         return a.x == b.x && a.y == b.y && a.z == b.z;
     }
 
+    // Each face's corner UVs, face by face in order
+    bool sameFaceUVs(const MeshData& a, const MeshData& b) {
+        const std::vector<FaceHandle> fa = a.getFaceHandles();
+        const std::vector<FaceHandle> fb = b.getFaceHandles();
+        if (fa.size() != fb.size()) return false;
+        for (std::size_t i = 0; i < fa.size(); ++i) {
+            const std::vector<Vec2> ua = a.getFaceUVs(fa[i]);
+            const std::vector<Vec2> ub = b.getFaceUVs(fb[i]);
+            if (ua.size() != ub.size()) return false;
+            for (std::size_t k = 0; k < ua.size(); ++k) if (ua[k].x != ub[k].x || ua[k].y != ub[k].y) return false;
+        }
+        return true;
+    }
+
     bool samePositions(const MeshData& a, const MeshData& b) {
         const std::vector<Vec3> pa = positions(a);
         const std::vector<Vec3> pb = positions(b);
@@ -228,6 +242,7 @@ TEST_CASE(project_round_trip_restores_scene_and_view) {
         CHECK(sameVec3(a.transform.rotation, b.transform.rotation));
         CHECK(sameVec3(a.transform.scale, b.transform.scale));
         CHECK(samePositions(a.meshData, b.meshData));
+        CHECK(sameFaceUVs(a.meshData, b.meshData));
         CHECK(faceSides(a.meshData) == faceSides(b.meshData));
         CHECK(b.meshDirty);
     }
@@ -475,4 +490,59 @@ TEST_CASE(project_saves_object_parents) {
     setU32(looped, entryAt(objectEntries[0]) + 24, crc32(looped.data() + first, size));
     resealDirectory(looped);
     CHECK(readFails(looped, "loops back"));
+}
+
+TEST_CASE(project_saves_exposure) {
+    ProjectFile::View view = sampleView();
+    view.exposure = -1.5f;
+    view.showMaterials = false;
+
+    Scene loaded;
+    ProjectFile::View loadedView;
+    std::string error;
+    CHECK(ProjectFile::read(ProjectFile::write(sampleScene(), view), loaded, loadedView, error));
+    CHECK(loadedView.exposure == -1.5f);
+    CHECK(!loadedView.showMaterials);
+}
+
+TEST_CASE(project_saves_materials_and_which_objects_use_them) {
+    Scene scene = sampleScene();
+    scene.materials.get(scene.materials.defaultMaterial()).roughness = 0.9f;
+
+    Material glass;
+    glass.name = "Glass";
+    glass.baseColor = Vec3(0.6f, 0.85f, 1.0f);
+    glass.roughness = 0.05f;
+    glass.metallic = 0.25f;
+    glass.emissiveColor = Vec3(1.0f, 0.5f, 0.0f);
+    glass.emissiveStrength = 2.0f;
+    glass.opacity = 0.35f;
+    glass.alphaMode = AlphaMode::Blend;
+    glass.alphaCutoff = 0.4f;
+    glass.doubleSided = true;
+    const MaterialHandle unused = scene.materials.add(Material { "Unused" });
+    const MaterialHandle glassHandle = scene.materials.add(glass);
+    scene.materials.remove(unused);
+
+    const std::vector<ObjectHandle> objects = scene.objects.handles();
+    scene.objects.get(objects[1]).material = glassHandle;
+
+    ProjectFile::View view = sampleView();
+    const std::vector<u8> bytes = ProjectFile::write(scene, view);
+
+    Scene loaded;
+    ProjectFile::View loadedView;
+    std::string error;
+    CHECK(ProjectFile::read(bytes, loaded, loadedView, error));
+    CHECK(loaded.materials.count() == 2);
+    CHECK(loaded.materials.get(loaded.materials.defaultMaterial()).roughness == 0.9f);
+
+    const std::vector<ObjectHandle> loadedObjects = loaded.objects.handles();
+    const MaterialHandle used = loaded.materials.resolve(loaded.objects.get(loadedObjects[1]).material);
+    CHECK(!loaded.materials.isDefault(used));
+    const Material& back = loaded.materials.get(used);
+    CHECK(back.name == "Glass" && back.sameLook(glass));
+    CHECK(loaded.materials.isDefault(loaded.materials.resolve(loaded.objects.get(loadedObjects[0]).material)));
+
+    CHECK(ProjectFile::describe(bytes).find("MATL") != std::string::npos);
 }

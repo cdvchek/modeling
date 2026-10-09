@@ -16,6 +16,8 @@
 #include "ui/ui_context.hpp"
 #include "application/object_meshes.hpp"
 #include "application/reference_images.hpp"
+#include "application/material_view.hpp"
+#include "application/stats_overlay.hpp"
 #include "application/radial_menu_state.hpp"
 #include "application/console_view_state.hpp"
 #include "application/transform_tool.hpp"
@@ -39,7 +41,9 @@ struct AppContext {
     UIContext ui;
     ObjectMeshCache objectMeshes;
     ReferenceTextureCache referenceTextures;
+    MaterialPreviewCache materialPreviews;
     FrameTimer frameTimer;
+    FrameStats frameStats;
 
     RadialMenuState radialMenu;
     ConsoleViewState consoleView;

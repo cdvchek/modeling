@@ -63,18 +63,19 @@ Inside a region, each widget takes the next row (`UIStyle::ROW_HEIGHT`, 24 px) a
 | `heading(text)` | Green section title | — |
 | `button(label)` | Full-width rounded button, centered text | Clicked (released over itself) |
 | `treeRow(label, selected, detail, depth, hasChildren, open)` | A `selectable` indented by `depth`, with a small arrow that folds the row's children away (`open` toggles on a click on the arrow, which doesn't select the row). The label is shortened to fit | The row (not the arrow) was clicked |
-| `selectable(label, selected, detail)` | Full-width row; selected rows get a purple tint and a 2 px purple bar on the left. Optional `detail` is drawn dim and right-aligned; the label gets the rest of the row and is shortened with "..." rather than running into it | Clicked |
+| `selectable(label, selected, detail, icon)` | Full-width row; selected rows get a purple tint and a 2 px purple bar on the left. Optional `detail` is drawn dim and right-aligned; the label gets the rest of the row and is shortened with "..." rather than running into it. Optional `icon`, a renderer texture (a material swatch), is drawn as a small square before the label | Clicked |
 | `button(label, rect, enabled)` | A button at an explicit rect, for putting several controls on one row. Disabled buttons are drawn dim and ignore the mouse | Clicked |
 | `segmented(id, rect, index, options)` | The same switch in a given rect with no label (table rows); an `index` of -1 highlights nothing | A different option was picked |
 | `segmented(label, index, options)` | A row of options in one frame; the picked one is filled purple. Segments are sized to their text and share the leftover width; each label is clipped to its segment. An empty label uses the full row | A different option was picked (on release) |
-| `dropdown(label, rect, index, options)` | A button showing `options[index]` with a chevron; clicking it opens a list below it (or above, if it wouldn't fit in the viewport) drawn on top of everything. Picking an option closes the list | An option was picked (the frame after the click) |
+| `dropdown(label, rect, index, options, icons)` | A button showing `options[index]` with a chevron; clicking it opens a list below it (or above, if it wouldn't fit in the viewport) drawn on top of everything. Picking an option closes the list | An option was picked (the frame after the click) |
 | `checkbox(label, value)` | Purple box with a check mark when on; toggles on release | Toggled |
 | `checkbox(id, rect, value)` | Just the box, at the left of `rect` and centered in its height; the whole rect is clickable (table rows) | Toggled |
 | `sliderFloat(label, value, min, max, format)` | Box filled in purple up to the value, number centered; the value follows the mouse's x while held | Value changed |
 | `dragFloat3(label, vec3, speed, format)` | Three boxes with X/Y/Z in axis colors and the value right-aligned beside the letter; a value too wide for its box shows fewer decimals (`-3.25` → `-3.2` → `-3`) and is clipped rather than drawn over the letter. Dragging left/right nudges that component by `mouseDelta × speed` once the mouse has moved 3 px (`DRAG_THRESHOLD`). A press and release under that opens the component as a text edit (value as `%g`, all selected); Enter or a click elsewhere parses it (a non-number is ignored) | Any component changed (by drag, or when a typed value is kept) |
 | `dragFloat(label, value, speed, format)` | One box with no axis letter, dragged and typed the same way as `dragFloat3` (both are drawn by `dragFloats`) | The value changed |
 | `textField(label, text, allowEmpty = false)` | A field showing `text`; pressing it starts an edit with all text selected (I-beam cursor over it) | Once, when an edit is kept that changed the text (trimmed; an empty edit is dropped unless `allowEmpty`) |
-| `colorEdit(label, rgb)` | A swatch of the color; clicking it shows or hides R/G/B sliders below it | A channel changed |
+| `colorEdit(label, rgb)` | A swatch of the color; clicking it opens or closes a picker below it: a saturation (left to right) / value (top to bottom) square with a hue strip beside it, drawn with `gradientRect`, a **Hex** text field (`#rrggbb`, also `rrggbb` and `#rgb`), and typed **RGB** boxes (0 to 1, dragged or typed like `dragFloat3`). While open, the swatch shows the color it opened with on the left and the current one on the right, once they differ. The picker keeps its own hue while the color is gray or black, so dragging into the corner and back doesn't lose it. Every part folds into one item, so a drag or a typed value is one undo step | The color changed |
+| `dragFloat(label, value, speed, format)` | One box with no axis letter, dragged and typed like `dragFloat3` | The value changed |
 
 After any widget, `isItemHovered()`, `isItemActivated()`, `isItemDeactivated()`, and `isItemDeactivatedAfterEdit()` describe it (for grouped widgets like `dragFloat3` and `colorEdit`, the group as a whole).
 
@@ -122,9 +123,9 @@ All sizes and colors live in `UIStyle`, following the Dracula theme: text `#f8f8
 - **Scrolling:** content is clipped to the area under the header. `endPanel` measures how tall the content was (`state.contentHeight`); if it's taller than the visible area, the mouse wheel over the panel scrolls it (`SCROLL_STEP`, 48 px per notch) unless a child box under the mouse took the wheel first, clamped between the top and the bottom. Scrolling uses last frame's height, so it follows content as sections appear or disappear. While the panel content clip is active, widgets only respond when the mouse is inside it, so rows scrolled under the header or past the bottom can't be clicked.
 - **Scrollbar:** shown only when content overflows: a faint track and a thumb sized to the visible fraction (at least `SCROLLBAR_MIN_THUMB`), `SCROLLBAR_WIDTH` wide in the right padding, `SCROLLBAR_INSET` from the edge so it doesn't collide with the resize grip. The thumb can be dragged (its hit area is 4 px wider each side) and brightens on hover.
 - `UIPanelState` also keeps `activeTab`, `scroll`, and `contentHeight` between frames.
-- **Tabs:** `beginPanel(name, state, bounds, tabs)` (a list of names instead of a title) draws tabs left to right in the header, sized to their text. Pressing a tab switches `state.activeTab` (and resets the scroll); the header, tabs included, still drags the panel, so you can grab a tab and move. The selected tab takes the body's color with a 2 px purple underline; the others are dim until hovered. The caller draws the active tab's content.
+- **Tabs:** `beginPanel(name, state, bounds, tabs)` (a list of names instead of a title) draws tabs left to right in the header, sized to their text; when they'd run past the panel, their padding shrinks (to `MIN_TAB_PADDING` at least) so they still fit. Pressing a tab switches `state.activeTab` (and resets the scroll); the header, tabs included, still drags the panel, so you can grab a tab and move. The selected tab takes the body's color with a 2 px purple underline; the others are dim until hovered. The caller draws the active tab's content.
 
-[main_panel.cpp](../../src/application/main_panel.cpp) is the app's panel: 360 px wide at the top right on first use, bounded by the viewport above the status bar, toggled with `ui panel`, with an Objects tab and a Lights tab (see [application.md](application.md)). Its list headers shrink the picker before the title when the panel is narrow.
+[main_panel.cpp](../../src/application/main_panel.cpp) is the app's panel: 360 px wide at the top right on first use, bounded by the viewport above the status bar, toggled with `ui panel`, with Objects, Materials, Lights, and Images tabs (see [application.md](application.md)). Its list headers shrink the picker before the title when the panel is narrow.
 
 ## Coordinates and types
 
@@ -139,6 +140,8 @@ Pixels, origin at the **top-left**, y pointing **down**.
 | `fitText(font, text, width)` | The text, or as much as fits in `width` followed by `...` (just `...`, or nothing, when even that doesn't fit). |
 
 ## UIDrawList
+
+Besides rects, rounded rects, shadows, lines, ring slices, and text: `gradientRect(rect, topLeft, topRight, bottomRight, bottomLeft)` (each corner its own color, blended across; the shader interpolates the fill) and `image(rect, texture, alpha)` (a renderer texture, premultiplied, as render targets are; the shader divides the alpha back out).
 
 | Method | Description |
 |---|---|
@@ -155,7 +158,7 @@ Items draw in the order they're added: later items cover earlier ones.
 
 ### Batches
 
-Every item becomes 4 vertices and 6 indices. Consecutive items share a `UIDrawBatch` (one draw call) until the clip rect changes or text needs a different font texture than the batch already uses. Shapes don't need a texture, so shapes and text in one font mix freely: a whole panel is usually 1–3 batches.
+Every item becomes 4 vertices and 6 indices. Consecutive items share a `UIDrawBatch` (one draw call) until the clip rect changes, text needs a different font texture than the batch already uses, or an image (`image(rect, texture, alpha)`, a renderer texture such as a material swatch, in `MODE_IMAGE`) needs its texture: a batch binds one font or one image (`UIDrawBatch::image`). Shapes don't need a texture, so shapes and text in one font mix freely: a whole panel is usually 1–3 batches.
 
 ### UIVertex
 
@@ -165,7 +168,7 @@ struct UIVertex {
     Vec2 uv;            // font atlas, glyphs only
     Vec2 local;         // offset from the shape's center in the shape's own axes
     Vec2 halfSize;      // shape half extents
-    f32 radius, borderWidth, blur, mode;   // mode: MODE_SHAPE, MODE_GLYPH, or MODE_RING_SLICE
+    f32 radius, borderWidth, blur, mode;   // mode: MODE_SHAPE, MODE_GLYPH, MODE_RING_SLICE, or MODE_IMAGE
     u32 fill, border;   // packed RGBA
 };
 ```

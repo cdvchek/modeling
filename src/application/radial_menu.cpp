@@ -88,6 +88,7 @@ RadialMenu buildRadialMenu(const AppContext& ctx, RadialMenuId id) {
                 item(actions, Action::ConnectVertices),
                 item(actions, Action::BevelSelection),
                 item(actions, Action::OriginToSelection),
+                submenu("Shading", RadialMenuId::Shading),
             };
 
         case RadialMenuId::Light:
@@ -113,6 +114,8 @@ RadialMenu buildRadialMenu(const AppContext& ctx, RadialMenuId id) {
                 toggle(Action::ToggleHeadlight, ctx.viewport.headlight.enabled ? "Headlight off" : "Headlight on"),
                 toggle(Action::ToggleDebug, ctx.systems.input_ctx.isActive(InputContext_Debug) ? "Debug off" : "Debug on"),
                 toggle(Action::ToggleOrigins, ctx.viewport.showOrigins ? "Hide origins" : "Show origins"),
+                toggle(Action::ToggleMaterials, ctx.viewport.showMaterials ? "Clay view" : "Materials"),
+                toggle(Action::ToggleUVChecker, ctx.viewport.showUVChecker ? "Hide UV grid" : "UV grid"),
             };
 
         case RadialMenuId::Tool:
@@ -133,6 +136,16 @@ RadialMenu buildRadialMenu(const AppContext& ctx, RadialMenuId id) {
                 item(actions, Action::OriginToWorld),
                 item(actions, Action::OriginResetRotation),
                 item(actions, Action::RotateSelection),
+            };
+
+        case RadialMenuId::Shading:
+            return {
+                item(actions, Action::ShadeSmooth),
+                item(actions, Action::ShadeAuto),
+                item(actions, Action::MarkHard),
+                item(actions, Action::ClearEdgeMark),
+                item(actions, Action::MarkSmooth),
+                item(actions, Action::ShadeFlat),
             };
 
         case RadialMenuId::None:

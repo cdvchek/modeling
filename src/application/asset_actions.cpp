@@ -168,7 +168,7 @@ namespace {
             if (!object) continue;
 
             std::string error;
-            if (!AssetFile::save(state.folder / fromUtf8(item.fileName), ctx.scene.objects, row.object, error)) {
+            if (!AssetFile::save(state.folder / fromUtf8(item.fileName), ctx.scene.objects, row.object, ctx.scene.materials, error)) {
                 ctx.systems.console.printError("Couldn't export " + item.objectName + ": " + error);
                 continue;
             }
@@ -377,14 +377,36 @@ bool importAssetFrom(AppContext& ctx, const std::filesystem::path& typed) {
     const std::string fileName = utf8(path.filename());
 
     std::vector<AssetFile::ImportedObject> imported;
+    std::vector<Material> importedMaterials;
     std::string error;
-    if (!AssetFile::load(path, imported, error)) {
+    if (!AssetFile::load(path, imported, importedMaterials, error)) {
         ctx.systems.console.printError("Couldn't import " + fileName + ": " + error);
         return false;
     }
 
     ObjectCollection& objects = ctx.scene.objects;
     ctx.history.begin(ctx.scene);
+
+    // Each of the asset's materials once: the project's own when one is identical (name and every value), otherwise
+    // added, renamed if its name is taken
+    std::vector<MaterialHandle> materialHandles;
+    u32 addedMaterials = 0;
+    for (const Material& material : importedMaterials) {
+        bool added = false;
+        materialHandles.push_back(ctx.scene.materials.adopt(material, added));
+        if (added) ++addedMaterials;
+    }
+    for (AssetFile::ImportedObject& entry : imported) {
+        entry.object.material = entry.material < materialHandles.size() ? materialHandles[entry.material] : INVALID_MATERIAL;
+
+        // Faces were rebuilt in the order they were exported, so the list lines up with the handles
+        const std::vector<FaceHandle> faces = entry.object.meshData.getFaceHandles();
+        if (entry.faceMaterials.size() != faces.size()) continue;
+        for (std::size_t f = 0; f < faces.size(); ++f) {
+            const u32 index = entry.faceMaterials[f];
+            if (index < materialHandles.size()) entry.object.meshData.setFaceMaterial(faces[f], materialHandles[index]);
+        }
+    }
 
     // The root is named after the file, like a preset is named after its type, and placed like one
     const std::string wanted = utf8(path.stem());
@@ -403,6 +425,7 @@ bool importAssetFrom(AppContext& ctx, const std::filesystem::path& typed) {
     ctx.history.commit();
 
     const std::string parts = handles.size() > 1 ? " with " + std::to_string(handles.size() - 1) + (handles.size() == 2 ? " child" : " children") : "";
-    ctx.systems.console.print("Imported " + fileName + (name == wanted ? "" : " as " + name) + parts);
+    const std::string newMaterials = addedMaterials == 0 ? "" : ", " + std::to_string(addedMaterials) + (addedMaterials == 1 ? " new material" : " new materials");
+    ctx.systems.console.print("Imported " + fileName + (name == wanted ? "" : " as " + name) + parts + newMaterials);
     return true;
 }

@@ -32,7 +32,7 @@ struct Light {
 
 struct AmbientLight {
     Vec3 color { 1.0f, 1.0f, 1.0f };
-    f32 strength = 0.6f;
+    f32 strength = 0.3f;
 };
 
 using LightHandle = Handle<Light>;

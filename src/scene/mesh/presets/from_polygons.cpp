@@ -9,7 +9,8 @@ namespace {
     }
 }
 
-PackagedMesh MeshFactory::fromPolygons(const std::vector<Vec3>& positions, const std::vector<std::vector<u32>>& faces) {
+PackagedMesh MeshFactory::fromPolygons(const std::vector<Vec3>& positions, const std::vector<std::vector<u32>>& faces,
+                                       const std::vector<std::vector<Vec2>>& faceUVs, const std::vector<std::vector<EdgeMark>>& faceMarks) {
     PackagedMesh mesh;
 
     // 1. Vertices
@@ -24,9 +25,12 @@ PackagedMesh MeshFactory::fromPolygons(const std::vector<Vec3>& positions, const
     std::unordered_map<u64, EdgeHandle> edgeByEnds;
     std::vector<u32> edgeOrigins;
 
-    for (const std::vector<u32>& corners : faces) {
+    for (std::size_t f = 0; f < faces.size(); ++f) {
+        const std::vector<u32>& corners = faces[f];
         const u32 sides = static_cast<u32>(corners.size());
         assert(sides >= 3);
+        const bool hasUVs = f < faceUVs.size() && faceUVs[f].size() == sides;
+        const bool hasMarks = f < faceMarks.size() && faceMarks[f].size() == sides;
 
         const FaceHandle face = mesh.faces.insert({});
         std::vector<EdgeHandle> loop(sides);
@@ -38,6 +42,9 @@ PackagedMesh MeshFactory::fromPolygons(const std::vector<Vec3>& positions, const
             Edge edge;
             edge.tip = vertices[tip];
             edge.face = face;
+            // A half-edge holds the UV of the corner it points to
+            if (hasUVs) edge.uv = faceUVs[f][(i + 1) % sides];
+            if (hasMarks) edge.mark = faceMarks[f][(i + 1) % sides];
 
             loop[i] = mesh.edges.insert(edge);
 
@@ -79,6 +86,7 @@ PackagedMesh MeshFactory::fromPolygons(const std::vector<Vec3>& positions, const
         border.tip = vertices[origin];
         border.face = INVALID_FACE;
         border.pair = handle;
+        border.mark = mesh.edges.get(handle).mark;
 
         const EdgeHandle borderHandle = mesh.edges.insert(border);
         mesh.edges.get(handle).pair = borderHandle;

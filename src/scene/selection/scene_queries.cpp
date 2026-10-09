@@ -276,7 +276,7 @@ static bool rayHitsTriangle(
     return true;
 }
 
-FaceHit pickFace(const Scene& scene, const Ray& ray, ObjectHandle only, ObjectHandle exclude) {
+FaceHit pickFace(const Scene& scene, const Ray& ray, ObjectHandle only, ObjectHandle exclude, const BackFacesCulled& culled) {
     FaceHit bestHit;
     bestHit.distance = FLT_MAX;
 
@@ -284,6 +284,7 @@ FaceHit pickFace(const Scene& scene, const Ray& ray, ObjectHandle only, ObjectHa
         if (skipObject(objectHandle, only, exclude)) continue;
         const Object& object = scene.objects.get(objectHandle);
         Mat4 model = scene.objects.worldMatrix(objectHandle);
+        const bool frontOnly = culled && culled(objectHandle);
 
         for (const FaceHandle faceHandle : object.meshData.getFaceHandles()) {
             const auto& triangles = object.meshData.getFaceTriangles(faceHandle);
@@ -314,6 +315,9 @@ FaceHit pickFace(const Scene& scene, const Ray& ray, ObjectHandle only, ObjectHa
                     worldPos4P3.y,
                     worldPos4P3.z
                 );
+
+                // Counterclockwise is the front, so the cross product points out of it
+                if (frontOnly && Vec3::dot(Vec3::cross(worldPosP2 - worldPosP1, worldPosP3 - worldPosP1), ray.direction) >= 0.0f) continue;
 
                 f32 distance = 0.0f;
 

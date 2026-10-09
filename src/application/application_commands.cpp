@@ -3,6 +3,8 @@
 #include "application/command_parsing.hpp"
 #include "application/light_commands.hpp"
 #include "application/reference_commands.hpp"
+#include "application/material_commands.hpp"
+#include "application/shading_commands.hpp"
 #include "application/object_commands.hpp"
 #include "application/project_actions.hpp"
 #include "application/asset_actions.hpp"
@@ -120,6 +122,22 @@ void Application::registerCommands(AppContext& ctx) {
     );
 
     ctx.systems.commands.registerCommand(
+        "material",
+        "Adds, edits, and assigns materials: material list | add [name] | <id> <property> <value> | <id> assign [<object id> ...]",
+        [&ctx](const CommandArgs& args) {
+            runMaterialCommand(ctx, args);
+        }
+    );
+
+    ctx.systems.commands.registerCommand(
+        "shading",
+        "Flat, smooth, or auto shading, and hard or smooth edges: shading flat | smooth | auto [<degrees>] | mark hard | smooth | clear",
+        [&ctx](const CommandArgs& args) {
+            runShadingCommand(ctx, args);
+        }
+    );
+
+    ctx.systems.commands.registerCommand(
         "reference",
         "Adds and edits reference images: reference list | add [<file.png>] | <id> <property> <value>",
         [&ctx](const CommandArgs& args) {
@@ -152,6 +170,39 @@ void Application::registerCommands(AppContext& ctx) {
 
             ctx.renderer->setBackFaceTint(tint);
             printBackFaceTint(tint);
+        }
+    );
+
+    ctx.systems.commands.registerCommand(
+        "stats",
+        "Shows or hides frame times, draw calls, primitives, uploads, and the scene's size: stats [on | off]",
+        [&ctx](const CommandArgs& args) {
+            if (args.empty()) ctx.viewport.showStats = !ctx.viewport.showStats;
+            else if (args.size() == 1 && (args[0] == "on" || args[0] == "off")) ctx.viewport.showStats = args[0] == "on";
+            else {
+                std::cout << "usage: stats [on | off]" << std::endl;
+                return;
+            }
+            std::cout << "[stats] " << (ctx.viewport.showStats ? "shown" : "hidden") << std::endl;
+        }
+    );
+
+    ctx.systems.commands.registerCommand(
+        "exposure",
+        "Shows or sets how bright lit surfaces look, in stops (0 is normal, +1 twice as bright): exposure [<stops>]",
+        [&ctx](const CommandArgs& args) {
+            f32 stops = 0.0f;
+            if (args.size() == 1) {
+                if (!parseFloat(args[0], stops) || stops < ViewportSettings::MIN_EXPOSURE || stops > ViewportSettings::MAX_EXPOSURE) {
+                    std::cout << "usage: exposure [<stops>]  (-5 to 5)" << std::endl;
+                    return;
+                }
+                ctx.viewport.exposure = stops;
+            } else if (!args.empty()) {
+                std::cout << "usage: exposure [<stops>]  (-5 to 5)" << std::endl;
+                return;
+            }
+            std::cout << "[exposure] " << ctx.viewport.exposure << " stops" << std::endl;
         }
     );
 
@@ -218,13 +269,19 @@ void Application::registerCommands(AppContext& ctx) {
 
     ctx.systems.commands.registerCommand(
         "ui",
-        "Shows or hides the floating panel: ui panel",
+        "Shows or hides the floating panel, switches between material and clay view, or shows the UV grid: ui panel | materials | checker",
         [&ctx](const CommandArgs& args) {
             if (args.size() == 1 && args[0] == "panel") {
                 ctx.viewport.showPanel = !ctx.viewport.showPanel;
                 std::cout << "[ui panel] " << (ctx.viewport.showPanel ? "shown" : "hidden") << std::endl;
+            } else if (args.size() == 1 && args[0] == "materials") {
+                toggleMaterials(ctx);
+                std::cout << "[ui materials] " << (ctx.viewport.showMaterials ? "material view" : "clay view") << std::endl;
+            } else if (args.size() == 1 && args[0] == "checker") {
+                toggleUVChecker(ctx);
+                std::cout << "[ui checker] " << (ctx.viewport.showUVChecker ? "shown" : "hidden") << std::endl;
             } else {
-                std::cout << "usage: ui panel" << std::endl;
+                std::cout << "usage: ui panel | materials | checker" << std::endl;
             }
         }
     );

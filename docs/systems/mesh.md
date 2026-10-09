@@ -17,6 +17,7 @@ Files: `src/scene/mesh/`
 | `mesh_data_merge.cpp` | Edge collapse and vertex merge |
 | `mesh_data_dissolve.cpp` | Dissolve edge / face |
 | `mesh_data_bevel.cpp` | Vertex / edge / face bevel; `replaceFaces`; `runInSpace` |
+| `mesh_data_shading.cpp` | Smooth shading: mode, angle, edge marks, hard edges, corner normals, faces to patch |
 | `mesh_data_region.cpp` | Region extrude and inset |
 | `mesh_data_validate.cpp` | Topology checker |
 | `mesh_data_gpu.cpp` | Flattening to vertex/index arrays for the renderer |
@@ -52,6 +53,8 @@ struct Edge {           // a half-edge
     EdgeHandle prev;    // previous half-edge around the same face
     VertexHandle tip;   // vertex this half-edge points to
     FaceHandle face;    // face on its left, or INVALID_FACE on a border
+    Vec2 uv;            // UV of its face's corner at its tip
+    EdgeMark mark;      // None, Hard, or Smooth; the same on both halves
 };
 
 struct Vertex {
@@ -61,10 +64,19 @@ struct Vertex {
 
 struct Face {
     EdgeHandle edge;    // any one half-edge on its loop
+    MaterialHandle material;    // its own material; not valid (none, or removed) means the object's
     mutable std::vector<Triangle> triangles;    // cached triangulation
     mutable bool triangulationDirty;
 };
 ```
+
+**Keeping the GPU copy up to date:** `stamp()` gives a `MeshStamp`: the vertex, edge, and face arrays' stamps (every `DynamicArray` insert or remove takes a new number from `nextStructureStamp`, unique for the whole run, and copies keep theirs) a face-material stamp (`setFaceMaterial`), and a UV stamp (`setFaceUVs` / `setCornerUVs`, which rebuild the GPU copy), and a shading stamp (the mode, angle, or a mark changed). An equal stamp means the same layout. `positionVertex` and `translateVertex` (and bevel and inset widths, which go through them) record the vertex in `movedVertices()`, switching to `allMoved()` once the list passes about twice the vertex count; `clearMoved()` empties it after the GPU copy is updated, and `markAllMoved()` says every vertex may differ (a restored copy, a cancelled bevel or inset). `getVertexFaces(vertex)` lists the faces around a vertex, and `appendFaceCorners(face, out)` writes a face's corners exactly as `getFaceData` does (it's what `getFaceData` uses), so a patched face matches a rebuilt one bit for bit. `getFacesToPatch(moved)` lists the faces a move changes: those around the moved vertices, and with smoothing also every face around their corners, since a turned face changes its neighbours' corner normals.
+
+**Face materials:** `getFaceMaterial(face)` / `setFaceMaterial(face, material)`; `sharedFaceMaterial(faces)` is the material they all share, or `INVALID_MATERIAL` when they differ. Operations give new faces a material by one rule: the faces they're built from share one, the new faces get it, otherwise they use the object's. Extrude, inset, and bevel go through `replaceFaces`, whose first `oldFaces.size()` new faces replace the old ones in order (reshaped faces and extrude tops keep their own materials) and whose other new faces (sides, strips, corner fills) follow the rule; extruding a single face (`insertFaceRing`) gives its sides the face's material; `fillFaceLoop` uses the faces across the hole (or a material it's given); `connectVertices` gives both halves the split face's material; dissolve and merge keep the surviving faces'.
+
+**UVs:** every face corner has a UV, stored on the half-edge that points to that corner (`Edge::uv`), so a vertex on a seam can hold a different UV in each face. They follow the glTF convention: (0, 0) is the image's top-left corner and v runs down. `getFaceUVs(face)` lists them in the same order as `getFaceVertices(face)` (each half-edge's tip); `setFaceUVs(face, uvs)` sets them. `getCornerUVs()` / `setCornerUVs(uvs)` read and write every half-edge's UV in handle order (border half-edges included), for saving. Every operation keeps them: `insertFaceRing` gives the top its old corners' UVs and each side quad the UVs of the rim it rises from; `splitEdge` puts the midpoint UV on each side; `fillFaceLoop` takes the UV each corner has in the face across the hole (or `uvByVertex`, a vertex-slot → UV map it's given); `connectVertices` gives both halves the split face's UVs. `replaceFaces` (extrude, inset, bevel) gives each new face's corner the UV it had in its reference face (the old face it replaces, or for sides and fills the old face sharing the most corners), found by vertex, then by exact position, then in any old face, then the nearest old corner.
+
+**Smooth shading:** each mesh has a `ShadingMode` (`getShading` / `setShading`): **Flat** (every face its own facet, the default), **Smooth** (faces blend into each other), or **Auto** (faces meeting at more than `getSmoothAngle()`, 30° by default, keep a hard edge). An edge's `EdgeMark` (`setEdgeMark`, which sets both halves) overrides Smooth and Auto: Hard always creases, Smooth always blends; Flat ignores marks. `isEdgeHard(edge)` gives the result (borders are always hard), and `getHardEdges()` lists one half of each hard edge between two faces (empty in Flat), which edit mode draws in cyan. `getCornerNormal(incoming)` is the normal of the corner at the half-edge's tip: the faces around that vertex reachable without crossing a hard edge, each face's normal weighted by its corner angle. The walk starts from the fan's first face (after a hard edge, or the lowest half-edge when the fan closes), so every corner in a fan gets the same normal bit for bit, which keeps exported vertices shared. One hard edge at a vertex doesn't split it; it takes two to cut its fan apart. `getFaceEdgeMarks(face)` lists the marks in corner order; `getEdgeMarks` / `setEdgeMarks` and `hasEdgeMarks` are for saving. `splitEdge` gives both pieces the edge's mark; `replaceFaces` keeps the mark of an edge rebuilt between the same two vertices (or of the outside half it pairs with), so extrude, inset, and bevel keep the marks of edges that don't move away; new edges start unmarked.
 
 - A half-edge's origin is `pair.tip` (`getEdgeOrigin`).
 - Following `next` from any half-edge walks a closed **loop**: a face's boundary, counter-clockwise, or a border hole if `face` is invalid.
@@ -200,7 +212,7 @@ Used by `OpenGLMesh` to build buffers. See [renderer.md](renderer.md#gpu-meshes)
 |---|---|
 | `getVertexData()` | Flat `x,y,z` positions for live vertices, plus `indexMap` from vertex slot index to GPU vertex index. |
 | `getEdgeData(vertexData)` | Line index pairs (one per edge, not per half-edge), plus a map from half-edge slot index to its offset in the index buffer. Both halves map to the same line. |
-| `getFaceData()` | Its own vertex buffer: every triangle's three corners are written separately as `x, y, z, nx, ny, nz` (`FaceData::FLOATS_PER_VERTEX` = 6), with that triangle's own normal (cross product of its edges; a zero-area triangle uses the face's `getFaceNormal`). That gives flat shading per triangle: planar faces look the same as with one face normal, and a non-planar face shows its fold along the triangulation. `indices` run over that buffer in order, wound counter-clockwise around the normal. `indexMap` holds `(offset, count)` pairs per face slot. |
+| `getFaceData(groupOf)` | Faces are sorted into **groups** by material first (`groupOf` maps a face's own material to its group, e.g. a removed material to `INVALID_MATERIAL`, the object's; without it, the handle as stored), so each group's triangles are one run of indices, listed in `groups` (`FaceGroup`: material, first index, count; the object's group first). The renderer draws one run per material. Then, for each face, its own vertex buffer: every triangle's three corners are written separately as `x, y, z, nx, ny, nz, u, v` (`FaceData::FLOATS_PER_VERTEX` = 8). In flat shading a planar face (`isFacePlanar`: every corner within 1e-5 of its size off the plane) uses its `getFaceNormal` on every triangle and a non-planar one each triangle's own (cross product of its edges), so it shows its fold along the triangulation; with smoothing every corner gets `getCornerNormal`. The `.vlmobj` bake reads these same corners. `indices` run over that buffer in order, wound counter-clockwise around the normal. `indexMap` holds `(offset, count)` pairs per face slot. |
 
 ### Files
 
@@ -211,7 +223,7 @@ Used by `OpenGLMesh` to build buffers. See [renderer.md](renderer.md#gpu-meshes)
 | `writeTo(BinaryWriter&)` | Counts, then flat arrays: positions, each vertex's half-edge, each half-edge's tip/pair/next/prev/face, each face's half-edge. Deleted slots are packed out, so stored links are indices `0..n-1` (`INVALID_INDEX` for none). |
 | `readFrom(BinaryReader&)` | Reads that back into fresh arrays, so element `i` gets handle `{ i, 0 }`. Every link is range-checked first; on a short read or a link out of range it returns false and leaves the mesh unchanged. It doesn't run `validate()` (the project loader does). |
 
-Face order, winding, and each loop's starting half-edge are kept, so a mesh comes back the same apart from handle numbers.
+Face order, winding, and each loop's starting half-edge are kept, so a mesh comes back the same apart from handle numbers. UVs, shading, and edge marks aren't part of this; the project file stores them next to the mesh.
 
 ### Private primitives
 
@@ -244,11 +256,13 @@ Each preset is a `MeshFactory` function in `presets/` that returns a `PackagedMe
 | `IcoSphere` | `icoSphere(radius 0.5, subdivisions 1)` | 80 triangles (icosahedron split once) |
 | `Torus` | `torus(major 0.4, minor 0.15, segments 24, sides 12)` | 288 quads; every loop wraps around |
 
+Every preset comes with UVs: the cube unfolds into a cross on a 4 × 4 grid (each side its own quarter-size cell), the plane, grid, and circle map straight down onto the square, the cylinder and cone wrap their sides around the top half and put each cap as a disc in the bottom half, the UV sphere and torus use their rings and segments, and the ico sphere is mapped like a globe (u around, v from pole to pole, with faces crossing the seam shifted past 1 so they don't stretch across the whole texture).
+
 `setMesh` always uses the defaults; the parameters are there for preset options later (see [Ideas](../features.md#good-next-picks)).
 
 ### fromPolygons
 
-`MeshFactory::fromPolygons(positions, faces)` builds a half-edge mesh from a vertex list and faces given as vertex indices, **counter-clockwise seen from outside** (so `getFaceNormal` points out). Every preset uses it.
+`MeshFactory::fromPolygons(positions, faces, faceUVs, faceMarks)` builds a half-edge mesh from a vertex list and faces given as vertex indices, **counter-clockwise seen from outside** (so `getFaceNormal` points out). Every preset uses it. `faceUVs` (optional) gives each face's corner UVs in the same order; a face whose list is missing or the wrong size gets zeros. `faceMarks` (optional) likewise gives the mark of the edge ending at each corner; border halves copy their pair's. Each face's first half-edge points to its second corner, so `getFaceVertices` starts there.
 
 1. Inserts vertices in order, so a vertex's handle index equals its position index.
 2. Creates each face's half-edge loop.
