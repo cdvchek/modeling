@@ -5,6 +5,8 @@
 #include "platform/window/window_event_callback_win32.hpp"
 #include "platform/window/impl_win32.hpp"
 
+#define IDI_APPLICATION_ICON 101
+
 #define WINDOW_REQUIRE_INITIALIZED_BOOL() \
     if (!isInitialized()) {          \
         m_error = WE_NOTINITIALIZED; \
@@ -36,6 +38,7 @@ bool Window::initialize(EventDispatcher* event_dispatcher) {
     wc.hInstance = h_instance;
     wc.lpszClassName = class_name;
     wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
+    wc.hIcon = LoadIconW(h_instance, MAKEINTRESOURCEW(IDI_APPLICATION_ICON));
 
     RegisterClassW(&wc);
 

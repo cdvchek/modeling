@@ -152,7 +152,7 @@ target_include_directories(modeling_core PUBLIC
 # Lets #embed <...> find files under assets/ (see embedded_fonts.cpp).
 target_compile_options(modeling_core PRIVATE --embed-dir=${CMAKE_SOURCE_DIR}/assets)
 
-add_executable(modeling ${APP_SRC} ${C_SRC})
+add_executable(modeling ${APP_SRC} ${C_SRC} app.rc app.ico)
 
 target_link_libraries(modeling PRIVATE
     modeling_core
