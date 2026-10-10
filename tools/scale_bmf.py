@@ -2,7 +2,7 @@
 # Usage: python tools/scale_bmf.py <input.bmf> <output.bmf> <width> <height> [left top right bottom]
 # The optional crop box (in input pixels, right/bottom exclusive) trims empty cell margins first.
 # The UI font is made with:
-#   python tools/scale_bmf.py assets/fonts/console.bmf assets/fonts/ui.bmf 10 16 1 1 15 23
+#   python tools/scale_bmf.py shared/assets/fonts/console.bmf shared/assets/fonts/ui.bmf 10 16 1 1 15 23
 
 import sys
 from PIL import Image

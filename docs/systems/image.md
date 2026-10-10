@@ -2,7 +2,7 @@
 
 Reading and writing pictures for the suite: Valuma's reference images and textures, and textures in the Aevora engine (exported `.vlmobj` files carry PNGs). PNG only for now.
 
-Files: [shared/image/](../../shared/image/), built as the `image` static library. Like `shared/vlmobj/`, it uses only the C++ standard library, so the engine can link it too. `modeling_core` links it.
+Files: [shared/image/](../../shared/image/), built as the `image` static library. Like `shared/vlmobj/`, it uses only the C++ standard library, so the engine can link it too. `valuma_core` links it.
 
 ## API
 

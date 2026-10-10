@@ -1,14 +1,14 @@
 # Mesh
 
-Editable polygon meshes stored as a half-edge structure. All mesh code is in `modeling_core`, has no OpenGL or Win32 dependencies, and is covered by the tests.
+Editable polygon meshes stored as a half-edge structure. All mesh code is in `valuma_core`, has no OpenGL or Win32 dependencies, and is covered by the tests.
 
-Files: `src/scene/mesh/`
+Files: `valuma/src/scene/mesh/`
 
 | File | Contents |
 |---|---|
-| [mesh_handles.hpp](../../src/scene/mesh/mesh_handles.hpp) | `VertexHandle`, `EdgeHandle`, `FaceHandle`, `INVALID_*` constants |
-| [mesh_types.hpp](../../src/scene/mesh/mesh_types.hpp) | `Vertex`, `Edge`, `Face`, `Triangle`, `PackagedMesh`, `PresetMesh` |
-| [mesh_data.hpp](../../src/scene/mesh/mesh_data.hpp) | `MeshData` class, GPU export structs, `SlideSession` |
+| [mesh_handles.hpp](../../valuma/src/scene/mesh/mesh_handles.hpp) | `VertexHandle`, `EdgeHandle`, `FaceHandle`, `INVALID_*` constants |
+| [mesh_types.hpp](../../valuma/src/scene/mesh/mesh_types.hpp) | `Vertex`, `Edge`, `Face`, `Triangle`, `PackagedMesh`, `PresetMesh` |
+| [mesh_data.hpp](../../valuma/src/scene/mesh/mesh_data.hpp) | `MeshData` class, GPU export structs, `SlideSession` |
 | `mesh_data_access.cpp` | Element lookup, handle lists, `setMesh` |
 | `mesh_data_queries.cpp` | Topology traversal, loops and rings |
 | `mesh_data_geometry.cpp` | Positions, normals, triangulation, dirty flags |
@@ -21,13 +21,13 @@ Files: `src/scene/mesh/`
 | `ops/mesh_data_region.cpp` | Region extrude and inset |
 | `mesh_data_validate.cpp` | Topology checker |
 | `mesh_data_gpu.cpp` | Flattening to vertex/index arrays for the renderer |
-| [mesh_factory.hpp](../../src/scene/mesh/mesh_factory.hpp), `presets/*.cpp` | Built-in meshes and the `fromPolygons` builder |
+| [mesh_factory.hpp](../../valuma/src/scene/mesh/mesh_factory.hpp), `presets/*.cpp` | Built-in meshes and the `fromPolygons` builder |
 
 ## Handles and DynamicArray
 
 Mesh elements are never referenced by pointer or plain index. A `Handle<Tag>` is `{ u32 index, u32 generation }`; `VertexHandle`, `EdgeHandle`, and `FaceHandle` are distinct types, so they can't be mixed up.
 
-Element storage is `DynamicArray<T, HandleT>` from [core/containers/dynamic_array.hpp](../../src/core/containers/dynamic_array.hpp), a generic slot array that can hold any type. `HandleT` defaults to `Handle<T>`, so `DynamicArray<Light>` hands out `Handle<Light>` with no tag struct needed; the mesh uses explicit tags (`VertexTag` etc.) instead.
+Element storage is `DynamicArray<T, HandleT>` from [core/containers/dynamic_array.hpp](../../shared/core/containers/dynamic_array.hpp), a generic slot array that can hold any type. `HandleT` defaults to `Handle<T>`, so `DynamicArray<Light>` hands out `Handle<Light>` with no tag struct needed; the mesh uses explicit tags (`VertexTag` etc.) instead.
 
 How it works:
 - `insert(value)` reuses a free slot if there is one, otherwise appends. Returns a handle with the slot's current generation.
@@ -81,7 +81,7 @@ struct Face {
 
 ### Unwrapping
 
-[uv_unwrap.hpp](../../src/scene/mesh/uv_unwrap.hpp) (`namespace UVUnwrap`, part of `modeling_core`). Every function works on the faces it's given; the rest of the mesh's UVs stay as they are. `toWorld` (the object's world matrix) makes sizes and directions the ones you see.
+[uv_unwrap.hpp](../../valuma/src/scene/mesh/uv_unwrap.hpp) (`namespace UVUnwrap`, part of `valuma_core`). Every function works on the faces it's given; the rest of the mesh's UVs stay as they are. `toWorld` (the object's world matrix) makes sizes and directions the ones you see.
 
 | Function | Description |
 |---|---|
@@ -235,7 +235,7 @@ Used by `OpenGLMesh` to build buffers. See [renderer.md](renderer.md#gpu-meshes)
 
 ### Files
 
-[mesh_data_serialize.cpp](../../src/scene/mesh/mesh_data_serialize.cpp), used by project files (layout in [project.md](project.md#file-format)).
+[mesh_data_serialize.cpp](../../valuma/src/scene/mesh/mesh_data_serialize.cpp), used by project files (layout in [project.md](project.md#file-format)).
 
 | Function | Description |
 |---|---|
@@ -291,4 +291,4 @@ Every preset comes with UVs: the cube unfolds into a cross on a 4 × 4 grid (eac
 
 It asserts if two faces use the same directed edge (inconsistent winding or a non-manifold edge) or a border doesn't close into a loop.
 
-To add a preset: write the function in a new `presets/*.cpp` using `fromPolygons`, declare it in `mesh_factory.hpp`, add a `PresetMesh` value and a `setMesh` case, add the file to `CORE_SRC`, and add a test to `preset_tests.cpp`.
+To add a preset: write the function in a new `presets/*.cpp` using `fromPolygons`, declare it in `mesh_factory.hpp`, add a `PresetMesh` value and a `setMesh` case, add the file to `VALUMA_CORE_SRC` in `valuma/CMakeLists.txt`, and add a test to `preset_tests.cpp`.

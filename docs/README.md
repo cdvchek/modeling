@@ -1,6 +1,6 @@
 # Documentation
 
-Developer documentation for Valuma Studio, the modeling application (project files are `.vlm`).
+Developer documentation for Aevora Works: Valuma Studio, the modeling application (project files are `.vlm`), and the shared code under `shared/` that the Aevora engine and Sollaria audio will use too.
 
 | Document | What it covers |
 |---|---|

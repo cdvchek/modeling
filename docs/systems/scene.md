@@ -2,11 +2,11 @@
 
 What's being edited and how you look at it: objects, materials, lights, reference images, transforms, the camera, the selection, picking, and undo history.
 
-Files: `src/scene/` (meshes are covered separately in [mesh.md](mesh.md))
+Files: `valuma/src/scene/` (meshes are covered separately in [mesh.md](mesh.md))
 
 ## Scene
 
-[scene.hpp](../../src/scene/scene.hpp)
+[scene.hpp](../../valuma/src/scene/scene.hpp)
 
 ```cpp
 struct Scene {
@@ -24,7 +24,7 @@ struct Scene {
 
 ## Objects
 
-[object_collection.hpp](../../src/scene/objects/object_collection.hpp)
+[object_collection.hpp](../../valuma/src/scene/objects/object_collection.hpp)
 
 ```cpp
 struct Object {
@@ -36,7 +36,7 @@ struct Object {
 };
 ```
 
-`Object` is scene data only. Its GPU copy lives in the application's `ObjectMeshCache` ([object_meshes.hpp](../../src/application/viewport/object_meshes.hpp)), keyed by handle, so objects can be copied freely (undo snapshots copy the whole collection). Set `meshDirty = true` after changing `meshData`; `renderFrame` brings the GPU copy up to date (patching only what moved when the layout is unchanged, see [renderer.md](renderer.md#gpu-meshes)) and clears the flag.
+`Object` is scene data only. Its GPU copy lives in the application's `ObjectMeshCache` ([object_meshes.hpp](../../valuma/src/application/viewport/object_meshes.hpp)), keyed by handle, so objects can be copied freely (undo snapshots copy the whole collection). Set `meshDirty = true` after changing `meshData`; `renderFrame` brings the GPU copy up to date (patching only what moved when the layout is unchanged, see [renderer.md](renderer.md#gpu-meshes)) and clears the flag.
 
 `ObjectCollection` stores objects in a `DynamicArray<Object>` and hands out `ObjectHandle` (`Handle<Object>`), the same pattern as lights. `INVALID_OBJECT` is the null handle. A removed object's handle stays invalid even if its slot is reused.
 
@@ -69,7 +69,7 @@ Clicking in the viewport (any selection mode): the click is tested against the a
 
 ## Lights
 
-[light.hpp](../../src/scene/lights/light.hpp), [light_collection.hpp](../../src/scene/lights/light_collection.hpp)
+[light.hpp](../../valuma/src/scene/lights/light.hpp), [light_collection.hpp](../../valuma/src/scene/lights/light_collection.hpp)
 
 Besides the individual lights, the collection holds one `AmbientLight` (color and strength only). All enabled lights shade mesh faces: each frame `renderFrame` copies them into a `LightingState` for the renderer (see [renderer.md](renderer.md#object-drawing)). Every light is drawn as a marker in the viewport (see [application.md](application.md)); `light list` prints them (see [console.md](console.md#light-command)).
 
@@ -118,7 +118,7 @@ Lights are part of the undo snapshot (see [History](#history)), so wrapping a li
 
 ## Materials
 
-[material.hpp](../../src/scene/materials/material.hpp), [material_collection.hpp](../../src/scene/materials/material_collection.hpp)
+[material.hpp](../../valuma/src/scene/materials/material.hpp), [material_collection.hpp](../../valuma/src/scene/materials/material_collection.hpp)
 
 How a surface looks, shared by the objects that use it (see [features.md](../features.md)). The values are the metallic-roughness set glTF and the game engines use, so a material exports as it is.
 
@@ -156,7 +156,7 @@ Each `Object` has a `MaterialHandle material`. A handle that isn't valid (none s
 
 ## Textures
 
-[texture.hpp](../../src/scene/textures/texture.hpp), [texture_collection.hpp](../../src/scene/textures/texture_collection.hpp), [picture.hpp](../../src/scene/pictures/picture.hpp)
+[texture.hpp](../../valuma/src/scene/textures/texture.hpp), [texture_collection.hpp](../../valuma/src/scene/textures/texture_collection.hpp), [picture.hpp](../../valuma/src/scene/pictures/picture.hpp)
 
 Pictures materials use as maps. A texture is its own thing in the scene, not part of a material, so several materials can share one (an atlas for several objects).
 
@@ -189,7 +189,7 @@ A material's `baseColorMap` that isn't valid (none set, or its texture removed) 
 | `uniqueName(base)` | `base`, or `base N` with the lowest free N. |
 | `findSamePicture(picture)` | A texture whose PNG is byte for byte the same (import reuses it). Layered textures have no picture, so they never match and importing one's export adds a new texture. |
 
-[paint_targets.hpp](../../src/scene/textures/paint_targets.hpp): what an object can be painted into.
+[paint_targets.hpp](../../valuma/src/scene/textures/paint_targets.hpp): what an object can be painted into.
 
 | Function | Description |
 |---|---|
@@ -204,7 +204,7 @@ A material's `baseColorMap` that isn't valid (none set, or its texture removed) 
 
 ### Layers
 
-[layers.hpp](../../src/scene/textures/layers.hpp): a paintable texture's pixels. A texture with layers draws from them (see `LayerTextureCache` in [application.md](application.md)), is saved layer by layer (see `TEXR` in [project.md](project.md)), and is exported as its combined picture.
+[layers.hpp](../../valuma/src/scene/textures/layers.hpp): a paintable texture's pixels. A texture with layers draws from them (see `LayerTextureCache` in [application.md](application.md)), is saved layer by layer (see `TEXR` in [project.md](project.md)), and is exported as its combined picture.
 
 ```cpp
 struct Tile { std::array<u8, 64 * 64 * 4> pixels; };   // TILE_SIZE = 64; RGBA, rows from the top
@@ -254,7 +254,7 @@ Name, visibility, and opacity are plain fields. Rename, show or hide, and opacit
 
 ### Brush
 
-[brush.hpp](../../src/scene/textures/brush.hpp): painting into a layer.
+[brush.hpp](../../valuma/src/scene/textures/brush.hpp): painting into a layer.
 
 ```cpp
 struct Brush {
@@ -283,7 +283,7 @@ struct Brush {
 - **Tiles** are written through `editTile`, so the tiles the stroke began with stay intact for the undo step that holds them, and only touched tiles are new. Erasing where the layer was clear makes no tiles.
 - Everything is clipped to the picture.
 
-[paint_mask.hpp](../../src/scene/textures/paint_mask.hpp): where on a texture paint may land.
+[paint_mask.hpp](../../valuma/src/scene/textures/paint_mask.hpp): where on a texture paint may land.
 
 ```cpp
 struct PaintMask {
@@ -297,7 +297,7 @@ struct PaintMask {
 
 ## Reference images
 
-[reference_image.hpp](../../src/scene/references/reference_image.hpp), [reference_collection.hpp](../../src/scene/references/reference_collection.hpp)
+[reference_image.hpp](../../valuma/src/scene/references/reference_image.hpp), [reference_collection.hpp](../../valuma/src/scene/references/reference_collection.hpp)
 
 Pictures placed in the scene to model against (see [features.md](../features.md#reference-images)). They aren't objects: they have no mesh, aren't exported, and are selected on their own.
 
@@ -323,7 +323,7 @@ The plane is the unit square from −0.5 to 0.5 in X and Y, facing its own +Z, t
 
 ## Transform
 
-[transform.hpp](../../src/scene/transform.hpp)
+[transform.hpp](../../valuma/src/scene/transform.hpp)
 
 `position`, `rotation` (Euler angles in radians), `scale`. `getMatrix()` returns `T × Rz × Ry × Rx × S`. Edited from the panel's Objects tab, the `object` command, and object-mode grab/scale/rotate.
 
@@ -337,7 +337,7 @@ The plane is the unit square from −0.5 to 0.5 in X and Y, facing its own +Z, t
 
 ## Camera
 
-[camera.hpp](../../src/scene/camera.hpp)
+[camera.hpp](../../valuma/src/scene/camera.hpp)
 
 An orbit camera around `target`.
 
@@ -354,7 +354,7 @@ Orbit, pan, and zoom input is handled in `checkSelectionContext` (see [applicati
 
 ## Selection
 
-[selection.hpp](../../src/scene/selection/selection.hpp)
+[selection.hpp](../../valuma/src/scene/selection/selection.hpp)
 
 Separate lists of selected vertices, edges, faces, lights, objects, and reference images, plus the **active object**. Element entries store the object's handle and the element handle (`VertexSelection`, `EdgeSelection`, `FaceSelection`); they always belong to the active object.
 
@@ -386,11 +386,11 @@ Conventions kept by the application code:
 
 ### Selecting mesh elements
 
-[mesh_selection.hpp](../../src/scene/selection/mesh_selection.hpp): keeps a selection whole, shared by the 3D view and the UV editor. `selectEdge` / `selectFace` bring the element's vertices along (an edge counts once, whichever half is stored; `isEdgeSelected` checks both), and `deselectEdge` / `deselectFace` drop only the vertices no other selected edge or face still uses. `selectAll(selection, object, mesh, mode)` takes every vertex, every edge (one half each), or every face of the object.
+[mesh_selection.hpp](../../valuma/src/scene/selection/mesh_selection.hpp): keeps a selection whole, shared by the 3D view and the UV editor. `selectEdge` / `selectFace` bring the element's vertices along (an edge counts once, whichever half is stored; `isEdgeSelected` checks both), and `deselectEdge` / `deselectFace` drop only the vertices no other selected edge or face still uses. `selectAll(selection, object, mesh, mode)` takes every vertex, every edge (one half each), or every face of the object.
 
 ## Origins
 
-[origin.hpp](../../src/scene/objects/origin.hpp)
+[origin.hpp](../../valuma/src/scene/objects/origin.hpp)
 
 An object's origin is its transform: the point its mesh is built around and the axes it turns on. These change it while the mesh stays where it is in the world, and so do its children. Origins are given as world transforms.
 
@@ -411,7 +411,7 @@ Targets keep the object's rotation and scale unless they say otherwise.
 
 ## Picking
 
-[ray.hpp](../../src/scene/picking/ray.hpp), [scene_queries.hpp](../../src/scene/picking/scene_queries.hpp)
+[ray.hpp](../../valuma/src/scene/picking/ray.hpp), [scene_queries.hpp](../../valuma/src/scene/picking/scene_queries.hpp)
 
 | Function | Description |
 |---|---|
@@ -428,7 +428,7 @@ The mesh picks test every object (with its transform), or only `only` when it's 
 
 ## History
 
-[history.hpp](../../src/scene/history.hpp)
+[history.hpp](../../valuma/src/scene/history.hpp)
 
 Undo/redo by snapshot. A `State` is a copy of the whole `ObjectCollection`, the whole `MaterialCollection`, the whole `TextureCollection` and `ReferenceCollection` (cheap: pictures and layer tiles are shared, not copied), the whole `LightCollection`, and the `Selection` (including the active object). Up to 100 undo steps are kept, and fewer when painting fills them: on each commit, paint tiles that steps older than the newest hold and the newest doesn't are counted (16 KB each), and the oldest steps are dropped while that's over the budget (256 MB; `setPaintBudget`), always keeping the newest.
 

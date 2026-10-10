@@ -373,4 +373,4 @@ Finished assets go out to the game engine (Aevora) and back in as **`.vlmobj`**:
 - Native Win32 window, input, clipboard, and file and folder dialogs; OpenGL 3.3 via GLAD. No other third-party code.
 - The window is titled Valuma Studio.
 - Fonts and shaders are embedded into the executable with `#embed`.
-- CMake build: `modeling` executable, `modeling_core` static library, the `vlmobj` and `image` libraries shared with the future engine, and a `tests` executable.
+- CMake build: the `valuma` executable and its `valuma_core` static library, the shared `core`, `ui`, `platform`, `gfx`, `vlmobj`, and `image` libraries for the whole suite, and the `shared_tests` and `valuma_tests` executables.

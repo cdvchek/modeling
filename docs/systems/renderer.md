@@ -1,32 +1,28 @@
 # Renderer
 
-Draws the scene through a backend-neutral interface. OpenGL 3.3 is the only backend.
+Draws the scene through a backend-neutral interface. OpenGL 3.3 is the only backend. Valuma's renderer is built on the shared OpenGL code in `shared/gfx/` (the `gfx` library), which any program can use on its own: see [Shared OpenGL code](#shared-opengl-code).
 
-Files: `src/renderer/`, plus [opengl_renderer_win32.cpp](../../src/platform/renderer/opengl_renderer_win32.cpp) for context creation.
+Files: `valuma/src/renderer/` (Valuma's viewport renderer) and `shared/gfx/`
 
 | File | Contents |
 |---|---|
-| [renderer.hpp](../../src/renderer/renderer.hpp) | `IRenderer`, `RendererConfig`, `ClearState`, draw command structs |
-| [renderer.cpp](../../src/renderer/renderer.cpp) | `createRenderer(RendererBackend)` |
-| [gpu_mesh.hpp](../../src/renderer/gpu_mesh.hpp) | `IMesh` interface |
-| [shader.hpp](../../src/renderer/shader.hpp) | `Shader` interface |
+| [renderer.hpp](../../valuma/src/renderer/renderer.hpp) | `IRenderer`, `RendererConfig`, `ClearState`, draw command structs |
+| [renderer.cpp](../../valuma/src/renderer/renderer.cpp) | `createRenderer(RendererBackend)` |
+| [gpu_mesh.hpp](../../valuma/src/renderer/gpu_mesh.hpp) | `IMesh` interface |
 | `opengl/opengl_renderer.hpp` | `OpenGLRenderer` class |
-| `opengl/opengl_renderer_common.cpp` | Portable GL code: `createResources`/`destroyResources`, textures, and drawing objects, images, grid, world text, debug lines |
-| `opengl/opengl_ui_renderer.*` | `OpenGLUIRenderer`: draws a `UIDrawList` (see [ui.md](ui.md)) |
+| `opengl/opengl_renderer_common.cpp` | `initialize`/`shutdown`, `createResources`/`destroyResources`, and drawing objects, images, grid, world text, debug lines |
 | `opengl/opengl_mesh.*` | `OpenGLMesh`: GPU buffers for one `MeshData` |
-| `opengl/shaders/opengl_shader.*` | `OpenGLShader`: compile, bind, set uniforms |
-| `opengl/shaders/opengl_shader_library.*` | `ShaderId`, `OpenGLShaderLibrary`: every program, embedded and compiled together |
-| `opengl/shaders/glsl/` | GLSL source files |
-| `opengl/opengl_font.*` | `OpenGLFont`: glyph atlas texture from a `BitmapFont`, one per `FontId` |
-| [debug_renderer.hpp](../../src/renderer/debug_renderer.hpp) | Half-edge debug overlay |
+| `opengl/shaders/opengl_shader_library.*` | `ShaderId`, `OpenGLShaderLibrary`: every program of Valuma's own, embedded and compiled together |
+| `opengl/shaders/glsl/` | Valuma's GLSL source files |
+| [debug_renderer.hpp](../../valuma/src/renderer/debug_renderer.hpp) | Half-edge debug overlay |
 
 ## IRenderer
 
 | Method | Description |
 |---|---|
-| `initialize(window, surface, config)` | Creates the context, then shaders and shared buffers (`createResources`). `window`/`surface` are the native handles from `Window`. |
+| `initialize(window, surface, config)` | Creates the context (an `OpenGLContext` on `surface`), then shaders and shared buffers (`createResources`). `window`/`surface` are the native handles from `Window`. |
 | `loadFonts(FontLibrary)` | Builds an atlas texture for every font. Called once by `setupRenderer` after `initialize`. |
-| `shutdown()` | Destroys the context. |
+| `shutdown()` | Destroys the resources, then the context. |
 | `resize(w, h)` / `setVSync(bool)` / `getVSync()` | Viewport size (also rebuilds the MSAA framebuffer) / swap interval, set by the `vsync` command. |
 | `beginFrame()` / `beginMainPass(ClearState)` | Start a frame, clear, and draw the gradient background (when `clearColor` is set). The gradient covers the clear color, which only shows if the background shader fails to load. |
 | `setBackground(BackgroundGradient)` / `getBackground()` | Top and bottom background colors. Default top 0.20/0.22/0.28 (Dracula `#343746`), bottom 0.10/0.10/0.13 (`#191a21`). |
@@ -36,12 +32,12 @@ Files: `src/renderer/`, plus [opengl_renderer_win32.cpp](../../src/platform/rend
 | `draw(DrawCommand)` | Draws one mesh's faces, edges, and vertices. |
 | `drawGrid(DrawGridCommand)` | Ground grid and axes. |
 | `drawImage(DrawImageCommand)` | A textured unit square (reference images): blended, with an opacity on top of the texture's alpha. Writes depth only when depth tested and fully opaque, so see-through images don't hide what's drawn after them. |
-| `renderMaterialPreview(look, size, texture)` | A material swatch ([opengl_material_preview.cpp](../../src/renderer/opengl/opengl_material_preview.cpp)): a smooth 64 × 32 sphere with UVs (u around, v from the top), so maps show in the `SurfaceLook`, drawn with the `Lit` shader under fixed studio lighting (a warm key light, a cool fill, a gray sky and ground, no exposure) so every swatch is lit the same whatever the scene, over an 8 × 8 checkerboard when it's see-through, drawn upside down (with the winding flipped to match) so the texture's first row is the swatch's top, as the UI expects of every texture, into a multisampled target that's resolved into `texture` (made when 0) with mipmaps. Call outside the main pass; it restores the viewport. |
-| `createTexture(pixels, width, height)` / `destroyTexture(texture)` | An RGBA8 texture (rows from the top) with mipmaps, trilinear filtering, and clamped edges; returns 0 if it's larger than `GL_MAX_TEXTURE_SIZE`. |
+| `renderMaterialPreview(look, size, texture)` | A material swatch ([opengl_material_preview.cpp](../../valuma/src/renderer/opengl/opengl_material_preview.cpp)): a smooth 64 × 32 sphere with UVs (u around, v from the top), so maps show in the `SurfaceLook`, drawn with the `Lit` shader under fixed studio lighting (a warm key light, a cool fill, a gray sky and ground, no exposure) so every swatch is lit the same whatever the scene, over an 8 × 8 checkerboard when it's see-through, drawn upside down (with the winding flipped to match) so the texture's first row is the swatch's top, as the UI expects of every texture, into a multisampled target that's resolved into `texture` (made when 0) with mipmaps. Call outside the main pass; it restores the viewport. |
+| `createTexture(pixels, width, height)` / `destroyTexture(texture)` | Through `OpenGLTexture` in `gfx`. An RGBA8 texture (rows from the top) with mipmaps, trilinear filtering, and clamped edges; returns 0 if it's larger than `GL_MAX_TEXTURE_SIZE`. |
 | `updateTexture(texture, x, y, width, height, pixels)` / `refreshTextureMipmaps(texture)` | Replaces a block of a texture's pixels (`glTexSubImage2D`), and rebuilds its mipmaps afterwards: several blocks, then one refresh. Used for layered textures, where only the changed tiles are sent. |
 | `drawText3D(DrawText3DCommand)` | Text on a quad in world space. |
 | `drawDebugLine(start, end, mvp)` | One white line. |
-| `getStats()` | The last finished frame's `RenderStats` ([render_stats.hpp](../../src/renderer/render_stats.hpp)): draw calls, triangles, lines, points, uniform uploads, mesh rebuilds and patches with their bytes, and GPU time. Every draw call in the backend goes through `drawElements` / `drawArrays` in [opengl_counters.hpp](../../src/renderer/opengl/opengl_counters.hpp), which count it, and every `OpenGLShader` set counts as an upload; `beginFrame` resets the counts and `endFrame` keeps them. GPU time comes from `GL_TIME_ELAPSED` queries in a ring of four, read back once ready so reading never stalls (a few frames late; a frame whose slot isn't ready isn't timed). |
+| `getStats()` | The last finished frame's `RenderStats` ([render_stats.hpp](../../shared/gfx/render_stats.hpp)): draw calls, triangles, lines, points, uniform uploads, mesh rebuilds and patches with their bytes, and GPU time. Every draw call in the backend goes through `drawElements` / `drawArrays` in [opengl_counters.hpp](../../shared/gfx/opengl/opengl_counters.hpp), which count it, and every `OpenGLShader` set counts as an upload; `beginFrame` resets the counts and `endFrame` keeps them. GPU time comes from `GL_TIME_ELAPSED` queries in a ring of four, read back once ready so reading never stalls (a few frames late; a frame whose slot isn't ready isn't timed). |
 | `setSceneViewport(x, y, width, height)` | Where the 3D scene draws, in window pixels from the top left (the 3D view of the current workspace); the background still fills the whole window, and `drawUI` goes back to the whole window. |
 | `drawUI(UIDrawList)` | All 2D UI for the frame (markers, status bar, panel, windows, menus, console) in one call. See [ui.md](ui.md). |
 | `endMainPass()` / `endFrame()` / `present()` | Resolve the MSAA framebuffer to the window, finish, and swap buffers. |
@@ -108,7 +104,7 @@ struct LightingState {
 };
 ```
 
-`LightingState` is backend-neutral and doesn't depend on scene types. `buildLightingState` in [application.cpp](../../src/application/application.cpp) fills it each frame: the ambient light, then the camera headlight in slot 0 when it's on (direction = camera forward, color × strength, from `ctx.viewport.headlight`), then enabled directional lights from `scene.lights` in the remaining slots (3 with the headlight on, 4 with it off), then up to 8 enabled point and spot lights. Extra lights past either limit are skipped. A point light is stored as a spot light whose cone covers everything (`cosInner = -1`, `cosOuter = -2`), so the shader has one loop for both.
+`LightingState` is backend-neutral and doesn't depend on scene types. `buildLightingState` in [application.cpp](../../valuma/src/application/application.cpp) fills it each frame: the ambient light, then the camera headlight in slot 0 when it's on (direction = camera forward, color × strength, from `ctx.viewport.headlight`), then enabled directional lights from `scene.lights` in the remaining slots (3 with the headlight on, 4 with it off), then up to 8 enabled point and spot lights. Extra lights past either limit are skipped. A point light is stored as a spot light whose cone covers everything (`cosInner = -1`, `cosOuter = -2`), so the shader has one loop for both.
 
 `DrawText3DCommand` holds references, so it must be used immediately, not stored.
 
@@ -131,7 +127,7 @@ Everything between `beginMainPass` and `endMainPass` is drawn into an offscreen 
    - **Blend:** blending on, depth writes off, `u_Opacity` from the look. A blended mesh that shows its back faces is drawn twice, back faces first (front ones culled), then front faces, so the far side of a glass shows behind the near side. The caller draws blended meshes after everything solid, farthest first (see [application.md](application.md#main-loop)).
 
    **Shading** (`lit.frag`) is the metallic-roughness model glTF and the engines use, in linear color:
-   - The base color, emissive color, highlight color, and back-face tint arrive as sRGB and are converted. Light colors in `LightingState` are already linear (`buildLightingState` converts the picked sRGB colors with `srgbToLinear` from [color.hpp](../../src/core/math/color.hpp)) and include their intensity.
+   - The base color, emissive color, highlight color, and back-face tint arrive as sRGB and are converted. Light colors in `LightingState` are already linear (`buildLightingState` converts the picked sRGB colors with `srgbToLinear` from [color.hpp](../../shared/core/math/color.hpp)) and include their intensity.
    - Each light adds Lambert diffuse plus a GGX highlight (Smith height-correlated visibility, Schlick Fresnel; reflectance 0.04 for non-metals, the base color for metals, whose diffuse goes to zero), scaled by π so a plain diffuse surface lights as `color × cos`. Directional: `max(dot(normal, −direction), 0)`. Point and spot: also `falloff × cone`, where `falloff = (1 − (distance / range)²)²` (1 at the light, 0 at `range`) and `cone = smoothstep(cosOuter, cosInner, dot(−toLight, direction))`.
    - **Environment:** a sky color above and a ground color below (`LightingState::skyColor`, `groundColor`): the ambient light (color × strength) shaped by the background gradient's hue (half of it, so gray surfaces don't turn blue), ×1.4 for the sky and ×0.6 for the ground, so they average to the ambient light. Diffuse ambient looks up the environment along the normal, fully blurred; reflections look it up along the reflected view direction, with the horizon softened more as roughness rises, weighted by an analytic stand-in for a prefiltered environment's reflectance (Karis's mobile approximation). This is why metals aren't black without an environment image.
    - Emissive color × strength is added, then everything is multiplied by `2^exposure`, tone mapped with Khronos PBR Neutral (unchanged below about 0.76, then rolled off toward white), and converted back to sRGB.
@@ -152,9 +148,9 @@ Faces are flat-shaded with one normal per triangle, so non-planar faces show the
 
 ### Shaders
 
-Everything shader-related is in `src/renderer/opengl/shaders/`; the platform layer doesn't touch shaders.
+Valuma's programs are in `valuma/src/renderer/opengl/shaders/`; the `OpenGLShader` class they use and the UI's own program are in `shared/gfx/opengl/`. The platform layer doesn't touch shaders.
 
-GLSL lives in real files under `glsl/` and is compiled into the executable with `#embed` in [opengl_shader_library.cpp](../../src/renderer/opengl/shaders/opengl_shader_library.cpp) (paths are relative to that file). Editing a `.vert`/`.frag` file rebuilds it automatically. Keep GLSL files ASCII.
+GLSL lives in real files under `glsl/` and is compiled into the executable with `#embed` in [opengl_shader_library.cpp](../../valuma/src/renderer/opengl/shaders/opengl_shader_library.cpp) (paths are relative to that file). Editing a `.vert`/`.frag` file rebuilds it automatically. Keep GLSL files ASCII.
 
 Programs are looked up by `ShaderId` through `OpenGLShaderLibrary`:
 
@@ -164,7 +160,6 @@ Programs are looked up by `ShaderId` through `OpenGLShaderLibrary`:
 | `Lit` | `lit.vert` | `lit.frag` | Mesh faces | Per object: `u_MVP`, `u_Model`, `u_NormalMatrix`. Per material: `u_BaseColor`, `u_Roughness`, `u_Metallic`, `u_EmissiveColor`, `u_EmissiveStrength`, `u_Opacity`, `u_AlphaCutoff`, `u_HasBaseColorMap`, `u_BaseColorMap` (sampler, unit 1), `u_BackFaces` (0 tinted, 1 lit); `u_Highlight`, `u_HighlightColor` (colors sRGB). The **Lighting** uniform block (std140, binding 0): `u_DirectionalLight{Directions,Colors}[4]`, `u_LocalLight{Positions,Directions,Colors}[8]` (range, inner and outer cone cosines in their w), `u_SkyColor` (exposure multiplier in w), `u_GroundColor`, `u_CameraPosition` (UV checker on in w), `u_BackFaceTint`, `u_LightCounts` |
 | `WorldText` | `world_text.vert` | `world_text.frag` | Debug labels in world space | `u_MVP`, `u_Color`, `u_Texture` |
 | `Background` | `fullscreen.vert` | `background.frag` | Viewport gradient, drawn first with depth test and writes off. Blends `u_BottomColor` → `u_TopColor` by `gl_FragCoord.y / u_ViewportHeight` and adds ±½/255 noise to break up 8-bit banding. | `u_TopColor`, `u_BottomColor`, `u_ViewportHeight` |
-| `UI` | `ui.vert` | `ui.frag` | All 2D UI: rounded rects, borders, shadows, lines, ring slices, gradients, glyphs, images (premultiplied textures such as material swatches) (see [ui.md](ui.md#shader)) | `u_ViewportSize`, `u_Texture` |
 | `Grid` | `grid.vert` | `grid.frag` | Ground grid and axes | see [Grid](#grid) |
 | `Image` | `image.vert` | `image.frag` | Reference images: a unit square from `gl_VertexID` (6 vertices, the empty VAO), the texture's first row at the top; fragments under 0.4% alpha are discarded so they leave the depth buffer alone | `u_MVP`, `u_Opacity`, `u_Texture` |
 
@@ -204,7 +199,7 @@ Tunables:
 
 ### GPU meshes
 
-`OpenGLMesh` ([opengl_mesh.hpp](../../src/renderer/opengl/opengl_mesh.hpp)) implements `IMesh` and owns two VAOs, plus one small VAO and index buffer per selection set:
+`OpenGLMesh` ([opengl_mesh.hpp](../../valuma/src/renderer/opengl/opengl_mesh.hpp)) implements `IMesh` and owns two VAOs, plus one small VAO and index buffer per selection set:
 - **Points and edges:** shared positions (`getVertexData`) and the edge index buffer. Attribute 0 = position.
 - **Faces:** the per-triangle corner buffer from `getFaceData` and its index buffer. Attribute 0 = position, 1 = normal, 2 = UV (the face-set VAOs use the same layout).
 
@@ -223,7 +218,7 @@ Normals are computed on the CPU during export, so they're only recalculated when
 
 ### Text
 
-`BitmapFont` ([bitmap_font.hpp](../../src/core/font/bitmap_font.hpp)) loads a `.bmf` file: a text format with the glyph size in its header and one hex digit (16 alpha levels) per pixel, for ASCII 32–126. Fonts are compiled into the binary with `#embed` ([embedded_fonts.cpp](../../src/core/font/embedded_fonts.cpp); assets path set by `--embed-dir` in CMake) and loaded by `FontLibrary`. `OpenGLFont` uploads one font into a 16 × 6 atlas texture; `FontAtlas::glyphUV` gives each character's UVs.
+`BitmapFont` ([bitmap_font.hpp](../../shared/core/font/bitmap_font.hpp)) loads a `.bmf` file: a text format with the glyph size in its header and one hex digit (16 alpha levels) per pixel, for ASCII 32–126. Fonts are compiled into the binary with `#embed` ([embedded_fonts.cpp](../../shared/core/font/embedded_fonts.cpp); assets path set by `--embed-dir` in CMake) and loaded by `FontLibrary`. `OpenGLFont` uploads one font into a 16 × 6 atlas texture; `FontAtlas::glyphUV` gives each character's UVs.
 
 Screen-space text goes through the UI draw list ([ui.md](ui.md)). `drawText3D` draws world-space text with the console font.
 
@@ -236,3 +231,19 @@ Screen-space text goes through the UI draw list ([ui.md](ui.md)). `drawText3D` d
 ## Adding a backend
 
 Implement `IRenderer` and `IMesh`, add a case to `createRenderer`. The application's `ObjectMeshCache` holds `OpenGLMesh` per object, so it would need to create the new backend's mesh type instead.
+
+## Shared OpenGL code
+
+`shared/gfx/` is the `gfx` library: the pieces of an OpenGL renderer that don't depend on what a program draws. It links `core` and `ui` and knows nothing about Valuma. Everything but the context needs a context to be current.
+
+| File | Contents |
+|---|---|
+| `glad/`, `KHR/` | The GLAD loader (`#include <glad/glad.h>`) |
+| [opengl_context.hpp](../../shared/gfx/opengl/opengl_context.hpp), `opengl_context_win32.cpp` | `OpenGLContext`: `create(surface)` picks a pixel format on the window's display context, creates a legacy (compatibility) context with `wglCreateContext`, makes it current, and loads GL with GLAD, returning false and leaving nothing behind if any step fails; `destroy()`; `setVSync(bool)` (`wglSwapIntervalEXT`); `present()` swaps the buffers. The header has no Win32 types. |
+| [shader.hpp](../../shared/gfx/shader.hpp), `opengl/opengl_shader.*` | The `Shader` interface and `OpenGLShader`: compile, bind, set uniforms |
+| [opengl_texture.hpp](../../shared/gfx/opengl/opengl_texture.hpp) | `namespace OpenGLTexture`: `create(pixels, width, height)`, `destroy`, `update` (a block of pixels), `refreshMipmaps`, for RGBA8 textures |
+| `opengl/opengl_font.*` | `OpenGLFont`: glyph atlas texture from a `BitmapFont`, one per `FontId` |
+| `opengl/opengl_ui_renderer.*`, `opengl/glsl/ui.vert`, `ui.frag` | `OpenGLUIRenderer`: draws a `UIDrawList` with its own shader, embedded with `#embed` (see [ui.md](ui.md)). `create()` returns false if the shader failed, and `draw(list, fonts, width, height)` then does nothing. |
+| [render_stats.hpp](../../shared/gfx/render_stats.hpp), `opengl/opengl_counters.hpp` | `RenderStats`, and the `drawElements`/`drawArrays` wrappers that count every draw into one global set (`glCounters()`) |
+
+A program's renderer owns an `OpenGLContext`, its own shaders (as `OpenGLShader`s) and scene drawing, an `OpenGLFont` per font, and an `OpenGLUIRenderer`. Valuma's `OpenGLRenderer` is one such renderer.

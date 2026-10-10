@@ -1,0 +1,72 @@
+#pragma once
+
+#include <vector>
+#include <array>
+#include <string>
+#include <types>
+
+#include "core/input/keys.hpp"
+
+class EventDispatcher;
+
+class InputState {
+public: 
+    void beginFrame();
+
+    bool isKeyDown(u16 key) const;
+    bool wasKeyDown(u16 key) const;
+    bool wasKeyPressedThisFrame(u16 key) const;
+    bool wasKeyReleasedThisFrame(u16 key) const;
+
+    bool isMouseDown(u16 button) const;
+    bool wasMouseDown(u16 button) const;
+    // A press (or release) happened this frame, even if the button is already back up (or down) again
+    bool wasMousePressedThisFrame(u16 button) const;
+    bool wasMouseReleasedThisFrame(u16 button) const;
+
+    i32 getMouseX() const;
+    i32 getMouseY() const;
+    i32 getMouseDeltaX() const;
+    i32 getMouseDeltaY() const;
+    i32 getScroll() const;
+
+    // Every key press this frame in order, including the OS's held-key repeats (which start after its repeat delay)
+    const std::vector<u16>& getKeyPresses() const { return m_keyPresses; }
+    bool wasKeyPressedOrRepeated(u16 key) const;
+
+    // Printable characters typed this frame, repeats included
+    const std::string& getTypedText() const { return m_typed; }
+
+    void onKey(u16 key, bool pressed);
+    void onChar(char character);
+    void onMouseButton(u16 button, bool pressed);
+    void onScroll(i32 scroll);
+    void onMouseMove(i32 x, i32 y);
+
+    // Forgets every held key and button without reporting releases; for after a modal dialog, which takes the key-ups
+    void releaseAll();
+
+private:
+    static constexpr std::size_t KEY_COUNT = static_cast<std::size_t>(Key::Count);
+    static constexpr std::size_t MOUSE_COUNT = static_cast<std::size_t>(MouseButton::Count);
+
+    std::array<bool, KEY_COUNT> m_keys_is_down{};
+    std::array<bool, KEY_COUNT> m_keys_was_down{};
+
+    std::array<bool, MOUSE_COUNT> m_buttons_is_down{};
+    std::array<bool, MOUSE_COUNT> m_buttons_was_down{};
+
+    // Presses and releases as they happened, so a click that starts and ends within one frame still counts
+    std::array<bool, MOUSE_COUNT> m_buttons_pressed{};
+    std::array<bool, MOUSE_COUNT> m_buttons_released{};
+
+    i32 m_mouse_x = 0;
+    i32 m_mouse_y = 0;
+    i32 m_mouse_delta_x = 0;
+    i32 m_mouse_delta_y = 0;
+
+    i32 m_scroll = 0;
+
+    std::vector<u16> m_keyPresses;
+    std::string m_typed;
+};

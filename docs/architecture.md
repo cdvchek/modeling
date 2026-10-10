@@ -1,8 +1,12 @@
 # Architecture
 
-A from-scratch C++20 modeling app on Win32 and OpenGL 3.3. No windowing, UI, or math libraries; GLAD is the only third-party code.
+Aevora Works is a set of programs for making a game: Valuma Studio (modeling, the only one so far), and later the Aevora engine and Sollaria audio. All of it is from-scratch C++20 on Win32 and OpenGL 3.3. No windowing, UI, or math libraries; GLAD is the only third-party code.
+
+The repo has two halves: `shared/`, code any of the programs can use, and one folder per program (`valuma/`). Nothing in `shared/` depends on a program.
 
 ## Layers
+
+Valuma's layers; `core`, `ui`, and `platform` are in `shared/`, the rest in `valuma/src/`:
 
 ```
           main.cpp
@@ -24,35 +28,43 @@ A from-scratch C++20 modeling app on Win32 and OpenGL 3.3. No windowing, UI, or 
 
 | Directory | Role | Depends on |
 |---|---|---|
-| `src/core/` | Engine building blocks with no app knowledge: math, containers (`DynamicArray`), events, input, console, bitmap fonts, frame timing, binary reading/writing and CRC-32 (`io/`), `parallelFor` (`thread/`) | — |
-| `src/scene/` | Everything being edited: objects, materials, lights, reference images, half-edge meshes (`mesh/`, editing operations in `mesh/ops/`, presets in `mesh/presets/`), selection, picking (`picking/`), camera, history | core |
-| `src/project/` | The `.vlm` project file format: writing and reading a whole scene plus editor state (see [systems/project.md](systems/project.md)) | core (io, threads), scene, ui (`Rect`) |
-| `src/asset/` | Valuma's side of `.vlmobj` assets: baking an object into a file and rebuilding one from it, and the export naming rules (see [systems/vlmobj.md](systems/vlmobj.md)) | scene, `shared/vlmobj` |
-| `shared/` | Code for the whole suite (Valuma, and later the Aevora engine and Sollaria audio), with no dependency on any one program. Now: `shared/vlmobj/`, the asset format, and `shared/image/`, image files (PNG). | — (C++ standard library only) |
-| `src/ui/` | 2D UI draw list in pixel coordinates (shapes, text, clipping) and the immediate-mode widget system (`UIContext`). No OpenGL. | core (math, fonts) |
-| `src/renderer/` | Backend-neutral `IRenderer` interface plus the OpenGL implementation | core, scene (mesh handles, `Scene` for the debug overlay), ui (draws a `UIDrawList`) |
-| `src/platform/` | Win32 window, message pump, key translation, OpenGL context creation | core (events, keys) |
-| `src/application/` | Wires everything together and owns all modeling behavior triggered by input: `actions/` (and `actions/checks/`), `commands/` (console), `ui/` (panel, console view, menus), `viewport/` (GPU meshes, markers, material looks), `tools/` (see [systems/application.md](systems/application.md)) | everything |
+| `shared/core/` | Building blocks with no knowledge of any program: math, containers (`DynamicArray`), events, input (key codes, `InputState`, `ActionMap`, `ContextManager`; each program lists its own actions and contexts), console, bitmap fonts, frame timing, binary reading/writing and CRC-32 (`io/`), `parallelFor` (`thread/`), and the integer and float aliases (`include/types`). The fonts themselves are in `shared/assets/fonts/`. | — |
+| `valuma/src/input/` | Valuma's own input lists: the `Action` enum, the `InputContext` flags (with `makeInputContexts`), and `DefaultKeybinds` (see [systems/input.md](systems/input.md)) | core (input) |
+| `valuma/src/scene/` | Everything being edited: objects, materials, lights, reference images, half-edge meshes (`mesh/`, editing operations in `mesh/ops/`, presets in `mesh/presets/`), selection, picking (`picking/`), camera, history | core |
+| `valuma/src/project/` | The `.vlm` project file format: writing and reading a whole scene plus editor state (see [systems/project.md](systems/project.md)) | core (io, threads), scene, ui (`Rect`) |
+| `valuma/src/asset/` | Valuma's side of `.vlmobj` assets: baking an object into a file and rebuilding one from it, and the export naming rules (see [systems/vlmobj.md](systems/vlmobj.md)) | scene, `shared/vlmobj` |
+| `shared/vlmobj/`, `shared/image/` | The `.vlmobj` asset format, and image files (PNG). | — (C++ standard library only) |
+| `shared/ui/` | 2D UI draw list in pixel coordinates (shapes, text, clipping) and the immediate-mode widget system (`UIContext`). No OpenGL. | core (math, fonts) |
+| `shared/gfx/` | OpenGL building blocks for every program: the GLAD loader, the context (`OpenGLContext`), shaders, textures, font atlases, drawing a `UIDrawList`, and draw counters (see [systems/renderer.md](systems/renderer.md#shared-opengl-code)) | core (math, fonts), ui (`UIDrawList`) |
+| `valuma/src/renderer/` | Valuma's viewport renderer: the backend-neutral `IRenderer` interface plus its OpenGL implementation (meshes, materials, grid, previews, its own shaders) | core, scene (mesh handles, `Scene` for the debug overlay), ui (draws a `UIDrawList`), gfx |
+| `shared/platform/` | Win32 window, message pump, key translation, clipboard, file dialogs | core (events, keys) |
+| `valuma/src/application/` | Wires everything together and owns all modeling behavior triggered by input: `actions/` (and `actions/checks/`), `commands/` (console), `ui/` (panel, console view, menus), `viewport/` (GPU meshes, markers, material looks), `tools/` (see [systems/application.md](systems/application.md)) | everything |
 
-**Platform split:** platform-specific code lives in files ending in `_win32.cpp`. The OpenGL renderer is split into `renderer/opengl/opengl_renderer_common.cpp` (portable GL drawing) and `platform/renderer/opengl_renderer_win32.cpp` (WGL context setup only). Shaders live in `renderer/opengl/shaders/` and have no platform code.
+**Platform split:** platform-specific code lives in files ending in `_win32.cpp`, all of them in `shared/platform/` and `shared/gfx/` (`opengl_context_win32.cpp`, the WGL context). Valuma itself has none: its renderer (`renderer/opengl/`) is portable GL on top of `OpenGLContext`, and its shaders live in `renderer/opengl/shaders/`.
 
 ## Build targets
 
-Defined in [CMakeLists.txt](../CMakeLists.txt):
+The root [CMakeLists.txt](../CMakeLists.txt) sets the language standards and adds [shared/CMakeLists.txt](../shared/CMakeLists.txt) and [valuma/CMakeLists.txt](../valuma/CMakeLists.txt), which define:
 
 | Target | Contents |
 |---|---|
-| `vlmobj` (static lib) | The `.vlmobj` format from `shared/vlmobj/`. Depends on nothing else, so the engine can link it too. `modeling_core` links it. |
-| `image` (static lib) | The PNG reader and writer from `shared/image/` (see [systems/image.md](systems/image.md)). Depends on nothing else. `modeling_core` links it. |
-| `modeling_core` (static lib) | Math, fonts, input (`InputState`, `ActionMap`, `ContextManager`), the console and command system, objects, materials, lights, reference images, selection and picking, transforms, the camera, undo history, the UI, all `MeshData` code, the project file format, and Valuma's `.vlmobj` baking (`src/asset/`). No OpenGL or Win32, so it can be tested on its own. |
-| `modeling` (exe → `bin/modeling.exe`) | Everything else plus `glad.c`, linked with `opengl32`, `dwmapi`, and `comdlg32` (file dialogs; all three are part of Windows). |
-| `tests` (exe) | Every `tests/*.cpp` and `shared/*/tests/*.cpp`, linked against `modeling_core`. `SOURCE_DIR` is defined so tests can find checked-in reference files. |
+| `vlmobj` (static lib) | The `.vlmobj` format from `shared/vlmobj/`. Depends on nothing else, so the engine can link it too. |
+| `image` (static lib) | The PNG reader and writer from `shared/image/` (see [systems/image.md](systems/image.md)). Depends on nothing else. |
+| `core` (static lib) | `shared/core/`: math, fonts, input (`InputState`, `ActionMap`, `ContextManager`), the console and command system, frame timing, CRC-32. No OpenGL or Win32. |
+| `ui` (static lib) | `shared/ui/`: the draw list and widgets. Links `core`. No OpenGL or Win32. |
+| `platform` (static lib) | `shared/platform/`: the Win32 window, message pump, clipboard, and file dialogs. Links `core`, `opengl32`, and `comdlg32` (file dialogs). |
+| `gfx` (static lib) | `shared/gfx/`: `glad.c`, the GL context, shaders, textures, fonts, and the UI renderer. Links `core`, `ui`, and `opengl32`. |
+| `test_runner` (static lib) | `shared/test/`: `test.hpp` and the runner's `main`. Each tests executable links it. |
+| `shared_tests` (exe → `build/shared_tests.exe`) | Every `shared/*/tests/*.cpp`, linked against `core`, `ui`, `vlmobj`, and `image`. |
+| `valuma_core` (static lib) | `valuma/src/input/`, `scene/`, `project/`, and `asset/`: Valuma's actions and input contexts, objects, materials, lights, reference images, selection and picking, transforms, the camera, undo history, all `MeshData` code, the project file format, and Valuma's `.vlmobj` baking. Links `core`, `ui`, `vlmobj`, and `image`. No OpenGL or Win32, so it can be tested on its own. |
+| `valuma` (exe → `bin/valuma.exe`) | `valuma/src/application/`, `renderer/`, and `main.cpp`, with the icon (`valuma/app.rc`). Links `valuma_core`, `platform`, `gfx`, `opengl32`, and `dwmapi` (both part of Windows). |
+| `valuma_tests` (exe → `build/valuma_tests.exe`) | Every `valuma/tests/*.cpp`, linked against `valuma_core`. |
 
-New `.cpp` files must be added to `CORE_SRC` or `APP_SRC` by hand. Tests are picked up by glob.
+New `.cpp` files must be added by hand: to a library's list in `shared/CMakeLists.txt`, or to `VALUMA_CORE_SRC` or `VALUMA_APP_SRC` in `valuma/CMakeLists.txt`. Tests are picked up by glob. Both tests executables define `SOURCE_DIR` (the repo root) so tests can find checked-in reference files. Headers are included from `shared/` (`"core/math/vec3.hpp"`, `"ui/ui_context.hpp"`) and from `valuma/src/` (`"scene/scene.hpp"`).
 
 ## The shared context
 
-All state lives in one `AppContext` ([app_context.hpp](../src/application/app_context.hpp)), created in `main()` and passed by reference everywhere:
+All state lives in one `AppContext` ([app_context.hpp](../valuma/src/application/app_context.hpp)), created in `main()` and passed by reference everywhere:
 
 ```cpp
 struct AppContext {
@@ -94,7 +106,7 @@ struct AppContext {
 
 ## Frame loop
 
-[application.cpp](../src/application/application.cpp):
+[application.cpp](../valuma/src/application/application.cpp):
 
 ```
 while running:
@@ -139,7 +151,7 @@ renderFrame ──► ObjectMeshCache::sync (OpenGLMesh::update) ──► draw
 
 Key ideas:
 - **Events** carry raw OS input. The app only subscribes to turn them into `InputState`.
-- **Actions** are named intents (`Action::GrabSelection`) bound to key combos. Tools never check raw keys. One-shot actions also have a handler (label, `canRun`, `run`) that `ActionMap::dispatch` runs when their keys are pressed, so the radial menu runs exactly the same action as the key.
+- **Actions** are named intents (`Action::GrabSelection`, from Valuma's own list) bound to key combos. Tools never check raw keys. One-shot actions also have a handler (label, `canRun`, `run`) that `ActionMap::dispatch` runs when their keys are pressed, so the radial menu runs exactly the same action as the key.
 - **Input contexts** are bit flags saying which modes are active (vertex mode, grab, console…). An action only fires if one of its contexts is active. Modal tools switch the context so that, for example, left click means "confirm grab" during a grab.
 - **Dirty flags**: mesh edits set `Object::meshDirty` (rebuild GPU buffers) and per-face `triangulationDirty` (re-triangulate that face).
 
@@ -168,7 +180,7 @@ Snapshots are full copies of every object (mesh and transform), every light and 
 
 ## Conventions
 
-- Integer and float aliases from `include/types`: `u8`…`u64`, `i8`…`i64`, `f32`, `f64`, and `INVALID_INDEX`.
+- Integer and float aliases from `shared/core/include/types`: `u8`…`u64`, `i8`…`i64`, `f32`, `f64`, and `INVALID_INDEX`.
 - Member variables use `m_` prefix; functions are camelCase; files are snake_case.
 - Mesh elements are referred to by generational handles (`VertexHandle`, `EdgeHandle`, `FaceHandle`), never pointers.
 - Mesh operators return `bool` or an invalid handle on failure and must leave the mesh valid either way.

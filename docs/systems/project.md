@@ -2,7 +2,7 @@
 
 Saving and opening Valuma Studio projects (`.vlm`). Opening a file puts the app back where it was when you saved, so you can keep working on the scene.
 
-Files: [src/project/](../../src/project/) (the file format, in `modeling_core`), [project_actions.cpp](../../src/application/actions/project_actions.cpp) (save, open, new, the title bar, and the unsaved-changes prompt), and [project_state.hpp](../../src/application/project_state.hpp).
+Files: [valuma/src/project/](../../valuma/src/project/) (the file format, in `valuma_core`), [project_actions.cpp](../../valuma/src/application/actions/project_actions.cpp) (save, open, new, the title bar, and the unsaved-changes prompt), and [project_state.hpp](../../valuma/src/application/project_state.hpp).
 
 ## What's saved
 
@@ -89,7 +89,7 @@ All numbers are little-endian. A file is a header, a directory with one entry pe
 
 ### Threads
 
-Objects are independent chunks, so both directions split them across threads (`parallelFor` in [parallel_for.hpp](../../src/core/thread/parallel_for.hpp): one thread per core, the caller included, handing out one object at a time so a huge mesh next to small ones still balances).
+Objects are independent chunks, so both directions split them across threads (`parallelFor` in [parallel_for.hpp](../../shared/core/thread/parallel_for.hpp): one thread per core, the caller included, handing out one object at a time so a huge mesh next to small ones still balances).
 
 - **Saving:** each object is encoded into its own buffer (and its CRC computed) in parallel, then the offsets are worked out and the buffers written in order.
 - **Opening:** the whole file is read in one go; each object's chunk is checked, decoded, validated, and triangulated (filling the face triangle cache) on a worker, each into its own slot. The objects are then added to the scene in file order on the main thread. GPU buffers are built on the main thread on the next frame, since OpenGL is single-threaded.
@@ -101,7 +101,7 @@ Objects are independent chunks, so both directions split them across threads (`p
 
 ## API
 
-[project_file.hpp](../../src/project/project_file.hpp)
+[project_file.hpp](../../valuma/src/project/project_file.hpp)
 
 | Function | Description |
 |---|---|
@@ -114,7 +114,7 @@ Objects are independent chunks, so both directions split them across threads (`p
 
 `ProjectFile::View` is the editor state saved with the scene (mode, headlight, tint, debug, panel, export folder). The app fills it from `AppContext` and applies it after opening (`captureView` / `applyView` in project_actions.cpp).
 
-Helpers in core: [binary_io.hpp](../../src/core/io/binary_io.hpp) (`BinaryWriter` appends plain values, arrays, and strings to a buffer; `BinaryReader` reads them back and fails, for good, on any read past the end) and [crc32.hpp](../../src/core/io/crc32.hpp) (standard CRC-32, eight bytes per step).
+Helpers in core: [binary_io.hpp](../../shared/core/io/binary_io.hpp) (`BinaryWriter` appends plain values, arrays, and strings to a buffer; `BinaryReader` reads them back and fails, for good, on any read past the end) and [crc32.hpp](../../shared/core/io/crc32.hpp) (standard CRC-32, eight bytes per step).
 
 ## Adding to the format
 

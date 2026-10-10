@@ -2,11 +2,11 @@
 
 A small typed publish/subscribe system. The platform layer triggers events; the application subscribes to them. Neither side knows about the other.
 
-Files: `src/core/events/`
+Files: `shared/core/events/`
 
 ## Event types
 
-[events.hpp](../../src/core/events/events.hpp)
+[events.hpp](../../shared/core/events/events.hpp)
 
 Each event is a small struct in the `Event` namespace. The `EVENT_TYPE` macro gives it a static `type` (an `EventType` enum value) and `name`.
 
@@ -23,7 +23,7 @@ Each event is a small struct in the `Event` namespace. The `EVENT_TYPE` macro gi
 
 ## EventDispatcher
 
-[event_dispatcher.hpp](../../src/core/events/event_dispatcher.hpp), [event_dispatcher.inl](../../src/core/events/event_dispatcher.inl)
+[event_dispatcher.hpp](../../shared/core/events/event_dispatcher.hpp), [event_dispatcher.inl](../../shared/core/events/event_dispatcher.inl)
 
 | Method | Description |
 |---|---|
@@ -40,7 +40,7 @@ Callbacks are stored type-erased in an array indexed by `EventType`. Events must
 
 ## Who subscribes
 
-All subscriptions are in [application_events.cpp](../../src/application/application_events.cpp):
+All subscriptions are in [application_events.cpp](../../valuma/src/application/application_events.cpp):
 
 - Key, mouse, and wheel events update `InputState`. Mouse button events also set the mouse position from their `x, y` first, since the move to that spot can arrive after the click.
 - `Char` inserts text into the console when it's open.

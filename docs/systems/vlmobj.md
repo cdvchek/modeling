@@ -1,6 +1,6 @@
 # Asset format (.vlmobj), version 1
 
-**Status: version 1, implemented** in the shared library ([shared/vlmobj/](../../shared/vlmobj/)) with Valuma's baking and rebuilding ([asset_file.cpp](../../src/asset/asset_file.cpp)); exported from the Export window (Ctrl+E) and imported with Ctrl+I (see [In the app](#in-the-app)). Once Aevora reads these files, changing a layout means a new version.
+**Status: version 1, implemented** in the shared library ([shared/vlmobj/](../../shared/vlmobj/)) with Valuma's baking and rebuilding ([asset_file.cpp](../../valuma/src/asset/asset_file.cpp)); exported from the Export window (Ctrl+E) and imported with Ctrl+I (see [In the app](#in-the-app)). Once Aevora reads these files, changing a layout means a new version.
 
 A `.vlmobj` file is one finished asset (a monster, a tree, a rock) as Valuma Studio exports it for the Aevora engine: everything the engine needs except the game code. It's built for loading. The engine can memory-map the file, check a few numbers, and hand the vertex and index data straight to the GPU, with no parsing and no rebuilding. Everything slow (triangulating, computing bounds) happens once, at export.
 
@@ -315,9 +315,9 @@ The library's own tests are in [shared/vlmobj/tests/](../../shared/vlmobj/tests/
 
 [shared/vlmobj/reference/cube.vlmobj](../../shared/vlmobj/reference/) is Valuma's export of the default cube, checked in. The shared tests read it back (any reader must keep reading it), and Valuma's tests check that exporting the cube today still gives exactly those bytes, so an accidental format change fails a test. After a deliberate change (with the versions bumped), run the tests once with the environment variable `VLMOBJ_WRITE_REFERENCE=1` to rewrite it.
 
-### Valuma's side: `src/asset/`
+### Valuma's side: `valuma/src/asset/`
 
-[asset_file.hpp](../../src/asset/asset_file.hpp) (`namespace AssetFile`, part of `modeling_core`):
+[asset_file.hpp](../../valuma/src/asset/asset_file.hpp) (`namespace AssetFile`, part of `valuma_core`):
 
 | Function | Description |
 |---|---|
@@ -331,7 +331,7 @@ The library's own tests are in [shared/vlmobj/tests/](../../shared/vlmobj/tests/
 
 ## In the app
 
-[asset_actions.cpp](../../src/application/actions/asset_actions.cpp), with the naming rules in [export_plan.cpp](../../src/asset/export_plan.cpp).
+[asset_actions.cpp](../../valuma/src/application/actions/asset_actions.cpp), with the naming rules in [export_plan.cpp](../../valuma/src/asset/export_plan.cpp).
 
 **Export window** (Ctrl+E, not while a tool runs; a [modal window](application.md#modal-windows)):
 - **Folder** with Browse… (Windows' folder picker). It starts at `exportFolder(ctx)`: the folder last exported to (`ctx.project.exportFolder`, saved in the `.vlm`), or `Exports` next to the project file (`Documents\Valuma Studio\Exports` for an unsaved project). Created when exporting if it isn't there.

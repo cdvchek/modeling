@@ -1,23 +1,24 @@
 # Testing
 
-A minimal built-in test runner with no external framework. Tests link against `modeling_core`, so they cover mesh code, math, fonts, UI, and input mapping, but not the renderer, platform, or tools.
+A minimal built-in test runner with no external framework, in two executables. `shared_tests` covers the shared libraries (math, fonts, UI, input mapping, the console, `.vlmobj`, PNG) and links only them; `valuma_tests` covers Valuma's mesh, scene, project, and asset code and links `valuma_core`. Neither covers the renderer, platform, or tools.
 
-Files: `tests/`
+Files: `shared/test/` (the runner), `shared/<library>/tests/`, `valuma/tests/`
 
 ## Running
 
 ```
 cmake --build build
-build/tests.exe
+build/shared_tests.exe
+build/valuma_tests.exe
 ```
 
-Shared libraries keep their own tests next to them (`shared/<library>/tests/*.cpp`, which use only that library); the same runner picks them up.
+Shared libraries keep their tests next to them (`shared/<library>/tests/*.cpp`), and those use only shared code, so another program can run them without Valuma.
 
-Or the VS Code **Test** task. It prints `FAIL <test> (file:line): <expression>` for each failed check, then a summary like `41 tests, 247 checks, 0 failures`, and exits non-zero if anything failed.
+Or the VS Code **Test** task, which runs both. Each prints `FAIL <test> (file:line): <expression>` for each failed check, then a summary like `41 tests, 247 checks, 0 failures`, and exits non-zero if anything failed.
 
 ## Writing a test
 
-[test.hpp](../tests/test.hpp) provides two macros:
+[test.hpp](../shared/test/test.hpp) provides two macros:
 
 ```cpp
 #include "test.hpp"
@@ -32,15 +33,17 @@ TEST_CASE(split_edge_adds_midpoint) {
 }
 ```
 
-- `TEST_CASE(name)` defines and auto-registers a test. Names must be unique across all files.
+- `TEST_CASE(name)` defines and auto-registers a test. Names must be unique across all files in one executable.
 - `CHECK(expr)` records a failure without stopping the test.
-- Any new `tests/*.cpp` file is picked up automatically (CMake glob); re-run CMake configure after adding one.
+- Any new `.cpp` file in a tests folder is picked up automatically (CMake glob); re-run CMake configure after adding one.
 
-[mesh_helpers.hpp](../tests/mesh_helpers.hpp) has shared helpers for building and inspecting meshes.
+[mesh_helpers.hpp](../valuma/tests/mesh_helpers.hpp) has shared helpers for building and inspecting meshes.
 
 For mesh operators, always `CHECK(mesh.validate())` after the operation, including after refused operations.
 
 ## Coverage
+
+Files with no folder shown are in `valuma/tests/`, except these in `shared/core/tests/` (`font`, `projection`, `frame_timer`, `screen_drag`, `console`, `action_map`, `color`) and `shared/ui/tests/` (`ui_context`, `ui_draw_list`, `text_input`, `radial`).
 
 | File | Covers |
 |---|---|
@@ -61,7 +64,7 @@ For mesh operators, always `CHECK(mesh.validate())` after the operation, includi
 | `text_input_tests.cpp` | Text field: typing replaces the selected text and Enter commits (one undo step), Escape restores, a click outside commits and is kept from the viewport, editing keys (arrows, Home, Backspace, Delete), an empty edit is dropped, clipboard copy/cut/paste (pasted text cut at a line break), an edit ends when its field isn't drawn; `dragFloat3` click opens typing and a typed value commits, a 2 px wobble is still a click, a non-number is ignored; `ActionMap` keyboard block spares mouse bindings and Quit; `wasActionPressedOrRepeated` follows OS repeats; typed text skips control characters |
 | `console_tests.cpp` | `Console::getBrowsedIndex` follows Up/Down through the history and back to a fresh command; editing a recalled command stops browsing; a command's printed output becomes one entry under it; an unknown command becomes an error; closing collapses only multi-line entries and later ones stay open; toggling; trailing breaks and empty text; error count and latest error; `CommandSystem::list` is sorted and `execute` reports unknown names; entries a command prints itself appear once, and their echo reaches stdout; a command guard turns a command down by name (it still counts as known) and lets the rest run |
 | `radial_tests.cpp` | `RadialLayout::sliceAt` for 8 and 4 slices (up first, clockwise), 5 slices mirror only left/right, dead zone; `sliceDirection` agrees with picking for 2–8 slices; `ringSlice` quad size and local axes |
-| `action_map_tests.cpp` | `keybindLabel`; `dispatch` runs a handler only on the press frame and in its context, and skips it when `canRun` fails; `isAvailable` and `getKeybind` for bound and unbound actions; modifiers keep S, Ctrl+S, and Ctrl+Shift+S apart (right Ctrl blocks S, Shift alone doesn't); a modal window owns the keys, even over the console; a click that goes down and up within one frame reports both and fires a mouse action; mouse moves add up within a frame and a click at the same spot doesn't change them; a filter that turns an action down stops its key, `dispatch`, `canRun`, and `isAvailable`, and allowing it again restores them; M+F runs only the chord, not F with it, and F alone still runs |
+| `action_map_tests.cpp` | `keybindLabel`; `dispatch` runs a handler only on the press frame and in its context, and skips it when `canRun` fails; `isAvailable` and `getKeybind` for bound and unbound actions; modifiers keep S, Ctrl+S, and Ctrl+Shift+S apart (right Ctrl blocks S, Shift alone doesn't); a modal window owns the keys, even over the console; a click that goes down and up within one frame reports both and fires a mouse action; mouse moves add up within a frame and a click at the same spot doesn't change them; a filter that turns an action down stops its key, `dispatch`, `canRun`, and `isAvailable`, and allowing it again restores them; M+F runs only the chord, not F with it, and F alone still runs; `ContextManager` keeps one mode (the earliest of several asked for) and its always-on context, remembers the mode under a tool's context, and without either treats contexts as plain flags; owner contexts and the unblockable action do nothing until set; handlers on one key run in the order of their numbers whatever order they were registered in. These tests use their own small `Action` and `InputContext` lists from `test_input.hpp`, not Valuma's |
 | `shared/vlmobj/tests/vlmobj_tests.cpp` | The shared library alone: CRC check value; a written quad reads back exactly (header conventions, 64-byte sections, node, mesh counts, attributes, bounds and sphere, one default part, indices, vertex data, the editor-only `EDIT` section) and writes the same bytes twice; meshes over 65,536 vertices use 32-bit indices; materials round-trip (every field, the double-sided flag, a part pointing at its material) and a part pointing past the materials or an unknown alpha mode is refused; refusals with their messages (magic, newer version, damaged header, cut short, too small, damaged directory, damaged section unless checksums are off, a section past the end, a newer section version, compression, a misaligned buffer); links out of range (node mesh, root not first, name, vertex range, unknown attribute format, an index past the last vertex unless that check is off); unknown sections are skipped; the reference cube reads back; `combine` places a child in a turned, stretched parent and multiplies scales along the child's axes |
 | `asset_file_tests.cpp` | Baking: a cube is 24 vertices and 36 indices, a flat grid shares down to 121, normals are unit and indices in range; a corner pulled out bends three faces into two normals each; Euler↔quaternion round trips give the same rotation, straight up included; an object with a bevel and an open side round-trips with the same polygons, positions, rotation (exact), and scale, position dropped; a file without `EDIT` is rebuilt from its triangles into a closed 8-vertex cube; a bad file and tangled polygons are refused; save twice through a file with no temporary left; exporting the cube still matches the reference file byte for byte; a car → wheel → hubcap family exports as three nodes, parents first, whose world transforms (by the shared rule) match Valuma's relative to the pivot, and reads back with names, parents, and exact transforms; a family embeds only the materials it uses, in first-use order, each part pointing at its object's, and reads them back exactly; `MaterialCollection::adopt` reuses an identical material and renames one that differs |
 | `parenting_tests.cpp` | `combineTransforms` places, turns, and scales a child (a parent's stretch lands on the child's own axes) with no skew even in a turned, unevenly stretched parent; `relativeTransform` is its exact reverse; setting and clearing a parent keeps the world transform and a moved parent carries its child; loops are refused; `isAncestor`, `topLevelOf`, `childrenOf`, and `hierarchy` order and depths; removing a parent moves its children up a level, then to the top, in place; `setWorldPosition` leaves the relative rotation and scale untouched |

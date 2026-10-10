@@ -1,4 +1,4 @@
-# Usage: python tools/fix_bmf_baseline.py [path]   (default: assets/fonts/console.bmf)
+# Usage: python tools/fix_bmf_baseline.py [path]   (default: shared/assets/fonts/console.bmf)
 
 import sys
 
@@ -33,7 +33,7 @@ def target_top(char, height):
 
 
 def main():
-    path = sys.argv[1] if len(sys.argv) > 1 else "assets/fonts/console.bmf"
+    path = sys.argv[1] if len(sys.argv) > 1 else "shared/assets/fonts/console.bmf"
     tokens = open(path).read().split()
 
     if tokens[:5] != ["BMF1", "width", str(WIDTH), "height", str(HEIGHT)]:

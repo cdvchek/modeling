@@ -1,14 +1,14 @@
-# 3D Modeling Software
+# Valuma Studio
 
-A 3D modeling application built from scratch in C++ and OpenGL.
+A 3D modeling application built from scratch in C++ and OpenGL, part of Aevora Works.
 
 This project explores the systems behind modern 3D modeling software by implementing the underlying geometry, rendering, interaction, and editing tools directly.
 
 The application is currently under active development.
 
-![3D Modeling Software](assets/modeling1.PNG)
-![3D Modeling Software](assets/modeling2.PNG)
-![3D Modeling Software](assets/modeling3.PNG)
+![Valuma Studio](valuma/assets/valuma1.PNG)
+![Valuma Studio](valuma/assets/valuma2.PNG)
+![Valuma Studio](valuma/assets/valuma3.PNG)
 
 ## Features
 

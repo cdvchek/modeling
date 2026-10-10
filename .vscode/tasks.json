@@ -19,7 +19,7 @@
         {
             "label": "Run",
             "type": "shell",
-            "command": ".\\modeling.exe",
+            "command": ".\\valuma.exe",
             "options": {
                 "cwd": "${workspaceFolder}\\bin"
             },
@@ -29,7 +29,7 @@
         {
             "label": "Test",
             "type": "shell",
-            "command": "${workspaceFolder}\\build\\tests.exe",
+            "command": "${workspaceFolder}\\build\\shared_tests.exe; ${workspaceFolder}\\build\\valuma_tests.exe",
             "dependsOn": ["Build"],
             "problemMatcher": []
         },

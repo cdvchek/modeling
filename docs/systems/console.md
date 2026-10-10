@@ -2,17 +2,17 @@
 
 A text console drawn over the viewport, plus a registry of named commands.
 
-Files: `src/core/console/`, commands in [application_commands.cpp](../../src/application/application_commands.cpp) and [light_commands.cpp](../../src/application/commands/light_commands.cpp)
+Files: `shared/core/console/`, commands in [application_commands.cpp](../../valuma/src/application/application_commands.cpp) and [light_commands.cpp](../../valuma/src/application/commands/light_commands.cpp)
 
 Press **/** to open or close it (the `/` itself is never typed into the command). While it's open, the `Console` input context is on and only console keybinds work (see [input.md](input.md)). Typed characters arrive through `Event::Char`. Backspace, Delete, the arrow keys, and history Up/Down repeat while held, after the system repeat delay (`ActionMap::wasActionPressedOrRepeated`); Enter doesn't.
 
-**Look** ([console_view.cpp](../../src/application/ui/console_view.cpp), `drawConsole`): a panel docked at the bottom of the viewport above the status bar (45% of the height, at most 420 px), styled like the floating panel. A header shows "Console" and dim key hints. The list above the input shows **entries**, newest at the bottom: commands (dim green `>`, fading as they get older), their output (grey), and errors (red, with a `!`). Lines too long for the panel wrap onto further rows (after a space when there is one), indented under the text, without a new prompt. Output and errors longer than one line show a small arrow: click the row to collapse it to its first line plus "(+N lines)", or expand it again; the clicked row stays in view and the expanded lines appear below it. The mouse wheel scrolls the list (three lines a notch); new entries jump back to the newest. While Up/Down is recalling a command (`Console::getBrowsedIndex()`, -1 once you edit or go past the newest), that entry is highlighted like a selected list row, and the list scrolls only as far as needed to keep it in view; a thin scrollbar appears when there's more than fits. Scroll position, the rows that can be clicked, and the last frame's list rect live in `ctx.consoleView` ([console_view_state.hpp](../../src/application/ui/console_view_state.hpp)); `updateConsoleView` (called from `checkConsoleContext`) handles the wheel and clicks.
+**Look** ([console_view.cpp](../../valuma/src/application/ui/console_view.cpp), `drawConsole`): a panel docked at the bottom of the viewport above the status bar (45% of the height, at most 420 px), styled like the floating panel. A header shows "Console" and dim key hints. The list above the input shows **entries**, newest at the bottom: commands (dim green `>`, fading as they get older), their output (grey), and errors (red, with a `!`). Lines too long for the panel wrap onto further rows (after a space when there is one), indented under the text, without a new prompt. Output and errors longer than one line show a small arrow: click the row to collapse it to its first line plus "(+N lines)", or expand it again; the clicked row stays in view and the expanded lines appear below it. The mouse wheel scrolls the list (three lines a notch); new entries jump back to the newest. While Up/Down is recalling a command (`Console::getBrowsedIndex()`, -1 once you edit or go past the newest), that entry is highlighted like a selected list row, and the list scrolls only as far as needed to keep it in view; a thin scrollbar appears when there's more than fits. Scroll position, the rows that can be clicked, and the last frame's list rect live in `ctx.consoleView` ([console_view_state.hpp](../../valuma/src/application/ui/console_view_state.hpp)); `updateConsoleView` (called from `checkConsoleContext`) handles the wheel and clicks.
 
 **Collapsing rule:** closing the console calls `Console::collapseEntries()`, so every multi-line entry already there opens collapsed next time. Entries added after that (even while the console is closed, like a tool's error) stay expanded until the next close. One-line entries and commands never collapse. The input line is an outlined field with a green `>` prompt; the command scrolls sideways to keep the caret in view. The caret (`Console::getCursor()`) is a 2 px green bar that stays solid while the command or cursor changes and then blinks every 0.5 s. Sizes and colors are constants at the top of the file.
 
 ## Console
 
-[console.hpp](../../src/core/console/console.hpp)
+[console.hpp](../../shared/core/console/console.hpp)
 
 Holds the line being typed, the cursor, the history of entered lines (for Up/Down), and the list of **entries** (`ConsoleEntry`: kind `Command` / `Output` / `Error`, text that may span lines, `expanded`, and for commands their `historyIndex`).
 
@@ -30,7 +30,7 @@ Holds the line being typed, the cursor, the history of entered lines (for Up/Dow
 
 ## CommandSystem
 
-[command_system.hpp](../../src/core/console/command_system.hpp)
+[command_system.hpp](../../shared/core/console/command_system.hpp)
 
 | Method | Description |
 |---|---|

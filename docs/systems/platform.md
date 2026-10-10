@@ -1,12 +1,12 @@
 # Platform
 
-Win32-specific code: the window, the OS message pump, key translation, and OpenGL context setup. Everything here ends in `_win32.cpp`; the headers are platform-neutral.
+Win32-specific code: the window, the OS message pump, key translation, the clipboard, and file dialogs. It's the shared `platform` library, used by every program. Everything here ends in `_win32.cpp`; the headers are platform-neutral.
 
-Files: `src/platform/`
+Files: `shared/platform/`
 
 ## Platform namespace
 
-[platform.hpp](../../src/platform/platform.hpp)
+[platform.hpp](../../shared/platform/platform.hpp)
 
 | Function | Description |
 |---|---|
@@ -20,13 +20,13 @@ Files: `src/platform/`
 
 ## Window
 
-[window.hpp](../../src/platform/window/window.hpp), [window_win32.cpp](../../src/platform/window/window_win32.cpp)
+[window.hpp](../../shared/platform/window/window.hpp), [window_win32.cpp](../../shared/platform/window/window_win32.cpp)
 
 Pimpl class: the header has no Win32 types; `Window::Impl` (in `impl_win32.hpp`) holds the `HWND`, `HDC`, and a pointer to the `EventDispatcher`.
 
 | Method | Description |
 |---|---|
-| `Window(u32 width, u32 height)` | Stores the requested size. The app creates a 1920×1080 window. |
+| `Window(u32 width, u32 height, const std::string& name)` | Stores the requested size and the program's name (UTF-8), which is the window class and the first title bar text. The app creates a 1920×1080 window named "Valuma Studio". |
 | `bool initialize(EventDispatcher*)` | Registers the window class, creates an `WS_OVERLAPPEDWINDOW` window, and keeps the dispatcher so the window procedure can trigger events. |
 | `bool getDimensions(u32& w, u32& h)` | Current client-area size. Used every frame for aspect ratio and mouse-ray math. |
 | `bool getPosition(u32& x, u32& y)` | Window position on screen. |
@@ -37,7 +37,7 @@ Pimpl class: the header has no Win32 types; `Window::Impl` (in `impl_win32.hpp`)
 
 ### Window procedure
 
-[window_event_callback_win32.cpp](../../src/platform/window/window_event_callback_win32.cpp) has one `WindowCallback::handle*` function per message. Each translates the message and calls `dispatcher->trigger(Event::...)`:
+[window_event_callback_win32.cpp](../../shared/platform/window/window_event_callback_win32.cpp) has one `WindowCallback::handle*` function per message. Each translates the message and calls `dispatcher->trigger(Event::...)`:
 
 | Win32 message | Event |
 |---|---|
@@ -55,12 +55,12 @@ Pimpl class: the header has no Win32 types; `Window::Impl` (in `impl_win32.hpp`)
 
 ## Keys
 
-[keys.hpp](../../src/platform/keys/keys.hpp), [keys_win32.cpp](../../src/platform/keys/keys_win32.cpp)
+[keys.hpp](../../shared/core/input/keys.hpp), [platform_keys.hpp](../../shared/platform/keys/platform_keys.hpp), [keys_win32.cpp](../../shared/platform/keys/keys_win32.cpp)
 
-`enum class Key : u16` and `enum class MouseButton` are the app's own key codes. `keys_win32.cpp` maps Win32 virtual-key codes to them. Left/right modifier keys are separate (`LeftShift`, `RightShift`, …). `Key::Count` sizes the arrays in `InputState`.
+`enum class Key : u16` and `enum class MouseButton` are the suite's own key codes; they live in `core` (with the input code that uses them), so `core` doesn't depend on the platform. `translatePlatformKey` (declared in `platform_keys.hpp`) maps Win32 virtual-key codes to them. Left/right modifier keys are separate (`LeftShift`, `RightShift`, …). `Key::Count` sizes the arrays in `InputState`.
 
 To support a new key: add it to `Key` and add its virtual-key mapping in `keys_win32.cpp`.
 
 ## OpenGL context
 
-[opengl_renderer_win32.cpp](../../src/platform/renderer/opengl_renderer_win32.cpp) implements `OpenGLRenderer::initialize`, `shutdown`, `setVSync`, and `present` with WGL. It picks a pixel format, creates a legacy (compatibility) context with `wglCreateContext`, loads GL with GLAD, then calls `createResources()` (in the portable renderer code) for shaders and shared buffers. `shutdown` calls `destroyResources()` before deleting the context. See [renderer.md](renderer.md).
+Not in this library: it needs GL, so it's `OpenGLContext` in the shared `gfx` library ([opengl_context_win32.cpp](../../shared/gfx/opengl/opengl_context_win32.cpp)), which takes the window's display context from `getNativeDisplayContext()`. See [renderer.md](renderer.md#shared-opengl-code).

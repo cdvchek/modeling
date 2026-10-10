@@ -2,16 +2,16 @@
 
 Everything drawn on top of the viewport (markers, tool guides, status bar, panel, modal windows, radial menu, console) and the immediate-mode widget system the panel and modal windows are built from.
 
-Files: `src/ui/` (part of `modeling_core`, no OpenGL), drawn by [opengl_ui_renderer.cpp](../../src/renderer/opengl/opengl_ui_renderer.cpp).
+Files: `shared/ui/` (the shared `ui` library, no OpenGL), drawn by [opengl_ui_renderer.cpp](../../shared/gfx/opengl/opengl_ui_renderer.cpp) in the shared `gfx` library.
 
 | File | Contents |
 |---|---|
-| [ui_types.hpp](../../src/ui/ui_types.hpp) | `Rect`, `Color`, `UIFont`, `makeUIFont`, `measureText`, `fitText` |
-| [ui_draw_list.hpp](../../src/ui/ui_draw_list.hpp) | `UIDrawList`, `UIVertex`, `UIDrawBatch` |
-| [ui_input.hpp](../../src/ui/ui_input.hpp) | `UIInput`: one frame of mouse and keyboard state, filled by the app: mouse buttons, wheel, typed `text`, editing `keys` (`UIKey`: arrows, Home/End, Backspace/Delete, Enter, Escape, and Ctrl+A/C/X/V; repeats included), `shift`, and `time` for the caret blink |
-| [ui_context.hpp](../../src/ui/ui_context.hpp), `ui_context.cpp` | `UIContext`: input routing, IDs, hot/active, regions, layout |
+| [ui_types.hpp](../../shared/ui/ui_types.hpp) | `Rect`, `Color`, `UIFont`, `makeUIFont`, `measureText`, `fitText` |
+| [ui_draw_list.hpp](../../shared/ui/ui_draw_list.hpp) | `UIDrawList`, `UIVertex`, `UIDrawBatch` |
+| [ui_input.hpp](../../shared/ui/ui_input.hpp) | `UIInput`: one frame of mouse and keyboard state, filled by the app: mouse buttons, wheel, typed `text`, editing `keys` (`UIKey`: arrows, Home/End, Backspace/Delete, Enter, Escape, and Ctrl+A/C/X/V; repeats included), `shift`, and `time` for the caret blink |
+| [ui_context.hpp](../../shared/ui/ui_context.hpp), `ui_context.cpp` | `UIContext`: input routing, IDs, hot/active, regions, layout |
 | `ui_widgets.cpp` | The widgets |
-| [ui_style.hpp](../../src/ui/ui_style.hpp) | `UIStyle`: every widget size and color |
+| [ui_style.hpp](../../shared/ui/ui_style.hpp) | `UIStyle`: every widget size and color |
 
 ## How a frame draws UI
 
@@ -19,7 +19,7 @@ Files: `src/ui/` (part of `modeling_core`, no OpenGL), drawn by [opengl_ui_rende
 2. UI code adds shapes and text to it, in drawing order: `drawLightMarkers`, `drawOriginMarkers`, `drawToolGuides`, `drawStatusBar`, the widget pass (`ctx.ui.beginDraw()` … `endDraw()`: the floating panel, then an open modal window, then any open dropdown list), then `drawRadialMenu`, then `drawConsole` (so the open console is on top).
 3. `ctx.renderer->drawUI(list)` uploads the whole list once and draws it after the scene, grid, and debug overlay, before the MSAA resolve.
 
-UI code never calls OpenGL, so everything up to step 3 can be unit tested (see `tests/ui_draw_list_tests.cpp`).
+UI code never calls OpenGL, so everything up to step 3 can be unit tested (see `shared/ui/tests/ui_draw_list_tests.cpp`).
 
 ## Widgets (UIContext)
 
@@ -101,7 +101,7 @@ Only one dropdown list is open at a time. The list is drawn in `endDraw`, after 
 
 ### Undo
 
-Widgets never change a value on the frame they activate. That's what makes undo grouping work: call `trackUndo(ctx)` ([ui_undo.hpp](../../src/application/ui/ui_undo.hpp)) right after a widget, and it calls `history.begin` on activation (before any change) and `history.commit` on release, so a whole drag is one undo step. A press that didn't change anything is cancelled instead. When editing scene data through widgets, edit a copy and write it back after (see `main_panel.cpp`): `history.cancel` replaces the scene's containers, so a reference held across it could dangle.
+Widgets never change a value on the frame they activate. That's what makes undo grouping work: call `trackUndo(ctx)` ([ui_undo.hpp](../../valuma/src/application/ui/ui_undo.hpp)) right after a widget, and it calls `history.begin` on activation (before any change) and `history.commit` on release, so a whole drag is one undo step. A press that didn't change anything is cancelled instead. When editing scene data through widgets, edit a copy and write it back after (see `main_panel.cpp`): `history.cancel` replaces the scene's containers, so a reference held across it could dangle.
 
 ### Style
 
@@ -127,7 +127,7 @@ All sizes and colors live in `UIStyle`, following the Dracula theme: text `#f8f8
 - `UIPanelState` also keeps `activeTab`, `scroll`, and `contentHeight` between frames.
 - **Tabs:** `beginPanel(name, state, bounds, tabs)` (a list of names instead of a title) draws tabs left to right in the header, sized to their text; when they'd run past the panel, their padding shrinks (to `MIN_TAB_PADDING` at least) so they still fit. Pressing a tab switches `state.activeTab` (and resets the scroll); the header, tabs included, still drags the panel, so you can grab a tab and move. The selected tab takes the body's color with a 2 px purple underline; the others are dim until hovered. The caller draws the active tab's content.
 
-[main_panel.cpp](../../src/application/ui/main_panel.cpp) is the app's panel: 380 px wide at the top right on first use, bounded by the viewport above the status bar, toggled with `ui panel`, with Objects, Materials, Lights, and References tabs (see [application.md](application.md)). Its list headers shrink the picker before the title when the panel is narrow.
+[main_panel.cpp](../../valuma/src/application/ui/main_panel.cpp) is the app's panel: 380 px wide at the top right on first use, bounded by the viewport above the status bar, toggled with `ui panel`, with Objects, Materials, Lights, and References tabs (see [application.md](application.md)). Its list headers shrink the picker before the title when the panel is narrow.
 
 ## Coordinates and types
 
@@ -179,7 +179,7 @@ Shape quads are padded by `1 + blur` pixels past the shape so the anti-aliased e
 
 ## Shader
 
-`ShaderId::UI` ([ui.vert](../../src/renderer/opengl/shaders/glsl/ui.vert), [ui.frag](../../src/renderer/opengl/shaders/glsl/ui.frag)). The vertex shader converts pixels to clip space with `u_ViewportSize`. The fragment shader:
+The UI renderer's own program ([ui.vert](../../shared/gfx/opengl/glsl/ui.vert), [ui.frag](../../shared/gfx/opengl/glsl/ui.frag)), compiled in `OpenGLUIRenderer::create`. The vertex shader converts pixels to clip space with `u_ViewportSize`. The fragment shader:
 
 - **Glyphs:** `fill` with alpha × the atlas texel.
 - **Shapes:** signed distance from `local` to a rounded rectangle of `halfSize` and `radius`.
@@ -188,19 +188,19 @@ Shape quads are padded by `1 + blur` pixels past the shape so the anti-aliased e
   - With `blur > 0`, alpha is `1 − smoothstep(−blur, blur, distance)`: a soft shadow.
 - **Ring slices:** the fields are reused: `halfSize` is (inner, outer) radius, `radius` the half-angle, `blur` the gap. `local` is in the slice's frame (pointing along +x), so the distance is the larger of the radial distance and the distance past either side line. Edges and borders are shaded like shapes.
 
-[radial_layout.hpp](../../src/ui/radial_layout.hpp) has the slice math the radial menu uses: `sliceAngle(slice, count)` and `sliceDirection(slice, count)` (count equal slices, slice 0 centered straight up, the rest clockwise on screen), and `sliceAt(offset, deadZone, count)` (the slice an offset points into, or −1 inside the dead zone).
+[radial_layout.hpp](../../shared/ui/radial_layout.hpp) has the slice math the radial menu uses: `sliceAngle(slice, count)` and `sliceDirection(slice, count)` (count equal slices, slice 0 centered straight up, the rest clockwise on screen), and `sliceAt(offset, deadZone, count)` (the slice an offset points into, or −1 inside the dead zone).
 
 `OpenGLUIRenderer::draw` turns off depth testing and writes, turns on alpha blending, sets `glScissor` per clipped batch (converting y-down clip rects to GL's y-up), binds the batch's font texture, and restores 3D state afterward.
 
 ## Fonts
 
-[font_library.hpp](../../src/core/font/font_library.hpp) loads every embedded font; `ctx.fonts` holds them and `setupRenderer` passes them to `renderer->loadFonts`, which builds one atlas texture per font.
+[font_library.hpp](../../shared/core/font/font_library.hpp) loads every embedded font; `ctx.fonts` holds them and `setupRenderer` passes them to `renderer->loadFonts`, which builds one atlas texture per font.
 
 | `FontId` | File | Cell | Used for |
 |---|---|---|---|
-| `Console` | `assets/fonts/console.bmf` | 16×24 | Console, world-space debug labels |
-| `UI` | `assets/fonts/ui.bmf` | 10×16 | Panels, status line |
+| `Console` | `shared/assets/fonts/console.bmf` | 16×24 | Console, world-space debug labels |
+| `UI` | `shared/assets/fonts/ui.bmf` | 10×16 | Panels, status line |
 
-Glyphs are stored in a 16 × 6 atlas grid in character order, so UVs come from `FontAtlas::glyphUV(char)` ([font_atlas.hpp](../../src/core/font/font_atlas.hpp)) without knowing the glyph size. Characters outside ASCII 32–126 draw as spaces.
+Glyphs are stored in a 16 × 6 atlas grid in character order, so UVs come from `FontAtlas::glyphUV(char)` ([font_atlas.hpp](../../shared/core/font/font_atlas.hpp)) without knowing the glyph size. Characters outside ASCII 32–126 draw as spaces.
 
-`ui.bmf` is generated from `console.bmf`: each 16×24 cell is trimmed to its 14×22 inked area plus a 1 px margin, then area-averaged down to 10×16, so it's the same typeface at a smaller size. Regenerate it after changing the console font with `python tools/scale_bmf.py assets/fonts/console.bmf assets/fonts/ui.bmf 10 16 1 1 15 23`. To add a font: generate a `.bmf`, embed it in `embedded_fonts.cpp`, add a `FontId`, and load it in `FontLibrary::loadEmbedded`.
+`ui.bmf` is generated from `console.bmf`: each 16×24 cell is trimmed to its 14×22 inked area plus a 1 px margin, then area-averaged down to 10×16, so it's the same typeface at a smaller size. Regenerate it after changing the console font with `python tools/scale_bmf.py shared/assets/fonts/console.bmf shared/assets/fonts/ui.bmf 10 16 1 1 15 23`. To add a font: generate a `.bmf`, embed it in `embedded_fonts.cpp`, add a `FontId`, and load it in `FontLibrary::loadEmbedded`.
