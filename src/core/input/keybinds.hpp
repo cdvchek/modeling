@@ -278,6 +278,30 @@ namespace DefaultKeybinds {
         }
     };
 
+    inline Keybind PaintBrush {
+        {
+            key(Key::B)
+        }
+    };
+
+    inline Keybind PaintEraser {
+        {
+            key(Key::E)
+        }
+    };
+
+    inline Keybind BrushSmaller {
+        {
+            key(Key::LeftBracket)
+        }
+    };
+
+    inline Keybind BrushLarger {
+        {
+            key(Key::RightBracket)
+        }
+    };
+
     inline Keybind SelectAll {
         {
             key(Key::LeftCtrl),

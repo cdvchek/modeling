@@ -6,6 +6,7 @@
 #include "application/commands/material_commands.hpp"
 #include "application/commands/shading_commands.hpp"
 #include "application/commands/texture_commands.hpp"
+#include "application/commands/layer_commands.hpp"
 #include "application/commands/object_commands.hpp"
 #include "application/actions/project_actions.hpp"
 #include "application/actions/asset_actions.hpp"
@@ -135,6 +136,14 @@ void Application::registerCommands(AppContext& ctx) {
         "Loads, lists, reloads, and removes textures: texture list | load <path> | <id> [remove | reload | name <n>]",
         [&ctx](const CommandArgs& args) {
             runTextureCommand(ctx, args);
+        }
+    );
+
+    ctx.systems.commands.registerCommand(
+        "layer",
+        "Edits the layers of the texture being painted: layer list | add [name] | <n> [active | remove | show | hide | opacity <v> | name <n> | move <place> | fill <r> <g> <b> [a] | clear]",
+        [&ctx](const CommandArgs& args) {
+            runLayerCommand(ctx, args);
         }
     );
 

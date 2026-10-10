@@ -447,7 +447,7 @@ namespace {
         i32 current = 0;
         for (u32 i = 0; i < handles.size(); ++i) {
             labels.push_back(textures.get(handles[i]).name);
-            icons.push_back(ctx.pictureTextures.find(textures.get(handles[i]).picture));
+            icons.push_back(textureImage(ctx, handles[i]));
             if (handles[i] == material.baseColorMap) current = static_cast<i32>(i) + 1;
         }
         labels.push_back("Load PNG...");
@@ -488,7 +488,7 @@ namespace {
             const std::string detail = describeTextureUse(textureUse(ctx, handle));
 
             ui.pushId(handle.index);
-            if (ui.selectable(texture.name, handle == selected, detail, ctx.pictureTextures.find(texture.picture))) selected = handle;
+            if (ui.selectable(texture.name, handle == selected, detail, textureImage(ctx, handle))) selected = handle;
             ui.popId();
         }
         ui.endChild();
@@ -509,22 +509,22 @@ namespace {
         ui.pushId(handle.index);
 
         // The picture, fitted into a square the size of the material swatch
-        if (texture.picture && texture.picture->width > 0 && texture.picture->height > 0) {
-            const f32 aspect = static_cast<f32>(texture.picture->width) / static_cast<f32>(texture.picture->height);
+        if (texture.width() > 0 && texture.height() > 0) {
+            const f32 aspect = static_cast<f32>(texture.width()) / static_cast<f32>(texture.height());
             const f32 width = aspect >= 1.0f ? PREVIEW_SIZE : std::floor(PREVIEW_SIZE * aspect);
             const f32 height = aspect >= 1.0f ? std::floor(PREVIEW_SIZE / aspect) : PREVIEW_SIZE;
             const Rect previewRow = ui.row(PREVIEW_SIZE);
             ui.drawList().image({ previewRow.x + std::floor((previewRow.width - width) * 0.5f), previewRow.y + std::floor((PREVIEW_SIZE - height) * 0.5f), width, height },
-                                ctx.pictureTextures.find(texture.picture));
+                                textureImage(ctx, handle));
         }
 
         std::string name = texture.name;
         if (ui.textField("Name", name) && textures.isValid(handle)) textures.get(handle).name = name;
         trackUndo(ctx);
 
-        if (texture.picture) {
-            ui.label(std::to_string(texture.picture->width) + " x " + std::to_string(texture.picture->height) + ", " + texture.picture->fileName, true);
-        }
+        const std::string size = std::to_string(texture.width()) + " x " + std::to_string(texture.height());
+        if (texture.layered()) ui.label(size + ", " + std::to_string(texture.layers.layers.size()) + (texture.layers.layers.size() == 1 ? " layer" : " layers"), true);
+        else if (texture.picture) ui.label(size + ", " + texture.picture->fileName, true);
         ui.label("Used by " + describeTextureUse(textureUse(ctx, handle)), true);
 
         // Reads the file again after it was painted in another program

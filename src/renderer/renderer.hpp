@@ -204,6 +204,9 @@ public:
     // A texture from 8-bit RGBA pixels, rows from the top, with mipmaps; 0 if it couldn't be made (too large)
     virtual u32 createTexture(const u8* pixels, u32 width, u32 height) = 0;
     virtual void destroyTexture(u32 texture) = 0;
+    // Replaces a block of a texture's pixels (width x height RGBA, rows from the top); its mipmaps are stale until refreshed
+    virtual void updateTexture(u32 texture, u32 x, u32 y, u32 width, u32 height, const u8* pixels) = 0;
+    virtual void refreshTextureMipmaps(u32 texture) = 0;
 
     // A swatch: a lit sphere in the look, size pixels square, over a checkerboard when it's see-through, under fixed
     // studio lighting. Draws into texture (a new one when 0) and returns it; call outside the main pass.

@@ -23,11 +23,20 @@ void updatePaintCanvas(AppContext& ctx);
 // and faint. A view that hasn't been framed yet frames the texture first.
 void drawPaintCanvas(AppContext& ctx, const Rect& area);
 
+// The brush's outline on the model in the 3D view: the patch of surface under the mouse that a dab there would cover
+void drawPaintModelCursor(AppContext& ctx, const Rect& view);
+
 // F and A in 2D: the paintable faces' UVs (or with none, or all set, the whole texture)
 void framePaintCanvas(AppContext& ctx, bool all);
 
-// The tools column: what's being painted
+// The tools column: what's being painted, the brush, and the layers
 void drawPaintToolsPanel(AppContext& ctx, const Rect& area);
+
+// Painting: a left press over the flat texture or the model starts a stroke on the active layer and the release makes it one undo step; true while one runs
+bool updatePaintStroke(AppContext& ctx);
+
+// [ and ]: the brush a step smaller or larger
+void resizeBrush(AppContext& ctx, bool larger);
 
 // New texture for a material: asks for a size, then makes a texture of the material's base color, gives it to the
 // material as its base map, and sets the base color to white so nothing changes on screen; one undo step

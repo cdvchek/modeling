@@ -52,6 +52,10 @@ void Application::registerDefaultActions(AppContext& ctx) {
     actions.subscribe(Action::UVUnwrap,            DefaultKeybinds::UVUnwrap,            InputContext_EditModes);
     actions.subscribe(Action::TogglePaintView,     DefaultKeybinds::TogglePaintView,     InputContext_AnySelection);
     actions.subscribe(Action::PickPaintTexture,    DefaultKeybinds::PickPaintTexture,    InputContext_AnySelection);
+    actions.subscribe(Action::PaintBrush,          DefaultKeybinds::PaintBrush,          InputContext_AnySelection);
+    actions.subscribe(Action::PaintEraser,         DefaultKeybinds::PaintEraser,         InputContext_AnySelection);
+    actions.subscribe(Action::BrushSmaller,        DefaultKeybinds::BrushSmaller,        InputContext_AnySelection);
+    actions.subscribe(Action::BrushLarger,         DefaultKeybinds::BrushLarger,         InputContext_AnySelection);
     actions.subscribe(Action::ConnectVertices,     DefaultKeybinds::ConnectVertices,     InputContext_SelectionVertex);
     actions.subscribe(Action::XAxis,               DefaultKeybinds::XAxis,               InputContext_Grab | InputContext_Scale | InputContext_Rotate);
     actions.subscribe(Action::YAxis,               DefaultKeybinds::YAxis,               InputContext_Grab | InputContext_Scale | InputContext_Rotate);
@@ -138,6 +142,10 @@ void Application::registerDefaultActions(AppContext& ctx) {
     actions.setHandler(Action::UVRotate, { "Rotate", uvTool, [&ctx] { startUVTool(ctx, UVToolKind::Rotate); } });
     actions.setHandler(Action::UVUnwrap, { "Unwrap", [&ctx] { return ::hasUVObject(ctx); }, [&ctx] { unwrapUVs(ctx); } });
     actions.setHandler(Action::TogglePaintView, { "3D/2D", always, [&ctx] { togglePaintView(ctx); } });
+    actions.setHandler(Action::PaintBrush, { "Brush", always, [&ctx] { ctx.workspace.brush.erase = false; } });
+    actions.setHandler(Action::PaintEraser, { "Eraser", always, [&ctx] { ctx.workspace.brush.erase = true; } });
+    actions.setHandler(Action::BrushSmaller, { "Smaller brush", always, [&ctx] { resizeBrush(ctx, false); } });
+    actions.setHandler(Action::BrushLarger, { "Larger brush", always, [&ctx] { resizeBrush(ctx, true); } });
     actions.setHandler(Action::PickPaintTexture, { "Pick texture", [&ctx] { return canPickPaintTexture(ctx); }, [&ctx] { pickPaintTexture(ctx); } });
     auto shading = [&ctx] { return canSetShading(ctx); };
     actions.setHandler(Action::ShadeFlat, { "Flat", shading, [&ctx] { setShading(ctx, ShadingMode::Flat); } });

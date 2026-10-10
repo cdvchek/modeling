@@ -27,12 +27,16 @@ bool materialView(const AppContext& ctx) {
 }
 
 u32 mapTexture(const AppContext& ctx, const Material& material) {
-    const Texture* texture = ctx.scene.textures.tryGet(material.baseColorMap);
-    return texture ? ctx.pictureTextures.find(texture->picture) : 0;
+    return textureImage(ctx, material.baseColorMap);
 }
 
 void syncTextures(AppContext& ctx) {
-    for (TextureHandle handle : ctx.scene.textures.handles()) ctx.pictureTextures.sync(ctx, ctx.scene.textures.get(handle).picture);
+    // A layered texture shows its layers, not its picture
+    for (TextureHandle handle : ctx.scene.textures.handles()) {
+        const Texture& texture = ctx.scene.textures.get(handle);
+        if (texture.layers.empty()) ctx.pictureTextures.sync(ctx, texture.picture);
+    }
+    ctx.layerTextures.sync(ctx);
 }
 
 SurfaceLook surfaceOf(const Material& material, u32 map) {
@@ -85,7 +89,7 @@ void MaterialPreviewCache::sync(AppContext& ctx) {
 
         if (!entry) {
             m_entries.push_back({ handle, look, ctx.renderer->renderMaterialPreview(look, SIZE, 0) });
-        } else if (!sameSurface(entry->look, look)) {
+        } else if (!sameSurface(entry->look, look) || ctx.layerTextures.changed(materials.get(handle).baseColorMap)) {
             entry->look = look;
             entry->texture = ctx.renderer->renderMaterialPreview(look, SIZE, entry->texture);
         }

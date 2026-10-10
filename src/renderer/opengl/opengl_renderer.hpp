@@ -39,6 +39,8 @@ public:
     void drawImage(const DrawImageCommand& command) override;
     u32 createTexture(const u8* pixels, u32 width, u32 height) override;
     void destroyTexture(u32 texture) override;
+    void updateTexture(u32 texture, u32 x, u32 y, u32 width, u32 height, const u8* pixels) override;
+    void refreshTextureMipmaps(u32 texture) override;
     u32 renderMaterialPreview(const SurfaceLook& look, u32 size, u32 texture) override;
     void drawDebugLine(const Vec3& start, const Vec3& end, const Mat4& mvp) override;
     void drawUI(const UIDrawList& list) override;

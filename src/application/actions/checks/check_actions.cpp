@@ -44,6 +44,9 @@ bool Application::checkActions(AppContext& ctx) {
         return true;
     }
 
+    // A brush stroke takes all input until the button comes up
+    if (ctx.workspace.current == Workspace::Paint && updatePaintStroke(ctx)) return true;
+
     // The UV editor's own view: pan and zoom with the mouse over it
     if (ctx.workspace.current == Workspace::UV) updateUVEditor(ctx);
     // The paint canvas's, in 2D

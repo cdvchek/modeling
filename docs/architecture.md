@@ -43,7 +43,7 @@ Defined in [CMakeLists.txt](../CMakeLists.txt):
 | Target | Contents |
 |---|---|
 | `vlmobj` (static lib) | The `.vlmobj` format from `shared/vlmobj/`. Depends on nothing else, so the engine can link it too. `modeling_core` links it. |
-| `image` (static lib) | The PNG reader from `shared/image/` (see [systems/image.md](systems/image.md)). Depends on nothing else. `modeling_core` links it. |
+| `image` (static lib) | The PNG reader and writer from `shared/image/` (see [systems/image.md](systems/image.md)). Depends on nothing else. `modeling_core` links it. |
 | `modeling_core` (static lib) | Math, fonts, input (`InputState`, `ActionMap`, `ContextManager`), the console and command system, objects, materials, lights, reference images, selection and picking, transforms, the camera, undo history, the UI, all `MeshData` code, the project file format, and Valuma's `.vlmobj` baking (`src/asset/`). No OpenGL or Win32, so it can be tested on its own. |
 | `modeling` (exe → `bin/modeling.exe`) | Everything else plus `glad.c`, linked with `opengl32`, `dwmapi`, and `comdlg32` (file dialogs; all three are part of Windows). |
 | `tests` (exe) | Every `tests/*.cpp` and `shared/*/tests/*.cpp`, linked against `modeling_core`. `SOURCE_DIR` is defined so tests can find checked-in reference files. |
@@ -73,6 +73,7 @@ struct AppContext {
     UIContext ui;             // widgets and mouse routing
     ObjectMeshCache objectMeshes; // GPU copies of object meshes, by handle
     PictureTextureCache pictureTextures; // GPU textures for pictures (reference images and textures)
+    LayerTextureCache layerTextures;     // GPU textures for layered textures, updated where they change
     MaterialPreviewCache materialPreviews;   // material swatch textures
     ProjectState project;     // the open file, unsaved changes, and the export folder
     ModalState modal;         // the open modal window (prompt or Export window), if any

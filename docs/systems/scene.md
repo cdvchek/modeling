@@ -169,19 +169,25 @@ struct Picture {                   // a PNG file as it was added; never changes 
 
 struct Texture {
     std::string name;
-    std::shared_ptr<const Picture> picture;   // shared by copies, so undo doesn't copy the file
+    std::shared_ptr<const Picture> picture;   // the file as loaded, shared by copies (undo); null once it has layers
     std::string sourcePath;        // the file it was loaded from (UTF-8), for Reload; empty for one from an asset
+    LayerStack layers;             // its paintable pixels (see Layers); empty until it's painted or given layers
+
+    bool layered() const;          // has layers
+    u32 width() const, height() const;   // from the layers, else the picture
 };
 ```
 
-A material's `baseColorMap` that isn't valid (none set, or its texture removed) means no map, so removing a texture puts its materials back on their plain colors without touching them, and undoing the removal reconnects them. Reloading swaps in a new `Picture`; older undo steps keep the old one.
+A texture's pixels are its picture or its layers, never both: `makeLayered` turns the first into the second.
+
+A material's `baseColorMap` that isn't valid (none set, or its texture removed) means no map, so removing a texture puts its materials back on their plain colors without touching them, and undoing the removal reconnects them. Reloading swaps in a new `Picture` (or, on a layered texture, new tiles for the layer that holds the file); older undo steps keep the old one.
 
 | Method | Description |
 |---|---|
 | `add(texture)`, `remove(handle)` | |
 | `isValid`, `get`, `tryGet`, `handles()`, `handleAt(slot)`, `count()` | As for the other collections. |
 | `uniqueName(base)` | `base`, or `base N` with the lowest free N. |
-| `findSamePicture(picture)` | A texture whose PNG is byte for byte the same (import reuses it). |
+| `findSamePicture(picture)` | A texture whose PNG is byte for byte the same (import reuses it). Layered textures have no picture, so they never match and importing one's export adds a new texture. |
 
 [paint_targets.hpp](../../src/scene/textures/paint_targets.hpp): what an object can be painted into.
 
@@ -190,7 +196,104 @@ A material's `baseColorMap` that isn't valid (none set, or its texture removed) 
 | `paintTargets(scene, object)` | One `PaintTarget` per texture the object's faces draw with as a base map (`texture`, and the `materials` using it), in the order their first faces come, then one per material without a valid map (`texture` invalid). Only materials some face uses count. |
 | `faceDrawMaterial(scene, object, face)` | The face's own material, else the object's, resolved (Default when neither is valid). |
 | `facePaints(scene, object, face, texture)` | The face's material's base map is that (valid) texture. |
-| `solidPicture(fileName, width, height, color)` | A `Picture` of one opaque sRGB color, encoded with `image::encodePng`. |
+| `paintIsland(scene, object, face, texture)` | The faces of the face's UV island that paint into the texture, in handle order: where a dab on that face may spread. Empty when the face itself doesn't paint into it. |
+| `texturePoint(uv, width, height)` | A UV as a point on a texture, in its pixels from the top left (what a brush stroke takes). UVs outside 0 to 1 wrap around, as the texture repeats on the model; exactly 1 stays the far edge. |
+| `textureAxes(corners, uvs, width, height, perX, perY)` | How a triangle's surface runs under its texture: the step in the world for one texture pixel across and one down, from its world corners and their UVs. A point `x`, `y` pixels from a spot on the texture is that spot's place in the world plus `perX × x + perY × y`, which is how the brush's outline is laid on the model. False when the triangle has no area on the texture. |
+| `solidLayers(width, height, color)` | Layers for a new texture: one **Base** layer of an opaque sRGB color (a single shared tile). |
+| `makeLayered(texture, error)` | Gives a texture layers if it has none: its picture becomes the Base layer, marked `fromFile` and keeping the file's bytes as its PNG, and the picture is let go. False with `error` when the picture can't be read. |
+
+### Layers
+
+[layers.hpp](../../src/scene/textures/layers.hpp): a paintable texture's pixels. A texture with layers draws from them (see `LayerTextureCache` in [application.md](application.md)), is saved layer by layer (see `TEXR` in [project.md](project.md)), and is exported as its combined picture.
+
+```cpp
+struct Tile { std::array<u8, 64 * 64 * 4> pixels; };   // TILE_SIZE = 64; RGBA, rows from the top
+
+struct Layer {
+    std::string name;
+    bool visible = true;
+    f32 opacity = 1.0f;
+    bool fromFile = false;                      // holds the texture's file: Reload from file replaces this layer
+    std::vector<std::shared_ptr<Tile>> tiles;   // row by row; null = fully transparent
+    mutable std::shared_ptr<const LayerPng> png;   // its PNG, with the tiles it was made from (see layerPng)
+};
+
+struct LayerStack {
+    u32 width, height;             // pixels
+    std::vector<Layer> layers;     // bottom first; none = the texture isn't layered
+    u32 active;                    // the layer paint goes to
+};
+```
+
+- **Pixels** are 8-bit RGBA (`Pixel`), sRGB, with alpha not multiplied into the color, as PNG stores them.
+- **Tiles** cover the picture in a grid (`tilesAcross()` × `tilesDown()`); a picture that isn't a whole number of tiles has edge tiles whose extra pixels are never read. A clear tile is null, so an empty layer takes no pixel memory, and whole tiles of one color share a single tile.
+- **Copies share tiles.** Copying a `LayerStack` (every undo step copies the `TextureCollection`) copies only the tile pointers: 256 per layer at 1024 × 1024. Pixels are changed only through `editTile`, which copies a tile first when anything else still holds it, so an undo step keeps just the tiles that changed after it.
+- **Blending** is ordinary "over", bottom to top, in sRGB values as image editors do by default: each visible layer's alpha is scaled by its opacity (rounded to 255ths), in integers. Under nothing, paint keeps its own color and alpha, so a texture can have clear parts.
+
+| Function | Description |
+|---|---|
+| `layersFromImage(image)` | A stack with one layer, **Base**, holding the image. |
+| `layersFromPng(png, out, error)`, `layersFromPicture(picture, out, error)` | The same from a PNG file, which Base keeps as its PNG; false with `error` if it can't be decoded, leaving `out` alone. |
+| `addLayer(stack, name)` | A clear layer above the active one; it becomes active. Returns its index. Without a name it's `nextLayerName`. |
+| `removeLayer(stack, index)` | False for the only layer (a layered texture keeps at least one). Removing the active layer makes the one below active. |
+| `moveLayer(stack, from, to)` | Puts a layer at another place in the order; the active index follows its layer. |
+| `nextLayerName(stack)` | `Layer N`, one past the highest number in use. |
+| `layerPixel(stack, layer, x, y)` | One layer's pixel; clear outside the picture. |
+| `editTile(stack, layer, tileX, tileY)` | The tile to write into: made if it was clear, copied if shared. |
+| `fillLayer(stack, layer, rect, color)` | Sets every pixel of a `PixelRect` (clipped to the picture). Whole tiles filled with a color share one tile; whole tiles filled with clear are dropped. |
+| `compositeLayers(stack, rect, out)` | The combined picture for a rectangle inside the picture, as `rect.width × rect.height` RGBA pixels: what gets sent to the GPU for the changed part. |
+| `flattenLayers(stack)` | The whole combined picture as an `image::Image`, for export. |
+| `layerImage(stack, layer)` | One layer's own pixels, not blended with anything. |
+| `layerPng(stack, layer)` | The layer as a PNG file (`LayerPng`: the bytes and the tiles they were made from). The layer keeps it, and it's reused for as long as the layer holds those same tiles, so saving encodes only layers that were painted since; name, visibility, and opacity don't touch it, and copies of the layer share it. A layer read from a file keeps the file's bytes. Safe to call for different layers from different threads. |
+| `setLayerPng(stack, layer, png, error)` | Replaces a layer's pixels with a PNG, which it keeps as its PNG. False with `error`, and no change, if it can't be decoded or isn't the stack's size. Opening a project and Reload from file use it. |
+| `flattenedPng(stack)` | The combined picture as a PNG file, for export: when one layer shows and it's at full opacity, that layer's own PNG (a texture with only its loaded file exports the file unchanged); otherwise `flattenLayers` encoded. Where nothing shows, a flattened picture is clear black: color under fully clear pixels isn't kept. |
+| `blendPixel(dst, src, opacity)` | One RGBA pixel over another, the source's alpha scaled by an opacity of 0 to 255: the blend compositing and the brush both use. |
+| `changedRects(before, after)` | Where the combined picture may differ between two states of a stack, as rectangles (runs of tiles along a row, clipped to the picture). A tile counts as changed when the tiles showing there, in order, with their layers' opacities, aren't the same ones: pointers are compared, never pixels, so it costs nothing next to compositing. An empty layer, a rename, or a hidden layer's paint changes nothing; another size gives the whole picture. |
+
+Name, visibility, and opacity are plain fields. Rename, show or hide, and opacity changes are undo steps like any other scene change.
+
+### Brush
+
+[brush.hpp](../../src/scene/textures/brush.hpp): painting into a layer.
+
+```cpp
+struct Brush {
+    Vec3 color;          // sRGB
+    f32 size = 24;       // across, in texture pixels (1 to 512)
+    f32 softness = 0.5;  // 0 a crisp edge, 1 fading from the middle out
+    f32 opacity = 1;     // the most one stroke lays down
+    f32 spacing = 0.1;   // between dabs, as a part of the size (0.02 to 1)
+    bool erase = false;  // the eraser
+    void clamp();        // every value into its range
+};
+```
+
+`Stroke` is one press, drag, and release on one layer:
+
+| Method | Description |
+|---|---|
+| `begin(stack, layer, brush)` | Remembers the layer's tiles as they are (pointers, so nothing is copied) and the brush, clamped. |
+| `moveTo(stack, point)` | Carries the stroke to a point in texture pixels (fractions allowed, off the picture allowed). The first point gets a dab; after that one every `size × spacing` pixels along the way (a quarter pixel at least), with the distance left over carried into the next move, so a fast drag leaves an unbroken line. True if any pixel changed. |
+| `lift()` | Lifts the brush without ending the stroke: the next `moveTo` starts with a dab of its own instead of a line from the last point. It's still one stroke, so the opacity cap carries across. Painting on the model lifts when the mouse leaves the model or crosses a seam. |
+| `setMask(mask)` | Limits the dabs that follow to a `PaintMask` (shared, so the caller can keep and reuse it): each pixel takes that much of a dab, so a pixel at 0 is never touched. It can change between moves (painting on the model changes it when the mouse crosses onto another island), a null mask lifts the limit, and a mask that isn't the texture's size lets nothing through. `end` drops it. |
+| `end()`, `active()`, `painted()` | `painted` says whether any pixel changed since `begin`: a stroke that changed nothing isn't worth an undo step. |
+
+- **A dab** is round: full strength inside an inner radius, falling off smoothly (smoothstep) to nothing at the outer one, measured at pixel centers. Softness 0 leaves a one-pixel blur around the radius; softness 1 fades all the way from the middle.
+- **Opacity is a cap for the stroke.** The stroke keeps, per touched tile, how much brush each pixel has had so far (the most any dab gave it, 0 to 255). A pixel is repainted only when a dab reaches it further than before, and always from the layer as it was when the stroke began: that pixel, with the color blended over it at reach × opacity (`blendPixel`), or for the eraser with its alpha scaled down by it and its color kept. So crossing a spot again within a stroke adds nothing; a second stroke builds on the first.
+- **Tiles** are written through `editTile`, so the tiles the stroke began with stay intact for the undo step that holds them, and only touched tiles are new. Erasing where the layer was clear makes no tiles.
+- Everything is clipped to the picture.
+
+[paint_mask.hpp](../../src/scene/textures/paint_mask.hpp): where on a texture paint may land.
+
+```cpp
+struct PaintMask {
+    u32 width, height;        // the texture's size
+    std::vector<u8> pixels;   // rows from the top; 0 takes none of a dab, 255 all of it
+    u8 at(u32 x, u32 y) const;
+};
+```
+
+`maskFromFaces(mesh, faces, width, height, reach)` marks (255) every pixel whose middle is inside one of the faces' UV triangles (their triangulation, with each corner's UV the face's own) or within `reach` pixels of one (`MASK_REACH`, 1, by default; 0 for the triangles alone). The reach is there so texture filtering along a seam never shows a thin unpainted line; islands packed closer than that pick up a fringe from each other. Triangles count either way round (mirrored UVs), a triangle with no area still marks what's within reach of its line, and UVs outside 0 to 1 mark where the repeating texture puts them. Painting on the model makes one from the paintable faces of the island under the mouse; active surfaces will make one from the selected faces.
 
 ## Reference images
 
@@ -315,7 +418,7 @@ Targets keep the object's rotation and scale unless they say otherwise.
 | `makeRayFromScreenPosition(mouseX, mouseY, width, height, camera)` | World-space ray through a pixel, built by unprojecting the near and far planes. |
 | `pickVertex(scene, ray, radius, only)` | Nearest vertex within `radius` (world units) of the ray. |
 | `pickEdge(scene, ray, radius, only)` | Nearest edge within `radius` of the ray. |
-| `pickFace(scene, ray, only, exclude, culled)` | Nearest face whose triangulation the ray hits. With `exclude`, finds another object under the mouse. `culled` (a `BackFacesCulled` function of the object) names objects whose back faces aren't drawn; their triangles seen from behind (counterclockwise is the front) are skipped. |
+| `pickFace(scene, ray, only, exclude, culled)` | Nearest face whose triangulation the ray hits. The `FaceHit` also says where on the face: `point` (in the world), `triangle` (the one of the face's triangulation the ray went through) and `corners` (its corners in the world), `weights` (how much of each of its corners the point is, adding up to 1), `cornerUVs` (those corners' UVs, the face's own, so a vertex on a seam gives this face's side), and `uv` (the UV at the point, the corners' blended by the weights): what painting on the model needs to find the texture under the mouse. With `exclude`, finds another object under the mouse. `culled` (a `BackFacesCulled` function of the object) names objects whose back faces aren't drawn; their triangles seen from behind (counterclockwise is the front) are skipped. |
 | `pickLight(scene, viewProjection, mouseX, mouseY, width, height, radius)` | Nearest light whose marker is within `radius` pixels of the mouse, measured on screen. Returns a `LightHit` with the handle and pixel distance. Checked before the mesh picks (after origins); the radius is `LIGHT_MARKER_PICK_RADIUS` (11 px) from `light_markers.hpp`. |
 | `pickOrigin(scene, viewProjection, mouseX, mouseY, width, height, radius)` | The object whose origin projects nearest the mouse within `radius` pixels (`OriginHit`: object and pixel distance). Checked first of all, when origins show; the radius is `ORIGIN_MARKER_PICK_RADIUS` (9 px) from `origin_markers.hpp`. |
 
@@ -327,7 +430,7 @@ The mesh picks test every object (with its transform), or only `only` when it's 
 
 [history.hpp](../../src/scene/history.hpp)
 
-Undo/redo by snapshot. A `State` is a copy of the whole `ObjectCollection`, the whole `MaterialCollection`, the whole `TextureCollection` and `ReferenceCollection` (cheap: pictures are shared, not copied), the whole `LightCollection`, and the `Selection` (including the active object). Up to 100 undo steps are kept.
+Undo/redo by snapshot. A `State` is a copy of the whole `ObjectCollection`, the whole `MaterialCollection`, the whole `TextureCollection` and `ReferenceCollection` (cheap: pictures and layer tiles are shared, not copied), the whole `LightCollection`, and the `Selection` (including the active object). Up to 100 undo steps are kept, and fewer when painting fills them: on each commit, paint tiles that steps older than the newest hold and the newest doesn't are counted (16 KB each), and the oldest steps are dropped while that's over the budget (256 MB; `setPaintBudget`), always keeping the newest.
 
 | Method | Description |
 |---|---|

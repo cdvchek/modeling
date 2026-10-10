@@ -5,6 +5,8 @@
 #include <functional>
 
 #include "scene/mesh/mesh_handles.hpp"
+#include "scene/mesh/mesh_types.hpp"
+#include "core/math/vec2.hpp"
 #include "scene/picking/ray.hpp"
 #include "scene/lights/light.hpp"
 #include "scene/references/reference_image.hpp"
@@ -43,6 +45,14 @@ struct FaceHit {
     FaceHandle face;
 
     f32 distance = FLT_MAX;
+
+    // Where on the face: the world point, its triangle (and its corners in the world), how much of each corner it is (adding up to 1), the corners' UVs, and the UV there
+    Vec3 point;
+    Triangle triangle;
+    Vec3 corners[3];
+    f32 weights[3] = { 0.0f, 0.0f, 0.0f };
+    Vec2 cornerUVs[3];
+    Vec2 uv;
 };
 
 // Whether an object's back faces aren't drawn, so they can't be clicked either
@@ -50,6 +60,7 @@ using BackFacesCulled = std::function<bool(ObjectHandle)>;
 
 // only limits the test to one object; exclude skips one (used to find another object under the mouse).
 // With culled, faces seen from behind on objects it names are skipped, as the GPU skips drawing them.
+// A hit also says where on the face it is, with its UV.
 FaceHit pickFace(const Scene& scene, const Ray& ray, ObjectHandle only = INVALID_OBJECT, ObjectHandle exclude = INVALID_OBJECT,
                  const BackFacesCulled& culled = {});
 

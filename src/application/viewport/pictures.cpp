@@ -56,6 +56,72 @@ void PictureTextureCache::prune(IRenderer& renderer) {
     });
 }
 
+void LayerTextureCache::sync(AppContext& ctx) {
+    const TextureCollection& textures = ctx.scene.textures;
+    IRenderer& renderer = *ctx.renderer;
+
+    // Textures that are gone or no longer layered (undo) free theirs
+    std::erase_if(m_entries, [&](const Entry& entry) {
+        const Texture* texture = textures.tryGet(entry.handle);
+        if (texture && !texture->layers.empty()) return false;
+        renderer.destroyTexture(entry.texture);
+        return true;
+    });
+
+    for (TextureHandle handle : textures.handles()) {
+        const LayerStack& layers = textures.get(handle).layers;
+        if (layers.empty()) continue;
+
+        auto entry = std::find_if(m_entries.begin(), m_entries.end(), [&](const Entry& existing) { return existing.handle == handle; });
+        if (entry == m_entries.end()) entry = m_entries.insert(m_entries.end(), Entry { handle });
+        entry->changed = false;
+
+        // A new texture, or another size: the whole picture
+        if (entry->shown.width != layers.width || entry->shown.height != layers.height) {
+            renderer.destroyTexture(entry->texture);
+            m_pixels.resize(std::size_t(layers.width) * layers.height * 4);
+            compositeLayers(layers, { 0, 0, layers.width, layers.height }, m_pixels.data());
+            entry->texture = renderer.createTexture(m_pixels.data(), layers.width, layers.height);
+            if (entry->texture == 0) ctx.systems.console.printError("Couldn't show " + textures.get(handle).name + ": it's too large for the graphics card");
+            entry->shown = layers;
+            entry->changed = true;
+            continue;
+        }
+        // One that couldn't be made stays reported once
+        if (entry->texture == 0) continue;
+
+        const std::vector<PixelRect> rects = changedRects(entry->shown, layers);
+        for (const PixelRect& rect : rects) {
+            m_pixels.resize(std::size_t(rect.width) * rect.height * 4);
+            compositeLayers(layers, rect, m_pixels.data());
+            renderer.updateTexture(entry->texture, rect.x, rect.y, rect.width, rect.height, m_pixels.data());
+        }
+        if (!rects.empty()) renderer.refreshTextureMipmaps(entry->texture);
+        entry->shown = layers;
+        entry->changed = !rects.empty();
+    }
+}
+
+u32 LayerTextureCache::find(TextureHandle handle) const {
+    for (const Entry& entry : m_entries) {
+        if (entry.handle == handle) return entry.texture;
+    }
+    return 0;
+}
+
+bool LayerTextureCache::changed(TextureHandle handle) const {
+    for (const Entry& entry : m_entries) {
+        if (entry.handle == handle) return entry.changed;
+    }
+    return false;
+}
+
+u32 textureImage(const AppContext& ctx, TextureHandle handle) {
+    const Texture* texture = ctx.scene.textures.tryGet(handle);
+    if (!texture) return 0;
+    return texture->layers.empty() ? ctx.pictureTextures.find(texture->picture) : ctx.layerTextures.find(handle);
+}
+
 std::shared_ptr<const Picture> loadPicture(const std::filesystem::path& path, std::string& error) {
     std::error_code code;
     const std::uintmax_t size = std::filesystem::file_size(path, code);

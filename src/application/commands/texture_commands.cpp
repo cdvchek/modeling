@@ -18,7 +18,9 @@ namespace {
     void printTexture(const AppContext& ctx, TextureHandle handle) {
         const Texture& texture = ctx.scene.textures.get(handle);
         std::cout << "[texture " << handle.index << "] " << texture.name;
-        if (texture.picture) std::cout << ": " << texture.picture->width << " x " << texture.picture->height << ", " << texture.picture->fileName;
+        std::cout << ": " << texture.width() << " x " << texture.height();
+        if (texture.layered()) std::cout << ", " << texture.layers.layers.size() << (texture.layers.layers.size() == 1 ? " layer" : " layers");
+        else if (texture.picture) std::cout << ", " << texture.picture->fileName;
         std::cout << ", used by " << describeTextureUse(textureUse(ctx, handle)) << std::endl;
     }
 }
@@ -95,11 +97,32 @@ bool reloadTexture(AppContext& ctx, TextureHandle texture) {
     }
 
     ctx.history.begin(ctx.scene);
-    ctx.scene.textures.get(texture).picture = std::move(picture);
+    Texture& changed = ctx.scene.textures.get(texture);
+    if (!changed.layered()) {
+        changed.picture = std::move(picture);
+    } else {
+        // Only the layer that holds the file is replaced; if it was removed, the file comes back as a new bottom layer
+        LayerStack layers = changed.layers;
+        u32 base = 0;
+        while (base < layers.layers.size() && !layers.layers[base].fromFile) ++base;
+        if (base == layers.layers.size()) {
+            const u32 active = layers.active;
+            moveLayer(layers, addLayer(layers, "Base"), 0);
+            layers.layers[0].fromFile = true;
+            layers.active = active + 1;
+            base = 0;
+        }
+        if (!setLayerPng(layers, base, picture->png, error)) {
+            ctx.history.cancel(ctx.scene);
+            ctx.systems.console.printError("Couldn't reload " + ctx.scene.textures.get(texture).name + ": " + error);
+            return false;
+        }
+        changed.layers = std::move(layers);
+    }
     ctx.history.commit();
 
     const Texture& reloaded = ctx.scene.textures.get(texture);
-    ctx.systems.console.print("Reloaded " + reloaded.name + " (" + std::to_string(reloaded.picture->width) + " x " + std::to_string(reloaded.picture->height) + ")");
+    ctx.systems.console.print("Reloaded " + reloaded.name + " (" + std::to_string(reloaded.width()) + " x " + std::to_string(reloaded.height()) + ")");
     return true;
 }
 

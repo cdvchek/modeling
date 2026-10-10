@@ -16,10 +16,10 @@ SurfaceLook surfaceOf(const Material& material, u32 map);
 // The GPU texture of the material's base color map, 0 when it has none or it isn't uploaded yet
 u32 mapTexture(const AppContext& ctx, const Material& material);
 
-// Uploads every texture's picture that isn't on the GPU yet; call before anything draws with maps or swatches
+// Uploads every texture's picture that isn't on the GPU yet, and what changed in layered ones; call before anything draws with maps or swatches
 void syncTextures(AppContext& ctx);
 
-// Swatch textures, one per material, rendered again whenever the material's look changes
+// Swatch textures, one per material, rendered again whenever the material's look or its layered map's pixels change
 class MaterialPreviewCache {
 public:
     static constexpr u32 SIZE = 128;

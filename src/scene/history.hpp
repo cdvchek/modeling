@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <optional>
 #include <types>
 #include <vector>
@@ -33,16 +34,23 @@ public:
     // Forgets every step (after opening or starting a project); the state gets a new id
     void clear();
 
+    // The most memory undo steps may hold in paint tiles the newest step no longer has (256 MB unless set); the oldest steps go first
+    void setPaintBudget(std::size_t bytes) { m_paintBudget = bytes; }
+    std::size_t undoSteps() const { return m_undo.size(); }
+
 private:
     struct State {
         ObjectCollection objects;
         LightCollection lights;
         ReferenceCollection references;   // pictures are shared, so this copy is cheap
         MaterialCollection materials;
-        TextureCollection textures;       // pictures are shared, so this copy is cheap
+        TextureCollection textures;       // pictures and layer tiles are shared, so this copy is cheap
         Selection selection;
         u64 id = 0;
     };
+
+    // Bytes of paint tiles held only by steps older than the newest
+    std::size_t heldPaintBytes() const;
 
     static State capture(const Scene& scene);
     static void restore(Scene& scene, const State& state);
@@ -50,6 +58,8 @@ private:
     std::vector<State> m_undo;
     std::vector<State> m_redo;
     std::optional<State> m_pending;
+
+    std::size_t m_paintBudget = std::size_t(256) * 1024 * 1024;
 
     u64 m_stateId = 0;
     u64 m_nextId = 0;

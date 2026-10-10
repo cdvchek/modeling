@@ -43,8 +43,8 @@ namespace {
 
     // The newest version of each chunk this build reads and writes
     constexpr std::array<ChunkVersion, 8> CHUNK_VERSIONS = { {
-        { CHUNK_VIEW, 7 }, { CHUNK_CAMERA, 1 }, { CHUNK_LIGHTS, 1 }, { CHUNK_OBJECT, 7 }, { CHUNK_EXPORT, 1 },
-        { CHUNK_REFERENCE, 1 }, { CHUNK_MATERIALS, 2 }, { CHUNK_TEXTURE, 1 },
+        { CHUNK_VIEW, 8 }, { CHUNK_CAMERA, 1 }, { CHUNK_LIGHTS, 1 }, { CHUNK_OBJECT, 7 }, { CHUNK_EXPORT, 1 },
+        { CHUNK_REFERENCE, 1 }, { CHUNK_MATERIALS, 2 }, { CHUNK_TEXTURE, 2 },
     } };
 
     u32 supportedVersion(u32 type) {
@@ -167,6 +167,13 @@ namespace {
         writer.write(view.paintCenter[0]);
         writer.write(view.paintCenter[1]);
         writer.write(view.paintZoom);
+        // Version 8
+        writeVec3(writer, view.brushColor);
+        writer.write(view.brushSize);
+        writer.write(view.brushSoftness);
+        writer.write(view.brushOpacity);
+        writer.write(view.brushSpacing);
+        writeBool(writer, view.brushErase);
         return finish(CHUNK_VIEW, writer);
     }
 
@@ -195,7 +202,9 @@ namespace {
             && (version < 6 || (reader.read(view.uvCenter[0]) && reader.read(view.uvCenter[1]) && reader.read(view.uvZoom) && view.uvZoom >= 0.0f
                                 && readBool(reader, view.uvGrid)))
             && (version < 7 || (readBool(reader, view.paint2D) && reader.read(view.paintCenter[0]) && reader.read(view.paintCenter[1])
-                                && reader.read(view.paintZoom) && view.paintZoom >= 0.0f));
+                                && reader.read(view.paintZoom) && view.paintZoom >= 0.0f))
+            && (version < 8 || (readVec3(reader, view.brushColor) && reader.read(view.brushSize) && reader.read(view.brushSoftness)
+                                && reader.read(view.brushOpacity) && reader.read(view.brushSpacing) && readBool(reader, view.brushErase)));
     }
 
     Chunk writeCamera(const Camera& camera) {
@@ -316,22 +325,83 @@ namespace {
         return true;
     }
 
-    // One texture: its name, the file it came from (for Reload), and its picture
+    // One texture: its name, the file it came from (for Reload), and its picture, or its layers each as a PNG
     Chunk writeTexture(const Texture& texture) {
         BinaryWriter writer;
         writer.writeString(texture.name);
         writer.writeString(texture.sourcePath);
-        writePicture(writer, texture.picture);
+        writeBool(writer, texture.layered());
+        if (!texture.layered()) {
+            writePicture(writer, texture.picture);
+            return finish(CHUNK_TEXTURE, writer);
+        }
+
+        // Layers that changed since they were last saved or loaded are encoded here, each on its own thread
+        const LayerStack& stack = texture.layers;
+        const u32 count = static_cast<u32>(stack.layers.size());
+        std::vector<std::shared_ptr<const LayerPng>> pngs(count);
+        parallelFor(count, [&](u32 i) { pngs[i] = layerPng(stack, i); });
+
+        writer.write(stack.width);
+        writer.write(stack.height);
+        writer.write(count);
+        writer.write(stack.active);
+        for (u32 i = 0; i < count; ++i) {
+            const Layer& layer = stack.layers[i];
+            writer.writeString(layer.name);
+            writeBool(writer, layer.visible);
+            writer.write(layer.opacity);
+            writeBool(writer, layer.fromFile);
+            writer.write(static_cast<u64>(pngs[i]->bytes.size()));
+            writer.writeBytes(pngs[i]->bytes.data(), pngs[i]->bytes.size());
+        }
         return finish(CHUNK_TEXTURE, writer);
     }
 
-    bool readTexture(BinaryReader& reader, Texture& texture, std::string& error) {
-        if (!reader.readString(texture.name) || !reader.readString(texture.sourcePath)) {
+    // Version 1 textures are always a picture. With decode off the layers come back without pixels (for fileinfo)
+    bool readTexture(BinaryReader& reader, u32 version, Texture& texture, std::string& error, bool decode = true) {
+        bool layered = false;
+        if (!reader.readString(texture.name) || !reader.readString(texture.sourcePath) || (version >= 2 && !readBool(reader, layered))) {
             error = "a texture's data is cut short";
             return false;
         }
-        if (!readPicture(reader, texture.picture)) {
+        if (!layered) {
+            if (readPicture(reader, texture.picture)) return true;
             error = "texture '" + texture.name + "' is damaged";
+            return false;
+        }
+
+        LayerStack& stack = texture.layers;
+        u32 count = 0;
+        bool ok = reader.read(stack.width) && reader.read(stack.height) && reader.read(count) && reader.read(stack.active)
+            && stack.width > 0 && stack.height > 0 && stack.width <= image::MAX_DIMENSION && stack.height <= image::MAX_DIMENSION
+            && count > 0 && count <= reader.remaining() && stack.active < count;
+
+        std::vector<std::vector<u8>> pngs(ok ? count : 0);
+        stack.layers.resize(pngs.size());
+        for (u32 i = 0; ok && i < count; ++i) {
+            Layer& layer = stack.layers[i];
+            u64 size = 0;
+            ok = reader.readString(layer.name)
+                && readBool(reader, layer.visible)
+                && reader.read(layer.opacity) && layer.opacity >= 0.0f && layer.opacity <= 1.0f
+                && readBool(reader, layer.fromFile)
+                && reader.read(size) && size <= reader.remaining()
+                && reader.readVector(pngs[i], static_cast<std::size_t>(size))
+                && image::isPng(pngs[i].data(), pngs[i].size());
+        }
+        if (!ok) {
+            error = "texture '" + texture.name + "' is damaged";
+            return false;
+        }
+        if (!decode) return true;
+
+        // Each layer's PNG decodes on its own thread, and must be the texture's size
+        std::vector<std::string> errors(count);
+        parallelFor(count, [&](u32 i) { setLayerPng(stack, i, std::move(pngs[i]), errors[i]); });
+        for (u32 i = 0; i < count; ++i) {
+            if (errors[i].empty()) continue;
+            error = "texture '" + texture.name + "', layer '" + stack.layers[i].name + "': " + errors[i];
             return false;
         }
         return true;
@@ -764,7 +834,7 @@ bool ProjectFile::read(const std::vector<u8>& bytes, Scene& scene, View& view, s
         else if (entry.type == CHUNK_MATERIALS) ok = readMaterials(reader, entry.version, scene.materials, materialHandles, materialMaps);
         else if (entry.type == CHUNK_TEXTURE) {
             Texture texture;
-            if (!readTexture(reader, texture, error)) return false;
+            if (!readTexture(reader, entry.version, texture, error)) return false;
             textureHandles.push_back(scene.textures.add(std::move(texture)));
         } else if (entry.type == CHUNK_REFERENCE) {
             ReferenceImage image;
@@ -1007,9 +1077,10 @@ std::string ProjectFile::describe(const std::vector<u8>& bytes) {
         } else if (entry.type == CHUNK_TEXTURE) {
             Texture texture;
             std::string textureError;
-            if (readTexture(reader, texture, textureError)) {
-                out << "  '" << texture.name << "' " << texture.picture->fileName << ", " << texture.picture->width << " x " << texture.picture->height
-                    << ", " << texture.picture->png.size() << " bytes of PNG";
+            if (readTexture(reader, entry.version, texture, textureError, false)) {
+                out << "  '" << texture.name << "' " << texture.width() << " x " << texture.height();
+                if (texture.layered()) out << ", " << texture.layers.layers.size() << (texture.layers.layers.size() == 1 ? " layer" : " layers");
+                else out << ", " << texture.picture->fileName << ", " << texture.picture->png.size() << " bytes of PNG";
             }
         } else if (entry.type == CHUNK_REFERENCE) {
             ReferenceImage image;

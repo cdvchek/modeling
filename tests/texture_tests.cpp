@@ -7,6 +7,7 @@
 #include "image/image.hpp"
 #include "vlmobj/vlmobj.hpp"
 
+#include <algorithm>
 #include <filesystem>
 #include <fstream>
 #include <iterator>
@@ -228,18 +229,177 @@ TEST_CASE(paint_targets_list_textures_with_their_materials) {
     CHECK(paintTargets(scene, INVALID_OBJECT).empty());
 }
 
-TEST_CASE(solid_pictures_are_one_color) {
-    const std::shared_ptr<const Picture> picture = solidPicture("Leaf.png", 8, 4, Vec3(1.0f, 0.5f, 0.0f));
-    CHECK(picture->fileName == "Leaf.png");
-    CHECK(picture->width == 8 && picture->height == 4);
+TEST_CASE(new_texture_layers_are_one_color) {
+    // A Base layer of the color, in one shared tile
+    const LayerStack layers = solidLayers(128, 64, Vec3(1.0f, 0.5f, 0.0f));
+    CHECK(layers.width == 128 && layers.height == 64);
+    CHECK(layers.layers.size() == 1 && layers.layers[0].name == "Base" && !layers.layers[0].fromFile);
+    CHECK(layers.layers[0].tiles[0] != nullptr && layers.layers[0].tiles[0] == layers.layers[0].tiles[1]);
+    CHECK(layerPixel(layers, 0, 0, 0) == (Pixel { 255, 128, 0, 255 }));
+    CHECK(layerPixel(layers, 0, 127, 63) == (Pixel { 255, 128, 0, 255 }));
+}
 
-    image::Image decoded;
+TEST_CASE(a_texture_becomes_layered_from_its_picture) {
+    Texture bark = texture("Bark");
+    const std::vector<u8> file = bark.picture->png;
+    CHECK(!bark.layered() && bark.width() == 13 && bark.height() == 7);
+
+    // The picture becomes the Base layer, which holds the file (for Reload) and keeps its PNG, and the picture is let go
     std::string error;
-    CHECK(image::decodePng(picture->png.data(), picture->png.size(), decoded, error));
-    CHECK(decoded.width == 8 && decoded.height == 4);
-    bool same = decoded.pixels.size() == 8 * 4 * 4;
-    for (std::size_t i = 0; same && i < decoded.pixels.size(); i += 4) {
-        same = decoded.pixels[i] == 255 && decoded.pixels[i + 1] == 128 && decoded.pixels[i + 2] == 0 && decoded.pixels[i + 3] == 255;
-    }
-    CHECK(same);
+    CHECK(makeLayered(bark, error));
+    CHECK(bark.layered() && bark.picture == nullptr);
+    CHECK(bark.width() == 13 && bark.height() == 7);
+    CHECK(bark.layers.layers.size() == 1 && bark.layers.layers[0].name == "Base" && bark.layers.layers[0].fromFile);
+    CHECK(layerPng(bark.layers, 0)->bytes == file);
+    image::Image decoded;
+    CHECK(image::decodePng(file.data(), file.size(), decoded, error));
+    CHECK(layerImage(bark.layers, 0).pixels == decoded.pixels);
+
+    // Again changes nothing; a texture with neither is refused
+    CHECK(makeLayered(bark, error));
+    CHECK(bark.layers.layers.size() == 1);
+    Texture empty;
+    CHECK(!makeLayered(empty, error));
+    CHECK(!empty.layered());
+}
+
+TEST_CASE(project_keeps_layers) {
+    TextureHandle used, unused;
+    MaterialHandle material;
+    Scene scene = texturedScene(used, unused, material);
+    std::string error;
+    CHECK(makeLayered(scene.textures.get(used), error));
+    LayerStack& layers = scene.textures.get(used).layers;
+    const u32 shadows = addLayer(layers, "Shadows");
+    fillLayer(layers, shadows, { 2, 1, 5, 3 }, { 10, 20, 30, 128 });
+    layers.layers[shadows].opacity = 0.5f;
+    const u32 hidden = addLayer(layers);
+    fillLayer(layers, hidden, { 0, 0, 13, 7 }, { 255, 0, 255, 255 });
+    layers.layers[hidden].visible = false;
+    layers.active = shadows;
+
+    const std::vector<u8> bytes = ProjectFile::write(scene, ProjectFile::View());
+    Scene loaded;
+    ProjectFile::View view;
+    CHECK(ProjectFile::read(bytes, loaded, view, error));
+    CHECK(error.empty());
+
+    // The layered texture comes back without a picture, every layer with its settings and pixels; the other is still a picture
+    const Texture& bark = loaded.textures.get(loaded.textures.handleAt(0));
+    CHECK(bark.name == "Bark" && bark.sourcePath == "C:/paintings/Bark.png");
+    CHECK(bark.layered() && bark.picture == nullptr && bark.width() == 13 && bark.height() == 7);
+    CHECK(bark.layers.layers.size() == 3 && bark.layers.active == shadows);
+    CHECK(bark.layers.layers[0].name == "Base" && bark.layers.layers[0].fromFile && bark.layers.layers[0].visible);
+    CHECK(bark.layers.layers[1].name == "Shadows" && bark.layers.layers[1].opacity == 0.5f && !bark.layers.layers[1].fromFile);
+    CHECK(bark.layers.layers[2].name == "Layer 1" && !bark.layers.layers[2].visible);
+    for (u32 i = 0; i < 3; ++i) CHECK(layerImage(bark.layers, i).pixels == layerImage(layers, i).pixels);
+    CHECK(flattenLayers(bark.layers).pixels == flattenLayers(layers).pixels);
+    const Texture& moss = loaded.textures.get(loaded.textures.handleAt(1));
+    CHECK(!moss.layered() && moss.picture != nullptr);
+
+    // Saving what was loaded writes the same file: nothing is encoded again
+    CHECK(ProjectFile::write(loaded, ProjectFile::View()) == bytes);
+
+    // A layer cut short, or of another size than the texture, is refused
+    Scene refused;
+    std::vector<u8> cut(bytes.begin(), bytes.begin() + bytes.size() - 40);
+    CHECK(!ProjectFile::read(cut, refused, view, error));
+    Scene wrong = scene;
+    wrong.textures.get(used).layers.width = 12;
+    CHECK(!ProjectFile::read(ProjectFile::write(wrong, ProjectFile::View()), refused, view, error));
+    CHECK(error.find("Base") != std::string::npos);
+}
+
+TEST_CASE(export_flattens_layers) {
+    TextureHandle used, unused;
+    MaterialHandle material;
+    Scene scene = texturedScene(used, unused, material);
+    std::string error;
+    CHECK(makeLayered(scene.textures.get(used), error));
+    const std::vector<u8> file = layerPng(scene.textures.get(used).layers, 0)->bytes;
+    const ObjectHandle cube = scene.objects.handleAt(0);
+
+    // With only the Base layer the file goes out as it was loaded
+    std::vector<u8> bytes = AssetFile::write(scene.objects, cube, scene.materials, scene.textures);
+    vlmobj::File plain;
+    CHECK(plain.open(bytes.data(), bytes.size()));
+    std::span<const u8> data = plain.textureData(plain.textures()[0]);
+    CHECK(std::vector<u8>(data.begin(), data.end()) == file);
+
+    // With paint over it, one PNG of the combined picture; a hidden layer isn't in it
+    LayerStack& layers = scene.textures.get(used).layers;
+    fillLayer(layers, addLayer(layers), { 0, 0, 6, 7 }, { 0, 255, 0, 128 });
+    const u32 hidden = addLayer(layers);
+    fillLayer(layers, hidden, { 0, 0, 13, 7 }, { 255, 0, 255, 255 });
+    layers.layers[hidden].visible = false;
+
+    bytes = AssetFile::write(scene.objects, cube, scene.materials, scene.textures);
+    vlmobj::File painted;
+    CHECK(painted.open(bytes.data(), bytes.size()));
+    CHECK(painted.textures().size() == 1);
+    CHECK(painted.textures()[0].width == 13 && painted.textures()[0].height == 7);
+    data = painted.textureData(painted.textures()[0]);
+    image::Image decoded;
+    CHECK(image::decodePng(data.data(), data.size(), decoded, error));
+    CHECK(decoded.pixels == flattenLayers(layers).pixels);
+    CHECK(decoded.pixels != layerImage(layers, 0).pixels);
+}
+
+TEST_CASE(paint_island_keeps_to_faces_that_use_the_texture) {
+    // A cylinder whose material maps a texture: the side is one island, each cap another
+    Scene scene;
+    const TextureHandle bark = scene.textures.add(texture("Bark"));
+    Material wood;
+    wood.name = "Wood";
+    wood.baseColorMap = bark;
+    const MaterialHandle woodHandle = scene.materials.add(wood);
+    const ObjectHandle trunk = scene.objects.add("Trunk", PresetMesh::Cylinder);
+    Object& object = scene.objects.get(trunk);
+    object.material = woodHandle;
+
+    std::vector<FaceHandle> sides;
+    for (FaceHandle face : object.meshData.getFaceHandles()) if (object.meshData.getFaceVertices(face).size() == 4) sides.push_back(face);
+    CHECK(sides.size() > 4);
+
+    // Every side face, in handle order, and neither cap
+    std::vector<FaceHandle> island = paintIsland(scene, object, sides[3], bark);
+    CHECK(island.size() == sides.size());
+    CHECK(std::is_sorted(island.begin(), island.end(), [](FaceHandle a, FaceHandle b) { return a.index < b.index; }));
+    for (FaceHandle face : sides) CHECK(std::find(island.begin(), island.end(), face) != island.end());
+
+    // A side face given another material drops out, and from it there's nothing to paint
+    Material paintless;
+    paintless.name = "Bare";
+    object.meshData.setFaceMaterial(sides[0], scene.materials.add(paintless));
+    island = paintIsland(scene, object, sides[3], bark);
+    CHECK(island.size() == sides.size() - 1);
+    CHECK(std::find(island.begin(), island.end(), sides[0]) == island.end());
+    CHECK(paintIsland(scene, object, sides[0], bark).empty());
+    CHECK(paintIsland(scene, object, sides[3], INVALID_TEXTURE).empty());
+}
+
+TEST_CASE(texture_axes_follow_the_surface) {
+    const auto near = [](const Vec3& a, const Vec3& b) { return (a - b).length() < 1e-5f; };
+
+    // A triangle 2 wide and 1 tall, standing up, over half of a 200 x 100 texture each way: a pixel down is a step down in the world
+    const Vec3 corners[3] = { Vec3(0.0f, 1.0f, 5.0f), Vec3(2.0f, 1.0f, 5.0f), Vec3(0.0f, 0.0f, 5.0f) };
+    const Vec2 uvs[3] = { Vec2(0.25f, 0.25f), Vec2(0.75f, 0.25f), Vec2(0.25f, 0.75f) };
+    Vec3 perX, perY;
+    CHECK(textureAxes(corners, uvs, 200, 100, perX, perY));
+    CHECK(near(perX, Vec3(0.02f, 0.0f, 0.0f)));
+    CHECK(near(perY, Vec3(0.0f, -0.02f, 0.0f)));
+
+    // Any point of the triangle is its first corner plus its pixels from there along the two steps
+    const Vec3 third = corners[0] + perX * ((uvs[1].x - uvs[0].x) * 200.0f) + perY * ((uvs[1].y - uvs[0].y) * 100.0f);
+    CHECK(near(third, corners[1]));
+
+    // UVs turned a quarter and mirrored still give the steps that rebuild the corners
+    const Vec2 turned[3] = { Vec2(0.5f, 0.1f), Vec2(0.5f, 0.6f), Vec2(0.9f, 0.1f) };
+    CHECK(textureAxes(corners, turned, 200, 100, perX, perY));
+    CHECK(near(corners[0] + perX * ((turned[1].x - turned[0].x) * 200.0f) + perY * ((turned[1].y - turned[0].y) * 100.0f), corners[1]));
+    CHECK(near(corners[0] + perX * ((turned[2].x - turned[0].x) * 200.0f) + perY * ((turned[2].y - turned[0].y) * 100.0f), corners[2]));
+
+    // A triangle squashed to a line on the texture has no steps
+    const Vec2 flat[3] = { Vec2(0.1f, 0.1f), Vec2(0.5f, 0.5f), Vec2(0.9f, 0.9f) };
+    CHECK(!textureAxes(corners, flat, 200, 100, perX, perY));
 }

@@ -120,8 +120,9 @@ void drawStatusBar(const AppContext& ctx, UIDrawList& ui, f32 width, f32 height)
     const ContextManager& contexts = ctx.systems.input_ctx;
     std::vector<StatusItem> items = { fpsItem(ctx.frameTimer.getFps()) };
     if (ctx.workspace.current == Workspace::Paint) {
-        // Painting has no modes or tools yet: just which view shows
+        // Which view shows, and the tool
         items.push_back({ { { ctx.workspace.paint2D ? "2D" : "3D", TEXT_COLOR } }, 2 });
+        items.push_back({ { { ctx.workspace.brush.erase ? "Eraser" : "Brush", TEXT_COLOR } }, 6 });
     } else {
         items.push_back({ { { ctx.workspace.uvIslands ? MODE_NAMES[4].data() : selectionModeName(contexts), TEXT_COLOR } }, longest(MODE_NAMES) });
         items.push_back({ { { ctx.uvTool.active() ? uvToolName(ctx.uvTool.kind) : activeToolName(contexts), TEXT_COLOR } }, longest(TOOL_NAMES) });

@@ -6,6 +6,7 @@
 #include <string>
 #include <vector>
 #include "scene/pictures/picture.hpp"
+#include "scene/textures/texture.hpp"
 
 struct AppContext;
 class IRenderer;
@@ -28,6 +29,32 @@ private:
 
     std::vector<Entry> m_entries;
 };
+
+// GPU textures for layered textures: each shows its layers' combined picture, and only the tiles that changed are sent again
+class LayerTextureCache {
+public:
+    // Uploads what changed since the last call (paint, layer edits, undo) and frees what's gone; call before anything draws
+    void sync(AppContext& ctx);
+    // 0 when the texture has no layers or couldn't be uploaded
+    u32 find(TextureHandle handle) const;
+    // The last sync sent this texture new pixels, so what's rendered from it (swatches) is out of date
+    bool changed(TextureHandle handle) const;
+
+private:
+    struct Entry {
+        TextureHandle handle;
+        // What the GPU has; holding it also makes the next change to a tile go to a copy, which is how changes are found
+        LayerStack shown;
+        u32 texture = 0;
+        bool changed = false;
+    };
+
+    std::vector<Entry> m_entries;
+    std::vector<u8> m_pixels;
+};
+
+// The GPU texture that shows a texture: its layers' combined picture when it has layers, otherwise its picture; 0 when there's none yet
+u32 textureImage(const AppContext& ctx, TextureHandle handle);
 
 // Pictures bigger than this aren't read (a PNG this large would also be far too big to decode)
 inline constexpr std::uintmax_t MAX_PICTURE_FILE_SIZE = 256ull * 1024 * 1024;

@@ -6,8 +6,11 @@
 #include "ui/ui_types.hpp"
 #include "scene/objects/object_collection.hpp"
 #include "scene/textures/texture.hpp"
+#include "scene/textures/brush.hpp"
 
+#include <memory>
 #include <string>
+#include <vector>
 
 struct AppContext;
 
@@ -54,6 +57,25 @@ struct WorkspaceState {
     bool paint2D = false;
     UVView paintView;
     TextureHandle paintTexture = INVALID_TEXTURE;
+    // The brush (or eraser) and its settings, saved with the project's view
+    Brush brush;
+};
+
+// What a stroke on the model keeps between frames
+struct ModelStroke {
+    // An island the stroke has reached: its paintable faces in handle order, and the mask that keeps dabs to them
+    struct Island {
+        std::vector<FaceHandle> faces;
+        std::shared_ptr<const PaintMask> mask;
+    };
+
+    bool onModel = false;       // the stroke runs in the 3D view
+    bool moved = false;         // lastMouse is set
+    Vec2 lastMouse;
+    bool touching = false;      // the last sample landed on a paintable face (lastPoint, island)
+    Vec3 lastPoint;
+    std::size_t island = 0;
+    std::vector<Island> islands;
 };
 
 // Where everything sits in the window this frame, in window pixels (origin top left, y down)
@@ -76,6 +98,8 @@ inline constexpr f32 DIVIDER_WIDTH = 6.0f;
 // Neither side of the UV workspace gets narrower than this (unless the window itself is too narrow)
 inline constexpr f32 MIN_SPLIT_WIDTH = 200.0f;
 inline constexpr f32 TOOLS_WIDTH = 210.0f;
+// Paint's column holds labeled fields (a layer's name and opacity), so it's wider
+inline constexpr f32 PAINT_TOOLS_WIDTH = 290.0f;
 
 ScreenLayout screenLayout(const AppContext& ctx);
 
@@ -94,7 +118,7 @@ bool setWorkspace(AppContext& ctx, Workspace workspace);
 
 // Whether the action belongs to the workspace: UV has the camera, selecting, the edit modes, and app-wide actions
 // (undo and redo, files, the console, view toggles); Paint has the camera, framing, Tab between 3D and 2D, Alt+click
-// to pick a texture, and the app-wide actions; Model has everything else
+// to pick a texture, the brush keys, and the app-wide actions; Model has everything else
 bool actionAllowed(Workspace workspace, Action action);
 
 // Console commands that change meshes, objects, lights, materials, textures, or reference images: Model only

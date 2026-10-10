@@ -54,6 +54,12 @@ namespace {
         view.paintCenter[0] = ctx.workspace.paintView.center.x;
         view.paintCenter[1] = ctx.workspace.paintView.center.y;
         view.paintZoom = ctx.workspace.paintView.zoom;
+        view.brushColor = ctx.workspace.brush.color;
+        view.brushSize = ctx.workspace.brush.size;
+        view.brushSoftness = ctx.workspace.brush.softness;
+        view.brushOpacity = ctx.workspace.brush.opacity;
+        view.brushSpacing = ctx.workspace.brush.spacing;
+        view.brushErase = ctx.workspace.brush.erase;
         view.exportFolder = ProjectFile::storeFolder(ctx.project.exportFolder, projectFile);
         return view;
     }
@@ -78,6 +84,9 @@ namespace {
         ctx.workspace.paintView.center = Vec2(view.paintCenter[0], view.paintCenter[1]);
         ctx.workspace.paintView.zoom = view.paintZoom;
         ctx.workspace.paintTexture = INVALID_TEXTURE;
+        // A file can hold any numbers; the brush keeps them in range
+        ctx.workspace.brush = { view.brushColor, view.brushSize, view.brushSoftness, view.brushOpacity, view.brushSpacing, view.brushErase };
+        ctx.workspace.brush.clamp();
         if (ctx.renderer) ctx.renderer->setBackFaceTint(view.backFaceTint);
 
         if (view.debug) ctx.systems.input_ctx.addContext(InputContext_Debug);

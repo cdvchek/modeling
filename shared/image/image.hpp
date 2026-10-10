@@ -29,8 +29,11 @@ namespace image {
     // True if the bytes start with the PNG signature
     bool isPng(const u8* data, std::size_t size);
 
-    // A PNG of the image: 8-bit RGBA, not interlaced. Stored without compression for now (every PNG reader opens it).
+    // A PNG of the image: 8-bit RGBA, not interlaced, compressed, with a filter picked for each row
     std::vector<u8> encodePng(const Image& image);
+
+    // Compresses to zlib-wrapped DEFLATE, in whichever of stored, fixed, and dynamic Huffman blocks comes out smallest
+    std::vector<u8> deflateZlib(const u8* data, std::size_t size);
 
     // zlib-wrapped DEFLATE (RFC 1950/1951): stored, fixed, and dynamic Huffman blocks, with the Adler-32 check.
     // The output is allocated once at maxSize; output past it fails.

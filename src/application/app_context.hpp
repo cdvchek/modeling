@@ -43,6 +43,7 @@ struct AppContext {
     UIContext ui;
     ObjectMeshCache objectMeshes;
     PictureTextureCache pictureTextures;
+    LayerTextureCache layerTextures;
     MaterialPreviewCache materialPreviews;
     FrameTimer frameTimer;
     FrameStats frameStats;
@@ -53,6 +54,8 @@ struct AppContext {
     ModalState modal;
     WorkspaceState workspace;
     UVToolState uvTool;         // a grab, scale, or rotate running in the UV editor
+    Stroke paintStroke;         // a brush stroke being drawn in the Paint workspace
+    ModelStroke modelStroke;    // and what it keeps between frames when it's on the model
 
     // Import… was picked in the Objects tab; the file dialog opens in checkActions, not while drawing
     bool importRequested = false;

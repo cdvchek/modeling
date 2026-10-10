@@ -3,6 +3,7 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include "core/math/vec2.hpp"
 #include "core/math/vec3.hpp"
 #include "scene/scene.hpp"
 
@@ -23,5 +24,17 @@ MaterialHandle faceDrawMaterial(const Scene& scene, const Object& object, FaceHa
 // Whether paint into texture lands on the face: its material's base map is that texture
 bool facePaints(const Scene& scene, const Object& object, FaceHandle face, TextureHandle texture);
 
-// A width by height picture of one opaque sRGB color, as a PNG named fileName
-std::shared_ptr<const Picture> solidPicture(const std::string& fileName, u32 width, u32 height, const Vec3& color);
+// The faces of the face's UV island that paint into texture, in handle order: where a dab on that face may spread
+std::vector<FaceHandle> paintIsland(const Scene& scene, const Object& object, FaceHandle face, TextureHandle texture);
+
+// A UV as a point on a texture, in its pixels from the top left; UVs outside 0 to 1 wrap around, as the texture repeats
+Vec2 texturePoint(Vec2 uv, u32 width, u32 height);
+
+// The step in the world for one texture pixel across (perX) and down (perY) on a triangle, from its world corners and their UVs; false if it has no area on the texture
+bool textureAxes(const Vec3 corners[3], const Vec2 uvs[3], u32 width, u32 height, Vec3& perX, Vec3& perY);
+
+// Layers for a new texture: a Base layer of one opaque sRGB color
+LayerStack solidLayers(u32 width, u32 height, const Vec3& color);
+
+// Gives a texture layers if it has none: its picture becomes the Base layer and is let go. False with error if the picture can't be read
+bool makeLayered(Texture& texture, std::string& error);

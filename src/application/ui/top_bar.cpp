@@ -98,7 +98,7 @@ namespace {
         i32 background = workspace.uvBackground == UVBackground::Checker ? 1 : 0;
         for (u32 i = 0; i < textureHandles.size(); ++i) {
             backgrounds.push_back(textures.get(textureHandles[i]).name);
-            icons.push_back(ctx.pictureTextures.find(textures.get(textureHandles[i]).picture));
+            icons.push_back(textureImage(ctx, textureHandles[i]));
             if (workspace.uvBackground == UVBackground::Texture && workspace.uvTexture == textureHandles[i]) background = static_cast<i32>(i) + 2;
         }
         x = headerLabel(ui, "Texture", x, row);
@@ -138,7 +138,7 @@ namespace {
             std::string label = texture.name + " (" + material;
             for (std::size_t i = 1; i < target.materials.size(); ++i) label += ", " + ctx.scene.materials.get(target.materials[i]).name;
             labels.push_back(label + ")");
-            icons.push_back(ctx.pictureTextures.find(texture.picture));
+            icons.push_back(textureImage(ctx, target.texture));
             if (target.texture == active) current = static_cast<i32>(labels.size()) - 1;
         }
         const std::vector<std::string_view> names(labels.begin(), labels.end());
@@ -231,6 +231,9 @@ void drawWorkspaceChrome(AppContext& ctx, const ScreenLayout& layout) {
             ctx.ui.beginRegion(layout.paintCanvas);
             drawPaintCanvas(ctx, layout.paintCanvas);
             ctx.ui.endRegion();
+        } else {
+            // Over the 3D view, which isn't a region: the camera keeps the mouse
+            drawPaintModelCursor(ctx, layout.scene);
         }
         ctx.ui.beginRegion(layout.paintTools);
         drawPaintToolsPanel(ctx, layout.paintTools);

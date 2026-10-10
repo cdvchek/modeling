@@ -271,8 +271,7 @@ u32 uvBackgroundTexture(const AppContext& ctx) {
     const WorkspaceState& workspace = ctx.workspace;
     if (workspace.uvBackground == UVBackground::Checker) return 0;
     if (workspace.uvBackground == UVBackground::Texture) {
-        const Texture* texture = ctx.scene.textures.tryGet(workspace.uvTexture);
-        return texture ? ctx.pictureTextures.find(texture->picture) : 0;
+        return textureImage(ctx, workspace.uvTexture);
     }
 
     // From the material: the first selected face's own, otherwise the object's

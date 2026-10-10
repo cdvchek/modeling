@@ -237,7 +237,9 @@ static bool rayHitsTriangle(
     const Vec3& p1,
     const Vec3& p2,
     const Vec3& p3,
-    f32& distanceOut
+    f32& distanceOut,
+    f32& p2Weight,
+    f32& p3Weight
 ) {
     const Vec3 edge1 = p2 - p1;
     const Vec3 edge2 = p3 - p1;
@@ -273,6 +275,8 @@ static bool rayHitsTriangle(
     }
 
     distanceOut = t;
+    p2Weight = u;
+    p3Weight = v;
     return true;
 }
 
@@ -320,17 +324,39 @@ FaceHit pickFace(const Scene& scene, const Ray& ray, ObjectHandle only, ObjectHa
                 if (frontOnly && Vec3::dot(Vec3::cross(worldPosP2 - worldPosP1, worldPosP3 - worldPosP1), ray.direction) >= 0.0f) continue;
 
                 f32 distance = 0.0f;
+                f32 p2Weight = 0.0f, p3Weight = 0.0f;
 
-                if (!rayHitsTriangle(ray, worldPosP1, worldPosP2, worldPosP3, distance)) continue;
+                if (!rayHitsTriangle(ray, worldPosP1, worldPosP2, worldPosP3, distance, p2Weight, p3Weight)) continue;
 
                 if (distance < bestHit.distance) {
                     bestHit.hit = true;
                     bestHit.object = objectHandle;
                     bestHit.face = faceHandle;
                     bestHit.distance = distance;
+                    bestHit.triangle = triangle;
+                    bestHit.corners[0] = worldPosP1;
+                    bestHit.corners[1] = worldPosP2;
+                    bestHit.corners[2] = worldPosP3;
+                    bestHit.weights[0] = 1.0f - p2Weight - p3Weight;
+                    bestHit.weights[1] = p2Weight;
+                    bestHit.weights[2] = p3Weight;
                 }
             }
         }
+    }
+    if (!bestHit.hit) return bestHit;
+
+    // Where that is: along the ray, and in the face's UVs, each triangle corner's found among the face's corners
+    bestHit.point = ray.origin + ray.direction * bestHit.distance;
+    const MeshData& mesh = scene.objects.get(bestHit.object).meshData;
+    const std::vector<VertexHandle> vertices = mesh.getFaceVertices(bestHit.face);
+    const std::vector<Vec2> uvs = mesh.getFaceUVs(bestHit.face);
+    const VertexHandle corners[3] = { bestHit.triangle.v0, bestHit.triangle.v1, bestHit.triangle.v2 };
+    for (int corner = 0; corner < 3; ++corner) {
+        for (std::size_t i = 0; i < vertices.size() && i < uvs.size(); ++i) {
+            if (vertices[i] == corners[corner]) bestHit.cornerUVs[corner] = uvs[i];
+        }
+        bestHit.uv = bestHit.uv + bestHit.cornerUVs[corner] * bestHit.weights[corner];
     }
 
     return bestHit;

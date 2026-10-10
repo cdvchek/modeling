@@ -311,12 +311,13 @@ namespace {
         std::vector<TextureHandle> usedTextures;
         const auto textureIndex = [&](TextureHandle texture) -> u32 {
             const Texture* stored = textures.tryGet(texture);
-            if (!stored || !stored->picture) return vlmobj::NONE;
+            if (!stored || (!stored->picture && !stored->layered())) return vlmobj::NONE;
             u32 index = 0;
             while (index < usedTextures.size() && usedTextures[index] != texture) ++index;
             if (index == usedTextures.size()) {
                 usedTextures.push_back(texture);
-                writer.addTexture({ stored->name, stored->picture->width, stored->picture->height, stored->picture->png });
+                // A layered texture goes out as its combined picture
+                writer.addTexture({ stored->name, stored->width(), stored->height(), stored->layered() ? flattenedPng(stored->layers) : stored->picture->png });
             }
             return index;
         };

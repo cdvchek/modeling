@@ -777,6 +777,21 @@ void OpenGLRenderer::destroyTexture(u32 texture) {
     glDeleteTextures(1, &name);
 }
 
+void OpenGLRenderer::updateTexture(u32 texture, u32 x, u32 y, u32 width, u32 height, const u8* pixels) {
+    if (!m_initialized || texture == 0 || !pixels || width == 0 || height == 0) return;
+    glBindTexture(GL_TEXTURE_2D, texture);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
+    glTexSubImage2D(GL_TEXTURE_2D, 0, static_cast<GLint>(x), static_cast<GLint>(y), static_cast<GLsizei>(width), static_cast<GLsizei>(height), GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+    glBindTexture(GL_TEXTURE_2D, 0);
+}
+
+void OpenGLRenderer::refreshTextureMipmaps(u32 texture) {
+    if (!m_initialized || texture == 0) return;
+    glBindTexture(GL_TEXTURE_2D, texture);
+    glGenerateMipmap(GL_TEXTURE_2D);
+    glBindTexture(GL_TEXTURE_2D, 0);
+}
+
 void OpenGLRenderer::drawDebugLine(
     const Vec3& start,
     const Vec3& end,

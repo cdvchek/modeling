@@ -51,6 +51,13 @@ namespace ProjectFile {
         bool paint2D = false;
         f32 paintCenter[2] = { 0.5f, 0.5f };
         f32 paintZoom = 0.0f;
+        // Paint's brush: color, size in texture pixels, softness, opacity, spacing as a part of the size, and whether it's the eraser
+        Vec3 brushColor { 0.0f, 0.0f, 0.0f };
+        f32 brushSize = 24.0f;
+        f32 brushSoftness = 0.5f;
+        f32 brushOpacity = 1.0f;
+        f32 brushSpacing = 0.1f;
+        bool brushErase = false;
 
         // Where assets were last exported, as storeFolder gives it (relative to the project file when nearby);
         // empty means the default, an Exports folder next to the project file

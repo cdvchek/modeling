@@ -54,6 +54,9 @@ set(CORE_SRC
     src/scene/materials/material_collection.cpp
     src/scene/textures/texture_collection.cpp
     src/scene/textures/paint_targets.cpp
+    src/scene/textures/layers.cpp
+    src/scene/textures/brush.cpp
+    src/scene/textures/paint_mask.cpp
     src/scene/objects/object_collection.cpp
     src/scene/objects/origin.cpp
     src/scene/selection/selection.cpp
@@ -87,6 +90,7 @@ set(APP_SRC
     src/application/viewport/material_view.cpp
     src/application/commands/material_commands.cpp
     src/application/commands/texture_commands.cpp
+    src/application/commands/layer_commands.cpp
     src/application/commands/shading_commands.cpp
     src/application/ui/stats_overlay.cpp
     src/application/ui/console_view.cpp
@@ -138,7 +142,7 @@ add_library(vlmobj STATIC shared/vlmobj/vlmobj.cpp)
 target_include_directories(vlmobj PUBLIC ${CMAKE_SOURCE_DIR}/shared)
 
 # Image files (PNG), shared the same way
-add_library(image STATIC shared/image/png.cpp shared/image/png_write.cpp shared/image/inflate.cpp)
+add_library(image STATIC shared/image/png.cpp shared/image/png_write.cpp shared/image/inflate.cpp shared/image/deflate.cpp)
 target_include_directories(image PUBLIC ${CMAKE_SOURCE_DIR}/shared)
 
 add_library(modeling_core STATIC ${CORE_SRC})

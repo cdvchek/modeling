@@ -91,6 +91,10 @@ enum class Action : u8 {
     UVUnwrap,
     TogglePaintView,
     PickPaintTexture,
+    PaintBrush,
+    PaintEraser,
+    BrushSmaller,
+    BrushLarger,
     ParentToActive,
     ClearParents,
     Count

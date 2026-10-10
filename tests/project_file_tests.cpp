@@ -532,6 +532,12 @@ TEST_CASE(project_saves_the_paint_view) {
     view.paintCenter[0] = 0.3f;
     view.paintCenter[1] = 0.6f;
     view.paintZoom = 900.0f;
+    view.brushColor = Vec3(0.25f, 0.5f, 0.75f);
+    view.brushSize = 96.0f;
+    view.brushSoftness = 0.125f;
+    view.brushOpacity = 0.375f;
+    view.brushSpacing = 0.25f;
+    view.brushErase = true;
 
     Scene loaded;
     ProjectFile::View loadedView;
@@ -541,6 +547,9 @@ TEST_CASE(project_saves_the_paint_view) {
     CHECK(loadedView.paint2D);
     CHECK(loadedView.paintCenter[0] == 0.3f && loadedView.paintCenter[1] == 0.6f);
     CHECK(loadedView.paintZoom == 900.0f);
+    CHECK(loadedView.brushColor.x == 0.25f && loadedView.brushColor.y == 0.5f && loadedView.brushColor.z == 0.75f);
+    CHECK(loadedView.brushSize == 96.0f && loadedView.brushSoftness == 0.125f);
+    CHECK(loadedView.brushOpacity == 0.375f && loadedView.brushSpacing == 0.25f && loadedView.brushErase);
 }
 
 TEST_CASE(project_saves_materials_and_which_objects_use_them) {

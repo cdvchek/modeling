@@ -199,8 +199,79 @@ TEST_CASE(inflate_reads_a_hand_made_stored_block) {
     CHECK(!inflateZlib(stream, sizeof(stream), out, error, 2));
 }
 
+TEST_CASE(deflate_round_trips_through_inflate) {
+    // Empty, tiny, one long run, text that repeats, noise, and smooth data longer than the window and one block
+    std::vector<std::vector<u8>> inputs = { {}, { 7 }, { 1, 2 }, { 'a', 'b', 'c', 'a', 'b', 'c', 'a', 'b', 'c', 'a' } };
+    inputs.push_back(std::vector<u8>(100000, 0));
+    std::vector<u8> text;
+    for (int i = 0; i < 4000; ++i) {
+        const std::string line = "face " + std::to_string(i % 37) + " uses material " + std::to_string(i % 5) + "\n";
+        text.insert(text.end(), line.begin(), line.end());
+    }
+    inputs.push_back(text);
+    std::vector<u8> noise(200000);
+    u32 seed = 12345;
+    for (u8& byte : noise) {
+        seed = seed * 1664525u + 1013904223u;
+        byte = static_cast<u8>(seed >> 24);
+    }
+    inputs.push_back(noise);
+    std::vector<u8> smooth(600000);
+    for (std::size_t i = 0; i < smooth.size(); ++i) smooth[i] = static_cast<u8>((i / 700) * 3 + (i % 5 == 0 ? noise[i % noise.size()] & 3 : 0));
+    inputs.push_back(smooth);
+
+    bool allSame = true;
+    for (const std::vector<u8>& input : inputs) {
+        const std::vector<u8> packed = deflateZlib(input.data(), input.size());
+        std::vector<u8> back;
+        std::string error;
+        allSame = allSame && inflateZlib(packed.data(), packed.size(), back, error, input.size()) && back == input;
+    }
+    CHECK(allSame);
+
+    // Runs and repeats shrink a lot; noise falls back to stored blocks, a few bytes over its own size
+    CHECK(deflateZlib(inputs[4].data(), inputs[4].size()).size() < 300);
+    CHECK(deflateZlib(text.data(), text.size()).size() < text.size() / 8);
+    CHECK(deflateZlib(noise.data(), noise.size()).size() < noise.size() + 64);
+}
+
+TEST_CASE(png_encoder_compresses) {
+    // A flat color, as a new texture is, and a soft gradient with a hard-edged shape, as paint is
+    image::Image flat;
+    flat.width = flat.height = 512;
+    flat.pixels.resize(std::size_t(512) * 512 * 4);
+    for (std::size_t i = 0; i < flat.pixels.size(); i += 4) {
+        flat.pixels[i] = 200;
+        flat.pixels[i + 1] = 120;
+        flat.pixels[i + 2] = 40;
+        flat.pixels[i + 3] = 255;
+    }
+    const std::vector<image::u8> flatPng = image::encodePng(flat);
+    CHECK(flatPng.size() < 4096);
+
+    image::Image painted = flat;
+    for (u32 y = 0; y < 512; ++y) {
+        for (u32 x = 0; x < 512; ++x) {
+            u8* p = painted.pixels.data() + (std::size_t(y) * 512 + x) * 4;
+            p[0] = static_cast<u8>(x / 2);
+            p[1] = static_cast<u8>(y / 2);
+            p[2] = static_cast<u8>((x + y) / 4);
+            if ((x - 256) * (x - 256) + (y - 256) * (y - 256) < 100 * 100) p[3] = 0;
+        }
+    }
+    const std::vector<image::u8> paintedPng = image::encodePng(painted);
+    CHECK(paintedPng.size() < painted.pixels.size() / 20);
+
+    image::Image back;
+    std::string error;
+    CHECK(image::decodePng(flatPng.data(), flatPng.size(), back, error));
+    CHECK(back.pixels == flat.pixels);
+    CHECK(image::decodePng(paintedPng.data(), paintedPng.size(), back, error));
+    CHECK(back.pixels == painted.pixels);
+}
+
 TEST_CASE(png_encodes_and_reads_back) {
-    // Larger than one stored block, with every byte value, and a 1 x 1
+    // Every byte value over many rows, and a 1 x 1
     image::Image picture;
     picture.width = 300;
     picture.height = 70;
