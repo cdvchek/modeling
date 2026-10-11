@@ -27,9 +27,19 @@
             "problemMatcher": []
         },
         {
+            "label": "Run Aevora",
+            "type": "shell",
+            "command": ".\\aevora.exe",
+            "options": {
+                "cwd": "${workspaceFolder}\\bin"
+            },
+            "dependsOn": ["Build"],
+            "problemMatcher": []
+        },
+        {
             "label": "Test",
             "type": "shell",
-            "command": "${workspaceFolder}\\build\\shared_tests.exe; ${workspaceFolder}\\build\\valuma_tests.exe",
+            "command": "${workspaceFolder}\\build\\shared_tests.exe; ${workspaceFolder}\\build\\valuma_tests.exe; ${workspaceFolder}\\build\\aevora_tests.exe",
             "dependsOn": ["Build"],
             "problemMatcher": []
         },

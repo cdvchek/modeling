@@ -9,7 +9,7 @@
 #include "scene/materials/material_collection.hpp"
 #include "scene/textures/texture_collection.hpp"
 
-// Valuma's side of .vlmobj assets (format: shared/vlmobj, spec: docs/systems/vlmobj.md):
+// Valuma's side of .vlmobj assets (format: shared/vlmobj, spec: shared/docs/vlmobj.md):
 // baking an object into a file, and rebuilding an object from one.
 namespace AssetFile {
     inline constexpr const char* EXTENSION = ".vlmobj";

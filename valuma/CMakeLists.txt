@@ -69,7 +69,6 @@ set(VALUMA_APP_SRC
     src/application/commands/layer_commands.cpp
     src/application/commands/shading_commands.cpp
     src/application/ui/stats_overlay.cpp
-    src/application/ui/console_view.cpp
     src/application/tools/tool_guides.cpp
     src/application/application_commands.cpp
     src/application/commands/light_commands.cpp

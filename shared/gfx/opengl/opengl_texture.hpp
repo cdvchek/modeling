@@ -4,8 +4,7 @@
 
 // RGBA8 textures. A GL context must be current.
 namespace OpenGLTexture {
-    // A texture from 8-bit RGBA pixels, rows from the top, with mipmaps, trilinear filtering, and clamped edges;
-    // 0 if it couldn't be made (no pixels, or larger than GL allows)
+    // From 8-bit RGBA pixels, rows from the top, with mipmaps and clamped edges; 0 if it's larger than GL allows
     u32 create(const u8* pixels, u32 width, u32 height);
     void destroy(u32 texture);
 

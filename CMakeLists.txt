@@ -10,3 +10,4 @@ enable_testing()
 # Code for every program, then each program
 add_subdirectory(shared)
 add_subdirectory(valuma)
+add_subdirectory(aevora)

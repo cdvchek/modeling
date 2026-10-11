@@ -19,7 +19,7 @@
 #include "application/viewport/material_view.hpp"
 #include "application/ui/stats_overlay.hpp"
 #include "application/ui/radial_menu_state.hpp"
-#include "application/ui/console_view_state.hpp"
+#include "ui/console_view.hpp"
 #include "application/tools/transform_tool.hpp"
 #include "application/project_state.hpp"
 #include "application/workspace.hpp"

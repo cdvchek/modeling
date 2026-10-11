@@ -5,6 +5,8 @@
 #include <vector>
 #include "core/math/vec2.hpp"
 
+class InputState;
+
 // Editing keys a text field understands; held keys repeat (the app passes the OS's key repeats through)
 enum class UIKey : u8 {
     Left,
@@ -43,3 +45,6 @@ struct UIInput {
     bool anyDown() const { return down[LEFT] || down[RIGHT] || down[MIDDLE]; }
     bool anyPressed() const { return pressed[LEFT] || pressed[RIGHT] || pressed[MIDDLE]; }
 };
+
+// This frame's mouse, typed text, and editing keys from the input system, stamped with the current time
+UIInput makeUIInput(const InputState& input);

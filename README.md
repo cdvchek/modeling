@@ -23,7 +23,7 @@ The application is currently under active development.
 
 ## Documentation
 
-Developer documentation (features, architecture, and a guide to each system) lives in [docs/](docs/README.md).
+Developer documentation lives next to the code it describes: [Valuma Studio](valuma/docs/README.md) (features, architecture, and a guide to each system), the [Aevora engine](aevora/docs/README.md), and the [shared code](shared/docs/README.md) both are built on.
 
 ## Technology
 

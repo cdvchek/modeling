@@ -8,8 +8,7 @@ class ContextManager {
 public:
     ContextManager() = default;
 
-    // alwaysOn stays active whatever else is set. modes are contexts of which only one is active at a time, in
-    // order of priority (asked for several, the earliest wins); the first is active to begin with.
+    // alwaysOn never turns off; of modes only one is active at a time (the earliest wins), starting with the first
     ContextManager(u32 alwaysOn, std::vector<u32> modes);
 
     void setContext(u32 ctx);

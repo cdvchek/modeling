@@ -46,8 +46,7 @@ public:
     // An action the keyboard block never stops (quitting)
     void setUnblockable(ActionId action) { m_unblockable.push_back(action.value); }
 
-    // Contexts that own the input while they're active: only bindings in the owner's context work.
-    // When several are active the earliest wins (a modal window over the console).
+    // While one of these contexts is active only its bindings work; the earliest wins (a modal window over the console)
     void setOwnerContexts(std::vector<u32> owners) { m_owners = std::move(owners); }
 
     // An action the filter turns down doesn't fire from its binding, can't run from a menu, and isn't available
@@ -66,8 +65,7 @@ public:
     bool isAvailable(ActionId action, u32 input_ctx) const;
     const Keybind* getKeybind(ActionId action) const;
 
-    // Runs the handler of every action pressed this frame, in the order of their numbers, rechecking the context
-    // after each one
+    // Runs the handler of every action pressed this frame, in number order, rechecking the context after each one
     void dispatch(const InputState& input, const ContextManager& input_ctx) const;
 
 private:

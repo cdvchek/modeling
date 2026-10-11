@@ -1,56 +1,12 @@
 #include "application/actions/checks/action_checks.hpp"
-#include "application/ui/console_view.hpp"
+#include "core/console/console_input.hpp"
 
 void checkConsoleContext(AppContext& ctx) {
-    updateConsoleView(ctx);
+    updateConsoleView(ctx.systems.console, ctx.consoleView, ctx.systems.input);
 
-    // Editing keys repeat while held, after the OS repeat delay; Enter doesn't
-    if (ctx.systems.actions.wasActionPressedOrRepeated(
-        Action::ConsoleCursorLeft,
-        ctx.systems.input,
-        ctx.systems.input_ctx.getContext())) {
-        ctx.systems.console.moveCursorLeft();
-    }
-
-    if (ctx.systems.actions.wasActionPressedOrRepeated(
-        Action::ConsoleCursorRight,
-        ctx.systems.input,
-        ctx.systems.input_ctx.getContext())) {
-        ctx.systems.console.moveCursorRight();
-    }
-
-    if (ctx.systems.actions.wasActionPressedOrRepeated(
-        Action::ConsoleHistoryOlder,
-        ctx.systems.input,
-        ctx.systems.input_ctx.getContext())) {
-        ctx.systems.console.viewOlderCommand();
-    }
-
-    if (ctx.systems.actions.wasActionPressedOrRepeated(
-        Action::ConsoleHistoryNewer,
-        ctx.systems.input,
-        ctx.systems.input_ctx.getContext())) {
-        ctx.systems.console.viewNewerCommand();
-    }
-
-    if (ctx.systems.actions.wasActionPressedThisFrame(
-        Action::EnterCommand,
-        ctx.systems.input, 
-        ctx.systems.input_ctx.getContext())) {
-        ctx.systems.console.enterCurrentCommand(ctx.systems.commands);
-    }
-
-    if (ctx.systems.actions.wasActionPressedOrRepeated(
-        Action::ConsoleBackspace,
-        ctx.systems.input,
-        ctx.systems.input_ctx.getContext())) {
-        ctx.systems.console.removeFromCurrentCommandBack();
-    }
-
-    if (ctx.systems.actions.wasActionPressedOrRepeated(
-        Action::ConsoleDelete,
-        ctx.systems.input,
-        ctx.systems.input_ctx.getContext())) {
-        ctx.systems.console.removeFromCurrentCommandForward();
-    }
+    const ConsoleActions keys {
+        Action::EnterCommand, Action::ConsoleBackspace, Action::ConsoleDelete,
+        Action::ConsoleCursorLeft, Action::ConsoleCursorRight, Action::ConsoleHistoryOlder, Action::ConsoleHistoryNewer
+    };
+    updateConsoleInput(ctx.systems.console, ctx.systems.commands, keys, ctx.systems.actions, ctx.systems.input, ctx.systems.input_ctx.getContext());
 }

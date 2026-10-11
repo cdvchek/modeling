@@ -1,7 +1,7 @@
 #pragma once
 
 // The .vlmobj asset format, shared by Valuma Studio (which writes it) and the Aevora engine (which loads it).
-// Spec: docs/systems/vlmobj.md. Depends only on the C++ standard library.
+// Spec: shared/docs/vlmobj.md. Depends only on the C++ standard library.
 //
 // Reading: File views a buffer in place (a memory-mapped file works): open() checks it, then nodes(), meshes(),
 // parts(), and the vertex and index data are pointers into the buffer. Writing: Writer collects nodes and meshes

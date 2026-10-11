@@ -22,6 +22,7 @@ add_library(core STATIC
     core/input/keybinds.cpp
     core/console/command_system.cpp
     core/console/console.cpp
+    core/console/console_input.cpp
     core/io/crc32.cpp
     core/math/vec2.cpp
     core/math/vec3.cpp
@@ -38,6 +39,8 @@ add_library(ui STATIC
     ui/ui_draw_list.cpp
     ui/ui_context.cpp
     ui/ui_widgets.cpp
+    ui/ui_input.cpp
+    ui/console_view.cpp
     ui/radial_layout.cpp
 )
 target_link_libraries(ui PUBLIC core)
